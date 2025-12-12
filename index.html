@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 Autodarts Stats</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen">
+        <div class="login-container">
+            <div class="login-header">
+                <span class="logo">🎯</span>
+                <h1>Autodarts Stats</h1>
+                <p>Deine persönliche Dart-Statistik</p>
+            </div>
+            
+            <div class="login-form">
+                <div id="login-form-email">
+                    <input type="email" id="email-input" placeholder="Email Adresse" autocomplete="email">
+                    <button id="send-magic-link" class="btn btn-primary">
+                        <span>Magic Link senden</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div id="login-message" class="login-message"></div>
+            </div>
+            
+            <div class="login-footer">
+                <p>Kein Account? Kontaktiere den Admin.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Screen -->
+    <div id="dashboard-screen" class="screen hidden">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <span class="logo">🎯</span>
+                <h1>Autodarts Stats</h1>
+            </div>
+            <div class="header-right">
+                <span id="user-name" class="user-name"></span>
+                <button id="logout-btn" class="btn btn-ghost">Logout</button>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="nav">
+            <button class="nav-btn active" data-page="overview">📊 Übersicht</button>
+            <button class="nav-btn" data-page="matches">🎮 Matches</button>
+            <button class="nav-btn" data-page="heatmap">🎯 Heatmap</button>
+            <button class="nav-btn" data-page="opponents">👥 Gegner</button>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Overview Page -->
+            <div id="page-overview" class="page active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">🎮</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-matches">-</div>
+                            <div class="stat-label">Matches</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🏆</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-winrate">-</div>
+                            <div class="stat-label">Win Rate</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📈</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-average">-</div>
+                            <div class="stat-label">Avg (3-Dart)</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🎯</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-checkout">-</div>
+                            <div class="stat-label">Checkout %</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>📈 Average über Zeit</h3>
+                        <div class="chart-container">
+                            <canvas id="chart-average"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>📊 Match-Ergebnisse</h3>
+                        <div class="chart-container">
+                            <canvas id="chart-results"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="recent-matches">
+                    <h3>🕐 Letzte Matches</h3>
+                    <div class="table-container">
+                        <table id="recent-matches-table">
+                            <thead>
+                                <tr>
+                                    <th>Datum</th>
+                                    <th>Gegner</th>
+                                    <th>Ergebnis</th>
+                                    <th>Typ</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Matches Page -->
+            <div id="page-matches" class="page">
+                <div class="page-header">
+                    <h2>🎮 Alle Matches</h2>
+                    <div class="filters">
+                        <select id="filter-type">
+                            <option value="">Alle Typen</option>
+                            <option value="Online">Online</option>
+                            <option value="Local">Local</option>
+                            <option value="Tournament">Tournament</option>
+                        </select>
+                        <select id="filter-variant">
+                            <option value="">Alle Varianten</option>
+                            <option value="X01">X01</option>
+                            <option value="Cricket">Cricket</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="all-matches-table">
+                        <thead>
+                            <tr>
+                                <th>Datum</th>
+                                <th>Gegner</th>
+                                <th>Ergebnis</th>
+                                <th>Variante</th>
+                                <th>Typ</th>
+                                <th>Legs</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="matches-pagination"></div>
+            </div>
+
+            <!-- Heatmap Page -->
+            <div id="page-heatmap" class="page">
+                <div class="page-header">
+                    <h2>🎯 Dart Heatmap</h2>
+                </div>
+                <div class="heatmap-container">
+                    <div class="dartboard-wrapper">
+                        <canvas id="dartboard-canvas" width="500" height="500"></canvas>
+                    </div>
+                    <div class="heatmap-stats">
+                        <h3>Top Segmente</h3>
+                        <div id="segment-stats"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Opponents Page -->
+            <div id="page-opponents" class="page">
+                <div class="page-header">
+                    <h2>👥 Gegner-Statistik</h2>
+                </div>
+                <div class="table-container">
+                    <table id="opponents-table">
+                        <thead>
+                            <tr>
+                                <th>Gegner</th>
+                                <th>Matches</th>
+                                <th>Siege</th>
+                                <th>Win %</th>
+                                <th>Letzte Begegnung</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="spinner"></div>
+        <p>Lade Daten...</p>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
