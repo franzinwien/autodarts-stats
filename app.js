@@ -192,50 +192,76 @@ class AutodartsStats {
         this.showLoading();
         
         try {
-            // Get all matches where user participated
+            // Get all matches where user participated, with all players for opponent info
             const { data: matchPlayers, error } = await supabase
                 .from('match_players')
                 .select(`
                     *,
                     match:matches (*)
                 `)
-                .eq('user_id', this.autodartsUserId)
-                .order('match(finished_at)', { ascending: false });
+                .eq('user_id', this.autodartsUserId);
             
             if (error) throw error;
             
-            // Calculate stats
-            const matches = matchPlayers.filter(mp => mp.match);
+            // Get all match IDs to fetch opponent info
+            const matchIds = matchPlayers.map(mp => mp.match_id);
+            
+            // Get all players for these matches (to find opponents)
+            const { data: allPlayers } = await supabase
+                .from('match_players')
+                .select('*')
+                .in('match_id', matchIds);
+            
+            // Create opponent lookup
+            this.opponentMap = {};
+            allPlayers?.forEach(p => {
+                if (p.user_id !== this.autodartsUserId) {
+                    if (!this.opponentMap[p.match_id]) {
+                        this.opponentMap[p.match_id] = p;
+                    }
+                }
+            });
+            
+            // Sort matches by date (newest first)
+            const matches = matchPlayers
+                .filter(mp => mp.match)
+                .sort((a, b) => new Date(b.match.finished_at) - new Date(a.match.finished_at));
+            
             const totalMatches = matches.length;
             
             let wins = 0;
-            let totalLegs = 0;
+            let totalAverage = 0;
+            let avgCount = 0;
+            let totalCheckout = 0;
+            let checkoutCount = 0;
             
             matches.forEach(mp => {
                 if (mp.match.winner === mp.player_index) {
                     wins++;
                 }
-                totalLegs += mp.legs_won || 0;
+                // Calculate averages from legs data - use match-specific stats
+                if (mp.average && mp.average > 0) {
+                    totalAverage += mp.average;
+                    avgCount++;
+                }
+                if (mp.checkout_rate && mp.checkout_rate > 0) {
+                    totalCheckout += mp.checkout_rate;
+                    checkoutCount++;
+                }
             });
             
             const winRate = totalMatches > 0 ? ((wins / totalMatches) * 100).toFixed(1) : 0;
-            
-            // Get user's current average from profile
-            const { data: userData } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', this.autodartsUserId)
-                .single();
+            const avgAverage = avgCount > 0 ? (totalAverage / avgCount).toFixed(1) : '-';
+            const avgCheckout = checkoutCount > 0 ? ((totalCheckout / checkoutCount) * 100).toFixed(1) : '-';
             
             // Update stats cards
             document.getElementById('stat-matches').textContent = totalMatches;
             document.getElementById('stat-winrate').textContent = winRate + '%';
-            document.getElementById('stat-average').textContent = matches[0]?.average?.toFixed(1) || '-';
-            document.getElementById('stat-checkout').textContent = 
-                matches[0]?.checkout_rate ? (matches[0].checkout_rate * 100).toFixed(1) + '%' : '-';
+            document.getElementById('stat-average').textContent = avgAverage;
+            document.getElementById('stat-checkout').textContent = avgCheckout !== '-' ? avgCheckout + '%' : '-';
             
             // Load charts
-            this.renderAverageChart(matches);
+            await this.renderAverageChart(matches);
             this.renderResultsChart(wins, totalMatches - wins);
             
             // Load recent matches table
@@ -248,24 +274,74 @@ class AutodartsStats {
         }
     }
     
-    renderAverageChart(matches) {
+    async renderAverageChart(matches) {
         const ctx = document.getElementById('chart-average');
         if (!ctx) return;
         
-        // Get last 20 matches with averages
-        const recentMatches = matches
-            .filter(m => m.average)
-            .slice(0, 20)
-            .reverse();
+        // Get last 30 matches, sorted oldest to newest for the chart
+        const recentMatches = matches.slice(0, 30).reverse();
+        
+        // For each match, we need to calculate the actual average from turns
+        const matchIds = recentMatches.map(m => m.match_id);
+        
+        // Get legs for these matches
+        const { data: legs } = await supabase
+            .from('legs')
+            .select('id, match_id')
+            .in('match_id', matchIds);
+        
+        if (!legs || legs.length === 0) {
+            // Fallback: use the stored average if no leg data
+            const labels = recentMatches.map(m => {
+                const date = new Date(m.match.finished_at);
+                return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+            });
+            const data = recentMatches.map(m => m.average || 0);
+            
+            if (this.averageChart) this.averageChart.destroy();
+            this.averageChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels, datasets: [{ label: '3-Dart Average', data, borderColor: CONFIG.COLORS.green, backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, tension: 0.3 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } }, y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } } } }
+            });
+            return;
+        }
+        
+        const legIds = legs.map(l => l.id);
+        
+        // Get turns for user's legs
+        const { data: turns } = await supabase
+            .from('turns')
+            .select('leg_id, points, match_player_id')
+            .in('leg_id', legIds);
+        
+        // Get user's match_player_ids
+        const userMpIds = recentMatches.map(m => m.id);
+        
+        // Calculate average per match
+        const matchAverages = {};
+        recentMatches.forEach(m => {
+            const matchLegs = legs.filter(l => l.match_id === m.match_id);
+            const matchLegIds = matchLegs.map(l => l.id);
+            const userTurns = turns?.filter(t => 
+                matchLegIds.includes(t.leg_id) && t.match_player_id === m.id
+            ) || [];
+            
+            if (userTurns.length > 0) {
+                const totalPoints = userTurns.reduce((sum, t) => sum + (t.points || 0), 0);
+                matchAverages[m.match_id] = totalPoints / userTurns.length;
+            } else {
+                matchAverages[m.match_id] = m.average || 0;
+            }
+        });
         
         const labels = recentMatches.map(m => {
             const date = new Date(m.match.finished_at);
             return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
         });
         
-        const data = recentMatches.map(m => m.average);
+        const data = recentMatches.map(m => matchAverages[m.match_id]?.toFixed(1) || 0);
         
-        // Destroy existing chart
         if (this.averageChart) {
             this.averageChart.destroy();
         }
@@ -299,7 +375,8 @@ class AutodartsStats {
                             color: 'rgba(255,255,255,0.1)'
                         },
                         ticks: {
-                            color: '#94a3b8'
+                            color: '#94a3b8',
+                            maxRotation: 45
                         }
                     },
                     y: {
@@ -309,7 +386,9 @@ class AutodartsStats {
                         ticks: {
                             color: '#94a3b8'
                         },
-                        beginAtZero: false
+                        beginAtZero: false,
+                        suggestedMin: 30,
+                        suggestedMax: 60
                     }
                 }
             }
@@ -360,17 +439,27 @@ class AutodartsStats {
             const date = new Date(match.finished_at);
             const isWin = match.winner === mp.player_index;
             
-            // Find opponent
-            const opponent = mp.player_index === 0 ? 'Spieler 2' : 'Spieler 1';
+            // Find opponent from our lookup
+            const opponent = this.opponentMap[mp.match_id];
+            let opponentName = 'Unbekannt';
+            
+            if (opponent) {
+                if (opponent.is_bot) {
+                    const level = Math.round((opponent.cpu_ppr || 40) / 10);
+                    opponentName = `🤖 Bot Lvl ${level}`;
+                } else {
+                    opponentName = opponent.name || 'Gegner';
+                }
+            }
             
             return `
                 <tr>
                     <td>${date.toLocaleDateString('de-DE')}</td>
-                    <td>${opponent}</td>
+                    <td>${opponentName}</td>
                     <td class="${isWin ? 'result-win' : 'result-loss'}">
                         ${isWin ? '✅ Sieg' : '❌ Niederlage'}
                     </td>
-                    <td><span class="badge badge-${match.type.toLowerCase()}">${match.type}</span></td>
+                    <td><span class="badge badge-${match.type?.toLowerCase() || 'online'}">${match.type || 'Online'}</span></td>
                 </tr>
             `;
         }).join('');
@@ -384,24 +473,42 @@ class AutodartsStats {
         this.showLoading();
         
         try {
-            let query = supabase
+            const { data: matchPlayers, error } = await supabase
                 .from('match_players')
                 .select(`
                     *,
                     match:matches (*)
                 `)
-                .eq('user_id', this.autodartsUserId)
-                .order('match(finished_at)', { ascending: false });
-            
-            const { data: matchPlayers, error } = await query;
+                .eq('user_id', this.autodartsUserId);
             
             if (error) throw error;
+            
+            // Fetch opponent info if not already loaded
+            if (!this.opponentMap || Object.keys(this.opponentMap).length === 0) {
+                const matchIds = matchPlayers.map(mp => mp.match_id);
+                const { data: allPlayers } = await supabase
+                    .from('match_players')
+                    .select('*')
+                    .in('match_id', matchIds);
+                
+                this.opponentMap = {};
+                allPlayers?.forEach(p => {
+                    if (p.user_id !== this.autodartsUserId) {
+                        if (!this.opponentMap[p.match_id]) {
+                            this.opponentMap[p.match_id] = p;
+                        }
+                    }
+                });
+            }
+            
+            // Sort by date (newest first)
+            let filtered = matchPlayers
+                .filter(mp => mp.match)
+                .sort((a, b) => new Date(b.match.finished_at) - new Date(a.match.finished_at));
             
             // Apply filters
             const typeFilter = document.getElementById('filter-type').value;
             const variantFilter = document.getElementById('filter-variant').value;
-            
-            let filtered = matchPlayers.filter(mp => mp.match);
             
             if (typeFilter) {
                 filtered = filtered.filter(mp => mp.match.type === typeFilter);
@@ -428,15 +535,28 @@ class AutodartsStats {
             const date = new Date(match.finished_at);
             const isWin = match.winner === mp.player_index;
             
+            // Find opponent
+            const opponent = this.opponentMap?.[mp.match_id];
+            let opponentName = 'Unbekannt';
+            
+            if (opponent) {
+                if (opponent.is_bot) {
+                    const level = Math.round((opponent.cpu_ppr || 40) / 10);
+                    opponentName = `🤖 Bot Lvl ${level}`;
+                } else {
+                    opponentName = opponent.name || 'Gegner';
+                }
+            }
+            
             return `
                 <tr>
                     <td>${date.toLocaleDateString('de-DE')} ${date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</td>
-                    <td>-</td>
+                    <td>${opponentName}</td>
                     <td class="${isWin ? 'result-win' : 'result-loss'}">
                         ${isWin ? '✅ Sieg' : '❌ Niederlage'}
                     </td>
-                    <td>${match.variant}</td>
-                    <td><span class="badge badge-${match.type.toLowerCase()}">${match.type}</span></td>
+                    <td>${match.variant || '-'}</td>
+                    <td><span class="badge badge-${(match.type || 'online').toLowerCase()}">${match.type || 'Online'}</span></td>
                     <td>${mp.legs_won || 0}</td>
                 </tr>
             `;
