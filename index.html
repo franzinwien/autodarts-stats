@@ -110,6 +110,7 @@
             <button class="nav-btn" data-page="heatmap">🔥 Heatmap</button>
             <button class="nav-btn" data-page="opponents">👥 Gegner</button>
             <button class="nav-btn" data-page="advanced">🧪 Analyse</button>
+            <button class="nav-btn h2h" data-page="headtohead">🆚 H2H</button>
         </nav>
 
         <!-- Main Content -->
@@ -258,7 +259,7 @@
                                     <th>Ergebnis</th>
                                     <th>Avg</th>
                                     <th>Performance</th>
-                                    <th>Typ</th>
+                                    <th>🏆 Rang</th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
@@ -447,7 +448,7 @@
                                 <th>Ergebnis</th>
                                 <th>Legs</th>
                                 <th>Avg</th>
-                                <th>Performance</th>
+                                <th>🏆 Rang</th>
                                 <th>Variante</th>
                                 <th>Typ</th>
                             </tr>
@@ -671,6 +672,121 @@
                             <canvas id="chart-consistency-trend"></canvas>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Head-to-Head Page -->
+            <div id="page-headtohead" class="page">
+                <div class="h2h-header">
+                    <div class="h2h-player h2h-player-left">
+                        <div class="h2h-avatar">🎯</div>
+                        <div class="h2h-name" id="h2h-player1-name">franzinwien</div>
+                    </div>
+                    <div class="h2h-vs">
+                        <span class="vs-text">VS</span>
+                        <div class="h2h-score">
+                            <span id="h2h-wins1" class="h2h-wins">0</span>
+                            <span class="h2h-divider">:</span>
+                            <span id="h2h-wins2" class="h2h-wins">0</span>
+                        </div>
+                    </div>
+                    <div class="h2h-player h2h-player-right">
+                        <div class="h2h-avatar">🎯</div>
+                        <div class="h2h-name" id="h2h-player2-name">bellaciao</div>
+                    </div>
+                </div>
+
+                <div class="stats-grid stats-grid-6">
+                    <div class="stat-card">
+                        <div class="stat-icon">🎮</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="h2h-total-matches">-</div>
+                            <div class="stat-label">Matches</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="h2h-avg-p1">-</div>
+                            <div class="stat-label">Avg franzinwien</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="h2h-avg-p2">-</div>
+                            <div class="stat-label">Avg bellaciao</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🦵</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="h2h-legs-p1">-</div>
+                            <div class="stat-label">Legs franzinwien</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🦵</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="h2h-legs-p2">-</div>
+                            <div class="stat-label">Legs bellaciao</div>
+                        </div>
+                    </div>
+                    <div class="stat-card highlight">
+                        <div class="stat-icon">🔥</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="h2h-streak">-</div>
+                            <div class="stat-label">Aktuelle Serie</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>📈 Siege-Verlauf</h3>
+                        <div class="chart-container">
+                            <canvas id="chart-h2h-wins"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>📊 Average-Vergleich pro Match</h3>
+                        <div class="chart-container">
+                            <canvas id="chart-h2h-avg"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>🎯 Statistik-Vergleich</h3>
+                        <div class="chart-container">
+                            <canvas id="chart-h2h-radar"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>🏆 Siege-Verteilung</h3>
+                        <div class="chart-container chart-container-small">
+                            <canvas id="chart-h2h-pie"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <h3>📋 Match-Historie</h3>
+                    <table id="h2h-matches-table">
+                        <thead>
+                            <tr>
+                                <th>Datum</th>
+                                <th>Ergebnis</th>
+                                <th>Avg Franz</th>
+                                <th>Avg Bella</th>
+                                <th>Legs</th>
+                                <th>Sieger</th>
+                                <th>🏆 Rang</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
                 </div>
             </div>
         </main>
