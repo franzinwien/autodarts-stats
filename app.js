@@ -311,10 +311,50 @@ class AutodartsStats {
             return { date: new Date(mp.match.finished_at), avg };
         }).filter(m => m.avg !== null).sort((a, b) => a.date - b.date);
         
-        // Take last 30 data points
-        const dataPoints = matchAverages.slice(-30);
+        if (matchAverages.length === 0) return;
         
-        const labels = dataPoints.map(d => d.date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }));
+        // Determine aggregation based on date range
+        const firstDate = matchAverages[0].date;
+        const lastDate = matchAverages[matchAverages.length - 1].date;
+        const daysDiff = Math.ceil((lastDate - firstDate) / (1000 * 60 * 60 * 24));
+        
+        let dataPoints = [];
+        
+        if (daysDiff > 180) {
+            // More than 6 months: aggregate by MONTH
+            const byMonth = {};
+            matchAverages.forEach(m => {
+                const key = m.date.toISOString().substring(0, 7);
+                if (!byMonth[key]) byMonth[key] = [];
+                byMonth[key].push(m.avg);
+            });
+            dataPoints = Object.entries(byMonth).sort((a,b) => a[0].localeCompare(b[0])).map(([month, avgs]) => ({
+                label: new Date(month + '-01').toLocaleDateString('de-DE', { month: 'short', year: '2-digit' }),
+                avg: avgs.reduce((a, b) => a + b, 0) / avgs.length
+            }));
+        } else if (daysDiff > 60) {
+            // 2-6 months: aggregate by WEEK
+            const byWeek = {};
+            matchAverages.forEach(m => {
+                const weekStart = new Date(m.date);
+                weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+                const key = weekStart.toISOString().split('T')[0];
+                if (!byWeek[key]) byWeek[key] = [];
+                byWeek[key].push(m.avg);
+            });
+            dataPoints = Object.entries(byWeek).sort((a,b) => a[0].localeCompare(b[0])).map(([week, avgs]) => ({
+                label: new Date(week).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
+                avg: avgs.reduce((a, b) => a + b, 0) / avgs.length
+            }));
+        } else {
+            // Less than 2 months: show individual matches (max 30)
+            dataPoints = matchAverages.slice(-30).map(m => ({
+                label: m.date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
+                avg: m.avg
+            }));
+        }
+        
+        const labels = dataPoints.map(d => d.label);
         const data = dataPoints.map(d => d.avg.toFixed(1));
         
         if (this.avgChart) this.avgChart.destroy();
@@ -329,7 +369,7 @@ class AutodartsStats {
                     backgroundColor: 'rgba(16, 185, 129, 0.1)',
                     fill: true,
                     tension: 0.3,
-                    pointRadius: 4,
+                    pointRadius: dataPoints.length > 20 ? 2 : 4,
                     pointBackgroundColor: CONFIG.COLORS.green
                 }]
             },
@@ -339,7 +379,7 @@ class AutodartsStats {
                 plugins: { legend: { display: false } },
                 scales: {
                     x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8', maxRotation: 45, font: { size: 10 } } },
-                    y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' }, suggestedMin: 25, suggestedMax: 55 }
+                    y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' }, suggestedMin: 30, suggestedMax: 50 }
                 }
             }
         });
