@@ -113,10 +113,40 @@ class AutodartsStats {
                 if (data) matches.push(...data);
             }
             
+            // Apply filters (time, type, variant) - but NOT player filter
+            if (this.filters.time !== 'all') {
+                const days = parseInt(this.filters.time);
+                const cutoff = new Date();
+                cutoff.setDate(cutoff.getDate() - days);
+                matches = matches.filter(m => new Date(m.finished_at) >= cutoff);
+            }
+            if (this.filters.type) {
+                matches = matches.filter(m => m.type === this.filters.type);
+            }
+            if (this.filters.variant) {
+                matches = matches.filter(m => m.variant === this.filters.variant);
+            }
+            
+            if (matches.length === 0) {
+                document.getElementById('h2h-wins1').textContent = '0';
+                document.getElementById('h2h-wins2').textContent = '0';
+                document.getElementById('h2h-total-matches').textContent = '0';
+                document.getElementById('h2h-avg-p1').textContent = '-';
+                document.getElementById('h2h-avg-p2').textContent = '-';
+                document.getElementById('h2h-legs-p1').textContent = '-';
+                document.getElementById('h2h-legs-p2').textContent = '-';
+                document.getElementById('h2h-streak').textContent = '-';
+                this.hideLoading();
+                return;
+            }
+            
+            // Get filtered match IDs for loading players
+            const filteredMatchIds = matches.map(m => m.id);
+            
             // Load match_players for these matches
             let allPlayers = [];
-            for (let i = 0; i < commonMatchIds.length; i += 50) {
-                const batch = commonMatchIds.slice(i, i + 50);
+            for (let i = 0; i < filteredMatchIds.length; i += 50) {
+                const batch = filteredMatchIds.slice(i, i + 50);
                 const { data } = await supabase.from('match_players').select('*').in('match_id', batch);
                 if (data) allPlayers.push(...data);
             }
@@ -142,6 +172,10 @@ class AutodartsStats {
                 const franzMp = allPlayers.find(p => p.match_id === match.id && p.user_id === FRANZ_ID);
                 const bellaMp = allPlayers.find(p => p.match_id === match.id && p.user_id === BELLACIAO_ID);
                 if (!franzMp || !bellaMp) return;
+                
+                // Check that this is a direct 1v1 match (exactly 2 players)
+                const playersInMatch = allPlayers.filter(p => p.match_id === match.id);
+                if (playersInMatch.length !== 2) return;
                 
                 const franzTurns = turnsByMp[franzMp.id] || [];
                 const bellaTurns = turnsByMp[bellaMp.id] || [];
