@@ -1,5 +1,5 @@
 // AUTODARTS STATS PRO v4.0 - Head-to-Head & Rankings Edition
-const BELLACIAO_ID = '2b609aa4-af67-4ec5-b3de-155736738b43';
+const BELLACIAO_ID = '7eb1c7f2-1a04-41cd-aae3-0416a8f4db59';
 const FRANZ_ID = 'b81d2805-46e8-4daf-be6c-899e2d70bdfa';
 
 class AutodartsStats {
