@@ -65,11 +65,17 @@
         <!-- Global Filters -->
         <div class="global-filters">
             <div class="filter-group">
+                <label>Spieler:</label>
+                <select id="global-filter-player">
+                    <!-- Dynamisch befüllt -->
+                </select>
+            </div>
+            <div class="filter-group">
                 <label>Zeitraum:</label>
                 <select id="global-filter-time">
                     <option value="all">Alle Zeit</option>
                     <option value="7">Letzte 7 Tage</option>
-                    <option value="30" selected>Letzte 30 Tage</option>
+                    <option value="30">Letzte 30 Tage</option>
                     <option value="90">Letzte 3 Monate</option>
                     <option value="365">Letztes Jahr</option>
                 </select>
@@ -87,7 +93,7 @@
                 <label>Variante:</label>
                 <select id="global-filter-variant">
                     <option value="">Alle Varianten</option>
-                    <option value="X01">X01</option>
+                    <option value="X01" selected>X01</option>
                     <option value="Bob's 27">Bob's 27</option>
                     <option value="Cricket">Cricket</option>
                 </select>
@@ -103,13 +109,14 @@
             <button class="nav-btn" data-page="matches">🎮 Matches</button>
             <button class="nav-btn" data-page="heatmap">🔥 Heatmap</button>
             <button class="nav-btn" data-page="opponents">👥 Gegner</button>
+            <button class="nav-btn" data-page="advanced">🧪 Analyse</button>
         </nav>
 
         <!-- Main Content -->
         <main class="main">
             <!-- Overview Page -->
             <div id="page-overview" class="page active">
-                <!-- KPI Cards -->
+                <!-- KPI Cards Row 1 -->
                 <div class="stats-grid stats-grid-6">
                     <div class="stat-card">
                         <div class="stat-icon">🎮</div>
@@ -155,12 +162,58 @@
                     </div>
                 </div>
 
+                <!-- KPI Cards Row 2 - New Stats -->
+                <div class="stats-grid stats-grid-6">
+                    <div class="stat-card">
+                        <div class="stat-icon">🎯</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-avg-to-100">-</div>
+                            <div class="stat-label">Avg bis 100</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🚀</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-best-leg">-</div>
+                            <div class="stat-label">Best Leg</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🎪</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-highest-finish">-</div>
+                            <div class="stat-label">Highest Finish</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⭐</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-best-match-avg">-</div>
+                            <div class="stat-label">Best Match Avg</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-content">
+                            <div class="stat-value trend-up" id="stat-trend">-</div>
+                            <div class="stat-label">Trend (7 Tage)</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🎚️</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-consistency">-</div>
+                            <div class="stat-label">Konstanz</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Charts Row 1 -->
                 <div class="charts-grid">
                     <div class="chart-card large">
-                        <h3>📈 Average-Entwicklung</h3>
+                        <h3>📈 Average-Entwicklung (Scoring vs Checkout)</h3>
                         <div class="chart-container chart-container-large">
-                            <canvas id="chart-monthly-avg"></canvas>
+                            <canvas id="chart-avg-comparison"></canvas>
                         </div>
                     </div>
                     <div class="chart-card">
@@ -204,6 +257,7 @@
                                     <th>Gegner</th>
                                     <th>Ergebnis</th>
                                     <th>Avg</th>
+                                    <th>Performance</th>
                                     <th>Typ</th>
                                 </tr>
                             </thead>
@@ -219,7 +273,7 @@
                     <h2>🎯 Scoring-Analyse</h2>
                 </div>
                 
-                <div class="stats-grid">
+                <div class="stats-grid stats-grid-6">
                     <div class="stat-card">
                         <div class="stat-icon">🎯</div>
                         <div class="stat-content">
@@ -248,11 +302,25 @@
                             <div class="stat-label">180s Total</div>
                         </div>
                     </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🎯</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-t19-rate">-</div>
+                            <div class="stat-label">Triple-19 Rate</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📈</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-visits-per-100">-</div>
+                            <div class="stat-label">100+ pro 100 Visits</div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="charts-grid">
                     <div class="chart-card large">
-                        <h3>🎯 T20-Bereich Trefferverteilung</h3>
+                        <h3>🎯 T20 vs T19 Trefferverteilung</h3>
                         <div class="chart-container chart-container-large">
                             <canvas id="chart-t20-distribution"></canvas>
                         </div>
@@ -264,6 +332,21 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>📈 First 9 Trend</h3>
+                        <div class="chart-container">
+                            <canvas id="chart-first9-trend"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>🎯 Visits Breakdown</h3>
+                        <div class="chart-container">
+                            <canvas id="chart-visits-breakdown"></canvas>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Checkout Page -->
@@ -272,7 +355,7 @@
                     <h2>✅ Checkout-Analyse</h2>
                 </div>
                 
-                <div class="stats-grid">
+                <div class="stats-grid stats-grid-6">
                     <div class="stat-card">
                         <div class="stat-icon">✅</div>
                         <div class="stat-content">
@@ -301,11 +384,25 @@
                             <div class="stat-label">Checkouts gesamt</div>
                         </div>
                     </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🎪</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-checkout-opportunities">-</div>
+                            <div class="stat-label">Checkout-Chancen</div>
+                        </div>
+                    </div>
+                    <div class="stat-card highlight">
+                        <div class="stat-icon">⭐</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-best-double">-</div>
+                            <div class="stat-label">Bestes Doppel</div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="charts-grid">
                     <div class="chart-card">
-                        <h3>🎯 Lieblings-Doppel</h3>
+                        <h3>🎯 Checkout-Quote pro Doppel</h3>
                         <div class="chart-container">
                             <canvas id="chart-favorite-doubles"></canvas>
                         </div>
@@ -324,9 +421,9 @@
                         <table id="checkout-table">
                             <thead>
                                 <tr>
-                                    <th>Reststand</th>
                                     <th>Doppel</th>
-                                    <th>Anzahl</th>
+                                    <th>Getroffen</th>
+                                    <th>Versuche</th>
                                     <th>Quote</th>
                                 </tr>
                             </thead>
@@ -350,6 +447,7 @@
                                 <th>Ergebnis</th>
                                 <th>Legs</th>
                                 <th>Avg</th>
+                                <th>Performance</th>
                                 <th>Variante</th>
                                 <th>Typ</th>
                             </tr>
@@ -363,7 +461,7 @@
             <!-- Heatmap Page -->
             <div id="page-heatmap" class="page">
                 <div class="page-header">
-                    <h2>🔥 Dart Heatmap</h2>
+                    <h2>🔥 Dart Heatmap & Gruppierung</h2>
                     <div class="heatmap-filters">
                         <select id="heatmap-target">
                             <option value="all">Alle Würfe</option>
@@ -374,12 +472,44 @@
                         </select>
                     </div>
                 </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">🎯</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-grouping-score">-</div>
+                            <div class="stat-label">Gruppierung (mm)</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">↔️</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-drift-x">-</div>
+                            <div class="stat-label">Drift Horizontal</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">↕️</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-drift-y">-</div>
+                            <div class="stat-label">Drift Vertikal</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-total-throws">-</div>
+                            <div class="stat-label">Würfe analysiert</div>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="heatmap-container">
                     <div class="dartboard-wrapper">
                         <canvas id="dartboard-canvas" width="500" height="500"></canvas>
                     </div>
                     <div class="heatmap-stats">
-                        <h3>📊 Statistiken</h3>
+                        <h3>📊 Top Segmente</h3>
                         <div id="segment-stats"></div>
                         <div class="heatmap-legend">
                             <h4>Legende</h4>
@@ -397,7 +527,7 @@
                     <h2>👥 Gegner-Statistik</h2>
                 </div>
                 
-                <div class="stats-grid">
+                <div class="stats-grid stats-grid-6">
                     <div class="stat-card">
                         <div class="stat-icon">👥</div>
                         <div class="stat-content">
@@ -426,6 +556,35 @@
                             <div class="stat-label">Nemesis</div>
                         </div>
                     </div>
+                    <div class="stat-card highlight">
+                        <div class="stat-icon">🎯</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-favorite-victim">-</div>
+                            <div class="stat-label">Lieblingsgegner</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📈</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-avg-vs-opponents">-</div>
+                            <div class="stat-label">Avg vs Gegner-Avg</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>📊 Win Rate nach Bot-Level</h3>
+                        <div class="chart-container">
+                            <canvas id="chart-winrate-by-bot-level"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>🏆 Top Gegner (Matches)</h3>
+                        <div class="chart-container">
+                            <canvas id="chart-top-opponents"></canvas>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="table-container">
@@ -437,12 +596,81 @@
                                 <th>Siege</th>
                                 <th>Niederlagen</th>
                                 <th>Win %</th>
-                                <th>Avg Diff</th>
+                                <th>Mein Avg</th>
+                                <th>Gegner Avg</th>
                                 <th>Letzte Begegnung</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- Advanced Analysis Page -->
+            <div id="page-advanced" class="page">
+                <div class="page-header">
+                    <h2>🧪 Erweiterte Analyse</h2>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">🕐</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-best-time">-</div>
+                            <div class="stat-label">Beste Tageszeit</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📅</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-best-day">-</div>
+                            <div class="stat-label">Bester Wochentag</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🔄</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-avg-legs">-</div>
+                            <div class="stat-label">Ø Legs pro Match</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⏱️</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-total-playtime">-</div>
+                            <div class="stat-label">Spielzeit gesamt</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>🕐 Performance nach Tageszeit</h3>
+                        <div class="chart-container">
+                            <canvas id="chart-by-time"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>📅 Performance nach Wochentag</h3>
+                        <div class="chart-container">
+                            <canvas id="chart-by-weekday"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>📊 Legs pro Match Trend</h3>
+                        <div class="chart-container">
+                            <canvas id="chart-legs-trend"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>🎯 Konstanz-Entwicklung</h3>
+                        <div class="chart-container">
+                            <canvas id="chart-consistency-trend"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>

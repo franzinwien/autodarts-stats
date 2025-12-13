@@ -861,3 +861,70 @@ tr:hover td {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--text-muted);
 }
+
+/* =====================================================
+   V3 ADDITIONS - Performance indicators & new features
+   ===================================================== */
+
+/* Trend indicators */
+.stat-value.trend-up { color: #10b981; }
+.stat-value.trend-down { color: #ef4444; }
+
+/* Performance badges in tables */
+.perf-great { color: #10b981; font-weight: 600; }
+.perf-good { color: #22c55e; }
+.perf-ok { color: #94a3b8; }
+.perf-bad { color: #ef4444; }
+
+/* Stats grid 6 columns refinement */
+.stats-grid-6 {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+@media (max-width: 1200px) {
+    .stats-grid-6 {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .stats-grid-6 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Player selector styling */
+#global-filter-player {
+    min-width: 150px;
+    font-weight: 600;
+}
+
+/* Advanced page specific */
+#page-advanced .chart-card {
+    min-height: 300px;
+}
+
+/* Compact stat cards for row 2 */
+.stats-grid-6 .stat-card {
+    padding: 1rem;
+}
+
+.stats-grid-6 .stat-value {
+    font-size: 1.5rem;
+}
+
+.stats-grid-6 .stat-label {
+    font-size: 0.7rem;
+}
+
+/* Analysis page nav button */
+.nav-btn[data-page="advanced"] {
+    background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+}
+
+.nav-btn[data-page="advanced"]:hover {
+    background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+}
