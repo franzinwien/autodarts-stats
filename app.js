@@ -333,9 +333,75 @@ class AutodartsStats {
     }
 
     // ========== MATCH DETAIL ==========
+    async loadLegHistoryData() {
+        // Load all legs and turns to calculate historical leg averages
+        if (this.legHistoryLoaded) return;
+
+        const matches = this.getFilteredData();
+        const mpIds = matches.map(m => m.id);
+
+        // Load all turns
+        const allTurns = await this.loadTurns(mpIds);
+
+        // Load all legs for these matches
+        const matchIds = matches.map(m => m.match_id);
+        let allLegs = [];
+        for (let i = 0; i < matchIds.length; i += 50) {
+            const { data } = await supabase.from('legs').select('id, match_id, leg_number, winner_player_id').in('match_id', matchIds.slice(i, i + 50));
+            if (data) allLegs.push(...data);
+        }
+
+        // Group turns by leg_id
+        const turnsByLeg = {};
+        allTurns.forEach(t => {
+            if (!turnsByLeg[t.match_player_id]) turnsByLeg[t.match_player_id] = {};
+        });
+
+        // We need to map turns to legs - turns have leg_id
+        // But our loadTurns doesn't include leg_id, so we need to reload with leg_id
+        let turnsWithLegId = [];
+        for (let i = 0; i < mpIds.length; i += 50) {
+            const { data } = await supabase.from('turns').select('id, points, match_player_id, leg_id').in('match_player_id', mpIds.slice(i, i + 50));
+            if (data) turnsWithLegId.push(...data);
+        }
+
+        // Calculate average for each leg (only for current player's legs)
+        const legAvgs = [];
+        const legTurnsByLeg = {};
+        turnsWithLegId.forEach(t => {
+            if (t.leg_id && t.points !== null) {
+                if (!legTurnsByLeg[t.leg_id]) legTurnsByLeg[t.leg_id] = [];
+                legTurnsByLeg[t.leg_id].push(t.points);
+            }
+        });
+
+        Object.entries(legTurnsByLeg).forEach(([legId, points]) => {
+            if (points.length > 0) {
+                const avg = points.reduce((a, b) => a + b, 0) / points.length;
+                legAvgs.push({ legId, avg, turnCount: points.length });
+            }
+        });
+
+        // Sort by average descending and assign ranks
+        legAvgs.sort((a, b) => b.avg - a.avg);
+        legAvgs.forEach((leg, i) => leg.rank = i + 1);
+
+        this.legHistory = legAvgs;
+        this.legHistoryLoaded = true;
+    }
+
+    getLegRank(legId) {
+        if (!this.legHistory) return null;
+        const leg = this.legHistory.find(l => l.legId === legId);
+        return leg ? { rank: leg.rank, total: this.legHistory.length, avg: leg.avg } : null;
+    }
+
     async loadMatchDetailPage() {
         const select = document.getElementById('match-detail-select');
         if (!select) return;
+
+        // Load leg history in background
+        this.loadLegHistoryData();
 
         // Populate match dropdown
         const matches = this.getFilteredData();
@@ -407,8 +473,12 @@ class AutodartsStats {
             document.getElementById('match-detail-empty')?.classList.add('hidden');
 
             const d = new Date(match.finished_at);
+            // Get current player's name from allowed_users
+            const currentPlayer = this.allPlayers.find(p => p.autodarts_user_id === this.currentPlayerId);
+            const playerName = currentPlayer?.autodarts_username || mp.name || 'Du';
+
             document.getElementById('md-date').textContent = `📅 ${d.toLocaleDateString('de-DE')} ${d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})}`;
-            document.getElementById('md-opponent').textContent = `vs ${opp ? (opp.is_bot ? '🤖 Bot ' + Math.round((opp.cpu_ppr||40)/10) : opp.name) : '?'}`;
+            document.getElementById('md-opponent').textContent = `🎯 ${playerName} vs ${opp ? (opp.is_bot ? '🤖 Bot ' + Math.round((opp.cpu_ppr||40)/10) : opp.name) : '?'}`;
             document.getElementById('md-result').textContent = isWin ? '✅ Sieg' : '❌ Niederlage';
             document.getElementById('md-result').className = 'match-result ' + (isWin ? 'win' : 'loss');
 
@@ -431,6 +501,28 @@ class AutodartsStats {
             const dartsThrown = (myTurns?.length || 0) * 3;
             document.getElementById('md-darts').textContent = dartsThrown || '-';
 
+            // Load throws for T20 stats
+            const turnIds = (myTurns || []).map(t => t.id);
+            const myThrows = await this.loadThrows(turnIds, 10000);
+
+            // T20 count and rate
+            const t20Throws = myThrows.filter(t => t.segment_name === 'T20');
+            const totalThrows = myThrows.length;
+            document.getElementById('md-t20-count').textContent = t20Throws.length;
+            document.getElementById('md-t20-rate').textContent = totalThrows ? ((t20Throws.length / totalThrows) * 100).toFixed(1) + '%' : '-';
+
+            // Ton+ rate (visits >= 100 points)
+            const tonPlusVisits = (myTurns || []).filter(t => t.points >= 100).length;
+            const totalVisits = (myTurns || []).length;
+            document.getElementById('md-ton-plus').textContent = totalVisits ? ((tonPlusVisits / totalVisits) * 100).toFixed(1) + '%' : '-';
+
+            // Highest visit
+            const highestVisit = Math.max(...(myTurns || []).map(t => t.points || 0), 0);
+            document.getElementById('md-highest').textContent = highestVisit || '-';
+
+            // Store throws for later use
+            this.currentMyThrows = myThrows;
+
             // Store data for leg display
             this.currentMatchLegs = legs || [];
             this.currentMyTurns = myTurns || [];
@@ -441,6 +533,8 @@ class AutodartsStats {
             // Render leg overview
             this.renderLegOverview();
             this.renderLegAveragesChart();
+            this.renderMatchScoringChart();
+            this.renderMatchFirst9Chart();
 
             // Select first leg
             if (this.currentMatchLegs.length > 0) {
@@ -465,13 +559,29 @@ class AutodartsStats {
             // winner_player_id contains match_player.id, NOT user_id!
             const won = leg.winner_player_id === this.currentMp?.id;
 
+            // Get historical rank for this leg
+            const rankInfo = this.getLegRank(leg.id);
+            const rankHtml = rankInfo ? this.getLegRankBadge(rankInfo.rank, rankInfo.total) : '';
+
             return `<div class="leg-card ${won ? 'won' : 'lost'}" data-leg-id="${leg.id}" onclick="window.app.selectLeg('${leg.id}')">
                 <div class="leg-number">Leg ${leg.leg_number + 1}</div>
                 <div class="leg-avg">${avg.toFixed(1)}</div>
                 <div class="leg-darts">${darts} Darts</div>
+                <div class="leg-rank">${rankHtml}</div>
                 <div class="leg-result">${won ? '✅' : '❌'}</div>
             </div>`;
         }).join('');
+    }
+
+    getLegRankBadge(rank, total) {
+        const percentile = ((total - rank + 1) / total) * 100;
+        if (rank === 1) return '<span class="leg-rank-badge rank-gold" title="Bestes Leg aller Zeiten!">🥇 #1</span>';
+        if (rank === 2) return '<span class="leg-rank-badge rank-silver" title="Platz 2">🥈 #2</span>';
+        if (rank === 3) return '<span class="leg-rank-badge rank-bronze" title="Platz 3">🥉 #3</span>';
+        if (percentile >= 90) return `<span class="leg-rank-badge rank-top10" title="Top 10%">#${rank}</span>`;
+        if (percentile >= 75) return `<span class="leg-rank-badge rank-top25" title="Top 25%">#${rank}</span>`;
+        if (percentile >= 50) return `<span class="leg-rank-badge rank-top50" title="Top 50%">#${rank}</span>`;
+        return `<span class="leg-rank-badge rank-normal" title="Position ${rank} von ${total}">#${rank}</span>`;
     }
 
     selectLeg(legId) {
@@ -590,6 +700,78 @@ class AutodartsStats {
                 scales: {
                     x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
                     y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' }, suggestedMin: 20, suggestedMax: 60 }
+                }
+            }
+        });
+    }
+
+    renderMatchScoringChart() {
+        const ctx = document.getElementById('chart-match-scoring');
+        if (!ctx || !this.currentMyTurns) return;
+
+        let u40 = 0, s40 = 0, s60 = 0, s100 = 0, s140 = 0, s180 = 0;
+        this.currentMyTurns.forEach(t => {
+            if (t.points === null) return;
+            if (t.points === 180) s180++;
+            else if (t.points >= 140) s140++;
+            else if (t.points >= 100) s100++;
+            else if (t.points >= 60) s60++;
+            else if (t.points >= 40) s40++;
+            else u40++;
+        });
+
+        if (this.matchScoringChart) this.matchScoringChart.destroy();
+        this.matchScoringChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['<40', '40-59', '60-99', '100-139', '140-179', '180'],
+                datasets: [{
+                    data: [u40, s40, s60, s100, s140, s180],
+                    backgroundColor: ['#64748b', '#94a3b8', '#3b82f6', '#8b5cf6', '#f59e0b', '#10b981'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 11 } } }
+                },
+                cutout: '50%'
+            }
+        });
+    }
+
+    renderMatchFirst9Chart() {
+        const ctx = document.getElementById('chart-match-first9');
+        if (!ctx || !this.currentMyTurns) return;
+
+        let f9 = 0, f9c = 0, r = 0, rc = 0;
+        this.currentMyTurns.forEach(t => {
+            if (t.points !== null) {
+                if (t.round <= 3) { f9 += t.points; f9c++; }
+                else { r += t.points; rc++; }
+            }
+        });
+
+        if (this.matchFirst9Chart) this.matchFirst9Chart.destroy();
+        this.matchFirst9Chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['First 9', 'Rest'],
+                datasets: [{
+                    data: [f9c ? (f9 / f9c).toFixed(1) : 0, rc ? (r / rc).toFixed(1) : 0],
+                    backgroundColor: [CONFIG.COLORS.green, CONFIG.COLORS.blue],
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
+                    y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' }, suggestedMin: 30, suggestedMax: 60 }
                 }
             }
         });
