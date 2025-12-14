@@ -334,60 +334,39 @@ class AutodartsStats {
 
     // ========== MATCH DETAIL ==========
     async loadLegHistoryData() {
-        // Load all legs and turns to calculate historical leg averages
+        // Load leg averages from Supabase view (fast!)
         if (this.legHistoryLoaded) return;
 
-        const matches = this.getFilteredData();
-        const mpIds = matches.map(m => m.id);
+        try {
+            // Get all match_player_ids for current player
+            const matches = this.getFilteredData();
+            const mpIds = matches.map(m => m.id);
 
-        // Load all turns
-        const allTurns = await this.loadTurns(mpIds);
-
-        // Load all legs for these matches
-        const matchIds = matches.map(m => m.match_id);
-        let allLegs = [];
-        for (let i = 0; i < matchIds.length; i += 50) {
-            const { data } = await supabase.from('legs').select('id, match_id, leg_number, winner_player_id').in('match_id', matchIds.slice(i, i + 50));
-            if (data) allLegs.push(...data);
-        }
-
-        // Group turns by leg_id
-        const turnsByLeg = {};
-        allTurns.forEach(t => {
-            if (!turnsByLeg[t.match_player_id]) turnsByLeg[t.match_player_id] = {};
-        });
-
-        // We need to map turns to legs - turns have leg_id
-        // But our loadTurns doesn't include leg_id, so we need to reload with leg_id
-        let turnsWithLegId = [];
-        for (let i = 0; i < mpIds.length; i += 50) {
-            const { data } = await supabase.from('turns').select('id, points, match_player_id, leg_id').in('match_player_id', mpIds.slice(i, i + 50));
-            if (data) turnsWithLegId.push(...data);
-        }
-
-        // Calculate average for each leg (only for current player's legs)
-        const legAvgs = [];
-        const legTurnsByLeg = {};
-        turnsWithLegId.forEach(t => {
-            if (t.leg_id && t.points !== null) {
-                if (!legTurnsByLeg[t.leg_id]) legTurnsByLeg[t.leg_id] = [];
-                legTurnsByLeg[t.leg_id].push(t.points);
+            // Load from leg_averages view
+            let allLegAvgs = [];
+            for (let i = 0; i < mpIds.length; i += 50) {
+                const { data, error } = await supabase
+                    .from('leg_averages')
+                    .select('*')
+                    .in('match_player_id', mpIds.slice(i, i + 50));
+                if (data) allLegAvgs.push(...data);
             }
-        });
 
-        Object.entries(legTurnsByLeg).forEach(([legId, points]) => {
-            if (points.length > 0) {
-                const avg = points.reduce((a, b) => a + b, 0) / points.length;
-                legAvgs.push({ legId, avg, turnCount: points.length });
-            }
-        });
+            // Sort by average descending and assign ranks
+            const legAvgs = allLegAvgs.map(l => ({
+                legId: l.leg_id,
+                avg: l.three_dart_avg || 0,
+                totalPoints: l.total_points,
+                totalDarts: l.total_darts
+            }));
+            legAvgs.sort((a, b) => b.avg - a.avg);
+            legAvgs.forEach((leg, i) => leg.rank = i + 1);
 
-        // Sort by average descending and assign ranks
-        legAvgs.sort((a, b) => b.avg - a.avg);
-        legAvgs.forEach((leg, i) => leg.rank = i + 1);
-
-        this.legHistory = legAvgs;
-        this.legHistoryLoaded = true;
+            this.legHistory = legAvgs;
+            this.legHistoryLoaded = true;
+        } catch (e) {
+            console.error('loadLegHistoryData error:', e);
+        }
     }
 
     getLegRank(legId) {
@@ -397,34 +376,32 @@ class AutodartsStats {
     }
 
     async loadMatchHistoryData() {
-        // Calculate match averages for ranking
+        // Load match averages from Supabase view (fast!)
         if (this.matchHistoryLoaded) return;
 
-        const matches = this.getFilteredData();
-        const matchAvgs = [];
+        try {
+            const { data, error } = await supabase
+                .from('match_averages')
+                .select('*')
+                .eq('user_id', this.currentPlayerId);
 
-        // For each match, we need to calculate the true 3-dart average
-        // This requires loading all turns and throws
-        for (const mp of matches) {
-            const myTurns = await this.loadTurns([mp.id]);
-            if (!myTurns.length) continue;
+            if (error) throw error;
 
-            const turnIds = myTurns.map(t => t.id);
-            const myThrows = await this.loadThrows(turnIds, 10000);
+            // Sort by average descending and assign ranks
+            const matchAvgs = (data || []).map(m => ({
+                matchId: m.match_id,
+                avg: m.three_dart_avg || 0,
+                totalPoints: m.total_points,
+                totalDarts: m.total_darts
+            }));
+            matchAvgs.sort((a, b) => b.avg - a.avg);
+            matchAvgs.forEach((m, i) => m.rank = i + 1);
 
-            const totalPoints = myTurns.reduce((s, t) => s + (t.points || 0), 0);
-            const totalDarts = myThrows.length || myTurns.length * 3;
-            const avg = totalDarts > 0 ? (totalPoints / totalDarts) * 3 : 0;
-
-            matchAvgs.push({ matchId: mp.match_id, avg, totalPoints, totalDarts });
+            this.matchHistory = matchAvgs;
+            this.matchHistoryLoaded = true;
+        } catch (e) {
+            console.error('loadMatchHistoryData error:', e);
         }
-
-        // Sort by average descending and assign ranks
-        matchAvgs.sort((a, b) => b.avg - a.avg);
-        matchAvgs.forEach((m, i) => m.rank = i + 1);
-
-        this.matchHistory = matchAvgs;
-        this.matchHistoryLoaded = true;
     }
 
     getMatchRank(matchId) {
