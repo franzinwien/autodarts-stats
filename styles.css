@@ -1544,6 +1544,18 @@ tr:hover td {
     color: var(--text-primary);
 }
 
+.t20-text-analysis {
+    grid-column: 1 / -1;
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--accent-blue);
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
 @media (max-width: 900px) {
     .t20-analysis-grid {
         grid-template-columns: 1fr;

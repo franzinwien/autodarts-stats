@@ -835,9 +835,18 @@ class AutodartsStats {
             document.getElementById('t20-avg-miss-dist').textContent = '-';
         }
 
-        // 8 Direction stats
+        // 8 Direction stats with heatmap
         const directions = ['links-oben', 'links-mitte', 'links-unten', 'oben', 'unten', 'rechts-oben', 'rechts-mitte', 'rechts-unten'];
-        directions.forEach(dir => {
+
+        // Calculate counts for heatmap scaling
+        const counts = directions.map(dir => {
+            const data = analysis.byDirection[dir];
+            return data.close.length + data.far.length;
+        });
+        const maxCount = Math.max(...counts, 1);
+        const totalMisses = analysis.misses.length || 1;
+
+        directions.forEach((dir, i) => {
             const el = document.getElementById(`t20-miss-${dir}`);
             if (el) {
                 const data = analysis.byDirection[dir];
@@ -848,9 +857,24 @@ class AutodartsStats {
                 if (total > 0) {
                     el.querySelector('.direction-value').textContent = total;
                     el.querySelector('.direction-detail').textContent = `≤5mm: ${closeCount} | >5mm: ${farCount}`;
+
+                    // Heatmap color based on intensity
+                    const intensity = total / maxCount;
+                    el.style.background = this.getHeatmapColor(intensity);
+                    el.style.color = intensity > 0.5 ? '#000' : '#fff';
+                    const label = el.querySelector('.direction-label');
+                    const detail = el.querySelector('.direction-detail');
+                    if (label) label.style.color = intensity > 0.5 ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)';
+                    if (detail) detail.style.color = intensity > 0.5 ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)';
                 } else {
                     el.querySelector('.direction-value').textContent = '-';
                     el.querySelector('.direction-detail').textContent = '';
+                    el.style.background = 'var(--bg-tertiary)';
+                    el.style.color = '';
+                    const label = el.querySelector('.direction-label');
+                    const detail = el.querySelector('.direction-detail');
+                    if (label) label.style.color = '';
+                    if (detail) detail.style.color = '';
                 }
             }
         });
@@ -862,7 +886,6 @@ class AutodartsStats {
         }
 
         // Distance breakdown bars (now in mm)
-        const totalMisses = analysis.misses.length || 1;
         const distMapping = {
             '0-2mm': { fillId: 'dist-0-2', countId: 'dist-count-0-2' },
             '2-5mm': { fillId: 'dist-2-5', countId: 'dist-count-2-5' },
@@ -879,6 +902,101 @@ class AutodartsStats {
                 if (countEl) countEl.textContent = count;
             }
         });
+
+        // Textual analysis
+        this.renderT20TextAnalysis(analysis, totalMisses);
+    }
+
+    getHeatmapColor(intensity) {
+        // From dark/neutral (0) to red (1)
+        if (intensity < 0.1) return 'var(--bg-tertiary)';
+        if (intensity < 0.25) return '#2d5a3d'; // dark green
+        if (intensity < 0.4) return '#4a7c3f';  // green
+        if (intensity < 0.55) return '#7fb041'; // light green
+        if (intensity < 0.7) return '#c4a82b';  // yellow
+        if (intensity < 0.85) return '#d97b2a'; // orange
+        return '#d94a2a'; // red
+    }
+
+    renderT20TextAnalysis(analysis, totalMisses) {
+        const el = document.getElementById('t20-text-analysis');
+        if (!el) return;
+
+        if (totalMisses < 5) {
+            el.textContent = 'Zu wenige Daten für Analyse';
+            return;
+        }
+
+        const insights = [];
+        const bd = analysis.byDirection;
+
+        // Calculate direction sums
+        const leftCount = (bd['links-oben'].close.length + bd['links-oben'].far.length) +
+                         (bd['links-mitte'].close.length + bd['links-mitte'].far.length) +
+                         (bd['links-unten'].close.length + bd['links-unten'].far.length);
+        const rightCount = (bd['rechts-oben'].close.length + bd['rechts-oben'].far.length) +
+                          (bd['rechts-mitte'].close.length + bd['rechts-mitte'].far.length) +
+                          (bd['rechts-unten'].close.length + bd['rechts-unten'].far.length);
+        const topCount = (bd['links-oben'].close.length + bd['links-oben'].far.length) +
+                        (bd['oben'].close.length + bd['oben'].far.length) +
+                        (bd['rechts-oben'].close.length + bd['rechts-oben'].far.length);
+        const bottomCount = (bd['links-unten'].close.length + bd['links-unten'].far.length) +
+                           (bd['unten'].close.length + bd['unten'].far.length) +
+                           (bd['rechts-unten'].close.length + bd['rechts-unten'].far.length);
+
+        const horizontalBias = leftCount - rightCount;
+        const verticalBias = topCount - bottomCount;
+        const horizontalRatio = Math.abs(horizontalBias) / totalMisses;
+        const verticalRatio = Math.abs(verticalBias) / totalMisses;
+
+        // Check spread uniformity
+        const dirCounts = Object.values(bd).map(d => d.close.length + d.far.length);
+        const maxDir = Math.max(...dirCounts);
+        const nonZeroCounts = dirCounts.filter(c => c > 0);
+        const minDir = nonZeroCounts.length > 0 ? Math.min(...nonZeroCounts) : 0;
+        const spreadRatio = maxDir > 0 ? minDir / maxDir : 1;
+
+        if (spreadRatio > 0.5 && horizontalRatio < 0.15 && verticalRatio < 0.15) {
+            insights.push('📊 Gleichmäßige Streuung in alle Richtungen');
+        } else {
+            // Horizontal tendency
+            if (horizontalRatio > 0.15) {
+                if (horizontalBias > 0) {
+                    insights.push(`⬅️ Tendenz nach links (5er) - ${leftCount} vs ${rightCount}`);
+                } else {
+                    insights.push(`➡️ Tendenz nach rechts (1er) - ${rightCount} vs ${leftCount}`);
+                }
+            }
+
+            // Vertical tendency
+            if (verticalRatio > 0.15) {
+                if (verticalBias > 0) {
+                    insights.push(`⬆️ Tendenz nach oben (Bull) - ${topCount} vs ${bottomCount}`);
+                } else {
+                    insights.push(`⬇️ Tendenz nach unten (Draht) - ${bottomCount} vs ${topCount}`);
+                }
+            }
+        }
+
+        // Precision analysis
+        const closeTotal = Object.values(bd).reduce((s, d) => s + d.close.length, 0);
+        const closeRatio = closeTotal / totalMisses;
+
+        if (closeRatio > 0.5) {
+            insights.push(`✅ Gute Präzision - ${(closeRatio * 100).toFixed(0)}% knapp daneben (≤5mm)`);
+        } else if (closeRatio < 0.2) {
+            insights.push(`⚠️ Hohe Streuung - nur ${(closeRatio * 100).toFixed(0)}% knapp daneben`);
+        }
+
+        // Hit rate
+        const hitRateNum = analysis.total > 0 ? (analysis.hits / analysis.total) * 100 : 0;
+        if (hitRateNum >= 15) {
+            insights.push(`🎯 Starke T20-Quote: ${hitRateNum.toFixed(1)}%`);
+        } else if (hitRateNum < 8) {
+            insights.push(`💡 T20-Quote: ${hitRateNum.toFixed(1)}% - Raum für Verbesserung`);
+        }
+
+        el.innerHTML = insights.length > 0 ? insights.join('<br>') : 'Keine auffälligen Muster erkannt';
     }
 
     renderLegProgressionChart(myTurns, oppTurns, leg) {
