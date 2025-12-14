@@ -377,18 +377,32 @@ class AutodartsStats {
 
     async loadMatchHistoryData() {
         // Load match averages from Supabase view (fast!)
+        // Only include matches that match current filters (variant, etc.)
         if (this.matchHistoryLoaded) return;
 
         try {
-            const { data, error } = await supabase
-                .from('match_averages')
-                .select('*')
-                .eq('user_id', this.currentPlayerId);
+            // Get filtered match IDs (respects variant filter)
+            const filteredMatches = this.getFilteredData();
+            const filteredMatchIds = filteredMatches.map(m => m.match_id);
 
-            if (error) throw error;
+            if (filteredMatchIds.length === 0) {
+                this.matchHistory = [];
+                this.matchHistoryLoaded = true;
+                return;
+            }
+
+            // Load from view, filtering by match_ids
+            let allData = [];
+            for (let i = 0; i < filteredMatchIds.length; i += 50) {
+                const { data, error } = await supabase
+                    .from('match_averages')
+                    .select('*')
+                    .in('match_id', filteredMatchIds.slice(i, i + 50));
+                if (data) allData.push(...data);
+            }
 
             // Sort by average descending and assign ranks
-            const matchAvgs = (data || []).map(m => ({
+            const matchAvgs = allData.map(m => ({
                 matchId: m.match_id,
                 avg: m.three_dart_avg || 0,
                 totalPoints: m.total_points,
