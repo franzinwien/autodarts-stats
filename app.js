@@ -487,8 +487,19 @@ class AutodartsStats {
             const oppLegsWon = (legs || []).length - myLegsWon;
             document.getElementById('md-legs').textContent = `${myLegsWon}:${oppLegsWon} Legs`;
 
-            // Update stats from DB (no frontend calculation!)
-            document.getElementById('md-average').textContent = mp.average?.toFixed(1) || '-';
+            // Load throws for accurate dart count and stats
+            const turnIds = (myTurns || []).map(t => t.id);
+            const myThrows = await this.loadThrows(turnIds, 10000);
+
+            // Calculate actual darts thrown from throws table
+            const dartsThrown = myThrows.length || (myTurns?.length || 0) * 3;
+
+            // Calculate Match Average: (Total Points / Total Darts) × 3
+            const totalPoints = (myTurns || []).reduce((s, t) => s + (t.points || 0), 0);
+            const matchAverage = dartsThrown > 0 ? (totalPoints / dartsThrown) * 3 : 0;
+
+            // Update stats - Match Average is calculated, others from DB
+            document.getElementById('md-average').textContent = matchAverage.toFixed(2) || '-';
             document.getElementById('md-first9').textContent = mp.first_9_average?.toFixed(1) || '-';
             document.getElementById('md-avg170').textContent = mp.average_until_170?.toFixed(1) || '-';
             document.getElementById('md-checkout').textContent = mp.checkout_rate ? (mp.checkout_rate * 100).toFixed(1) + '%' : '-';
@@ -497,12 +508,6 @@ class AutodartsStats {
             const match180s = (myTurns || []).filter(t => t.points === 180).length;
             document.getElementById('md-180s').textContent = match180s;
 
-            // Load throws for T20 stats and accurate dart count
-            const turnIds = (myTurns || []).map(t => t.id);
-            const myThrows = await this.loadThrows(turnIds, 10000);
-
-            // Calculate actual darts thrown from throws table
-            const dartsThrown = myThrows.length || (myTurns?.length || 0) * 3;
             document.getElementById('md-darts').textContent = dartsThrown || '-';
 
             // T20 count and rate
