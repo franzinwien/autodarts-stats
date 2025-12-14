@@ -396,12 +396,50 @@ class AutodartsStats {
         return leg ? { rank: leg.rank, total: this.legHistory.length, avg: leg.avg } : null;
     }
 
+    async loadMatchHistoryData() {
+        // Calculate match averages for ranking
+        if (this.matchHistoryLoaded) return;
+
+        const matches = this.getFilteredData();
+        const matchAvgs = [];
+
+        // For each match, we need to calculate the true 3-dart average
+        // This requires loading all turns and throws
+        for (const mp of matches) {
+            const myTurns = await this.loadTurns([mp.id]);
+            if (!myTurns.length) continue;
+
+            const turnIds = myTurns.map(t => t.id);
+            const myThrows = await this.loadThrows(turnIds, 10000);
+
+            const totalPoints = myTurns.reduce((s, t) => s + (t.points || 0), 0);
+            const totalDarts = myThrows.length || myTurns.length * 3;
+            const avg = totalDarts > 0 ? (totalPoints / totalDarts) * 3 : 0;
+
+            matchAvgs.push({ matchId: mp.match_id, avg, totalPoints, totalDarts });
+        }
+
+        // Sort by average descending and assign ranks
+        matchAvgs.sort((a, b) => b.avg - a.avg);
+        matchAvgs.forEach((m, i) => m.rank = i + 1);
+
+        this.matchHistory = matchAvgs;
+        this.matchHistoryLoaded = true;
+    }
+
+    getMatchRank(matchId) {
+        if (!this.matchHistory) return null;
+        const match = this.matchHistory.find(m => m.matchId === matchId);
+        return match ? { rank: match.rank, total: this.matchHistory.length, avg: match.avg } : null;
+    }
+
     async loadMatchDetailPage() {
         const select = document.getElementById('match-detail-select');
         if (!select) return;
 
-        // Load leg history in background
+        // Load leg and match history in background
         this.loadLegHistoryData();
+        this.loadMatchHistoryData();
 
         // Populate match dropdown
         const matches = this.getFilteredData();
@@ -486,6 +524,18 @@ class AutodartsStats {
             const myLegsWon = (legs || []).filter(l => l.winner_player_id === mp.id).length;
             const oppLegsWon = (legs || []).length - myLegsWon;
             document.getElementById('md-legs').textContent = `${myLegsWon}:${oppLegsWon} Legs`;
+
+            // Show match ranking if available
+            const matchRank = this.getMatchRank(matchId);
+            const matchRankEl = document.getElementById('md-match-rank');
+            if (matchRankEl) {
+                if (matchRank) {
+                    const badge = this.getMatchRankBadge(matchRank.rank, matchRank.total);
+                    matchRankEl.innerHTML = badge;
+                } else {
+                    matchRankEl.innerHTML = '<span class="rank-loading">Ranking lädt...</span>';
+                }
+            }
 
             // Load throws for accurate dart count and stats
             const turnIds = (myTurns || []).map(t => t.id);
@@ -604,6 +654,17 @@ class AutodartsStats {
         if (percentile >= 75) return `<span class="leg-rank-badge rank-top25" title="Top 25%">#${rank}</span>`;
         if (percentile >= 50) return `<span class="leg-rank-badge rank-top50" title="Top 50%">#${rank}</span>`;
         return `<span class="leg-rank-badge rank-normal" title="Position ${rank} von ${total}">#${rank}</span>`;
+    }
+
+    getMatchRankBadge(rank, total) {
+        const percentile = ((total - rank + 1) / total) * 100;
+        if (rank === 1) return `<span class="match-rank-badge rank-gold" title="Bestes Match aller Zeiten!">🏆 Match #1 von ${total}</span>`;
+        if (rank === 2) return `<span class="match-rank-badge rank-silver" title="Platz 2">🥈 Match #2 von ${total}</span>`;
+        if (rank === 3) return `<span class="match-rank-badge rank-bronze" title="Platz 3">🥉 Match #3 von ${total}</span>`;
+        if (percentile >= 90) return `<span class="match-rank-badge rank-top10" title="Top 10%">⭐ Match #${rank} von ${total}</span>`;
+        if (percentile >= 75) return `<span class="match-rank-badge rank-top25" title="Top 25%">Match #${rank} von ${total}</span>`;
+        if (percentile >= 50) return `<span class="match-rank-badge rank-top50" title="Top 50%">Match #${rank} von ${total}</span>`;
+        return `<span class="match-rank-badge rank-normal" title="Position ${rank} von ${total}">Match #${rank} von ${total}</span>`;
     }
 
     selectLeg(legId) {

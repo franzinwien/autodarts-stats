@@ -1293,6 +1293,60 @@ tr:hover td {
     color: var(--text-secondary);
 }
 
+/* Match Ranking Badge */
+.match-ranking {
+    margin-left: 1rem;
+}
+
+.match-rank-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.match-rank-badge.rank-gold {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: #000;
+}
+
+.match-rank-badge.rank-silver {
+    background: linear-gradient(135deg, #94a3b8, #64748b);
+    color: #000;
+}
+
+.match-rank-badge.rank-bronze {
+    background: linear-gradient(135deg, #cd7f32, #8b4513);
+    color: #fff;
+}
+
+.match-rank-badge.rank-top10 {
+    background: var(--accent-green);
+    color: #000;
+}
+
+.match-rank-badge.rank-top25 {
+    background: var(--accent-blue);
+    color: #fff;
+}
+
+.match-rank-badge.rank-top50 {
+    background: var(--accent-purple);
+    color: #fff;
+}
+
+.match-rank-badge.rank-normal {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.rank-loading {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-style: italic;
+}
+
 .leg-detail-section {
     margin-top: 1.5rem;
 }
