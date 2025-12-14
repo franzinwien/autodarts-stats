@@ -334,26 +334,36 @@ class AutodartsStats {
 
     // ========== MATCH DETAIL ==========
     async loadLegHistoryData() {
-        // Load leg averages from Supabase view (fast!)
+        // Load leg averages from Supabase view (single query per match batch)
         if (this.legHistoryLoaded) return;
 
         try {
-            // Get all match_player_ids for current player
+            // Get filtered match IDs and match_player_ids
             const matches = this.getFilteredData();
-            const mpIds = matches.map(m => m.id);
+            const filteredMatchIds = matches.map(m => m.match_id);
+            const mpIdSet = new Set(matches.map(m => m.id));
 
-            // Load from leg_averages view
+            if (filteredMatchIds.length === 0) {
+                this.legHistory = [];
+                this.legHistoryLoaded = true;
+                return;
+            }
+
+            // Load from leg_averages view by match_id (fewer batches than by mp_id)
             let allLegAvgs = [];
-            for (let i = 0; i < mpIds.length; i += 50) {
+            for (let i = 0; i < filteredMatchIds.length; i += 100) {
                 const { data, error } = await supabase
                     .from('leg_averages')
                     .select('*')
-                    .in('match_player_id', mpIds.slice(i, i + 50));
+                    .in('match_id', filteredMatchIds.slice(i, i + 100));
                 if (data) allLegAvgs.push(...data);
             }
 
+            // Filter to only current player's legs (not opponent's)
+            const myLegAvgs = allLegAvgs.filter(l => mpIdSet.has(l.match_player_id));
+
             // Sort by average descending and assign ranks
-            const legAvgs = allLegAvgs.map(l => ({
+            const legAvgs = myLegAvgs.map(l => ({
                 legId: l.leg_id,
                 avg: l.three_dart_avg || 0,
                 totalPoints: l.total_points,
@@ -376,33 +386,25 @@ class AutodartsStats {
     }
 
     async loadMatchHistoryData() {
-        // Load match averages from Supabase view (fast!)
-        // Only include matches that match current filters (variant, etc.)
+        // Load match averages from Supabase view (single query!)
         if (this.matchHistoryLoaded) return;
 
         try {
-            // Get filtered matches and their match_player_ids (only current player)
+            // Get ALL match averages for current player in ONE query
+            const { data, error } = await supabase
+                .from('match_averages')
+                .select('*')
+                .eq('user_id', this.currentPlayerId);
+
+            if (error) throw error;
+
+            // Filter to only include matches that match current filters (variant, etc.)
             const filteredMatches = this.getFilteredData();
-            const filteredMpIds = filteredMatches.map(m => m.id); // match_player.id, not match_id
-
-            if (filteredMpIds.length === 0) {
-                this.matchHistory = [];
-                this.matchHistoryLoaded = true;
-                return;
-            }
-
-            // Load from view, filtering by match_player_id (only current player's entries)
-            let allData = [];
-            for (let i = 0; i < filteredMpIds.length; i += 50) {
-                const { data, error } = await supabase
-                    .from('match_averages')
-                    .select('*')
-                    .in('match_player_id', filteredMpIds.slice(i, i + 50));
-                if (data) allData.push(...data);
-            }
+            const filteredMatchIds = new Set(filteredMatches.map(m => m.match_id));
+            const filteredData = (data || []).filter(m => filteredMatchIds.has(m.match_id));
 
             // Sort by average descending and assign ranks
-            const matchAvgs = allData.map(m => ({
+            const matchAvgs = filteredData.map(m => ({
                 matchId: m.match_id,
                 avg: m.three_dart_avg || 0,
                 totalPoints: m.total_points,
