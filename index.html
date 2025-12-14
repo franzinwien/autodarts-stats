@@ -616,50 +616,77 @@
                                     <div class="stat-label">Ø Fehlwurf-Distanz</div>
                                 </div>
                             </div>
-                            <div class="t20-direction-grid">
+                            <div class="t20-direction-grid-8">
+                                <!-- Zeile 1: links-oben, oben, rechts-oben -->
+                                <div class="direction-card" id="t20-miss-links-oben">
+                                    <div class="direction-label">↖ Links-Oben</div>
+                                    <div class="direction-value">-</div>
+                                    <div class="direction-detail"></div>
+                                </div>
                                 <div class="direction-card" id="t20-miss-oben">
                                     <div class="direction-label">↑ Oben (Bull)</div>
                                     <div class="direction-value">-</div>
+                                    <div class="direction-detail"></div>
                                 </div>
-                                <div class="direction-card" id="t20-miss-links">
+                                <div class="direction-card" id="t20-miss-rechts-oben">
+                                    <div class="direction-label">↗ Rechts-Oben</div>
+                                    <div class="direction-value">-</div>
+                                    <div class="direction-detail"></div>
+                                </div>
+                                <!-- Zeile 2: links-mitte, T20, rechts-mitte -->
+                                <div class="direction-card" id="t20-miss-links-mitte">
                                     <div class="direction-label">← Links (5)</div>
                                     <div class="direction-value">-</div>
+                                    <div class="direction-detail"></div>
                                 </div>
                                 <div class="direction-card center" id="t20-miss-center">
                                     <div class="direction-label">T20</div>
                                     <div class="direction-value">-</div>
                                 </div>
-                                <div class="direction-card" id="t20-miss-rechts">
+                                <div class="direction-card" id="t20-miss-rechts-mitte">
                                     <div class="direction-label">→ Rechts (1)</div>
                                     <div class="direction-value">-</div>
+                                    <div class="direction-detail"></div>
+                                </div>
+                                <!-- Zeile 3: links-unten, unten, rechts-unten -->
+                                <div class="direction-card" id="t20-miss-links-unten">
+                                    <div class="direction-label">↙ Links-Unten</div>
+                                    <div class="direction-value">-</div>
+                                    <div class="direction-detail"></div>
                                 </div>
                                 <div class="direction-card" id="t20-miss-unten">
                                     <div class="direction-label">↓ Unten (Draht)</div>
                                     <div class="direction-value">-</div>
+                                    <div class="direction-detail"></div>
+                                </div>
+                                <div class="direction-card" id="t20-miss-rechts-unten">
+                                    <div class="direction-label">↘ Rechts-Unten</div>
+                                    <div class="direction-value">-</div>
+                                    <div class="direction-detail"></div>
                                 </div>
                             </div>
                             <div class="t20-distance-breakdown">
                                 <h4>Fehlwürfe nach Distanz</h4>
                                 <div class="distance-bars" id="t20-distance-bars">
                                     <div class="distance-row">
-                                        <span class="dist-label">0-0.5cm</span>
-                                        <div class="dist-bar"><div class="dist-fill" id="dist-0-05"></div></div>
-                                        <span class="dist-count" id="dist-count-0-05">0</span>
+                                        <span class="dist-label">0-2mm</span>
+                                        <div class="dist-bar"><div class="dist-fill" id="dist-0-2"></div></div>
+                                        <span class="dist-count" id="dist-count-0-2">0</span>
                                     </div>
                                     <div class="distance-row">
-                                        <span class="dist-label">0.5-1cm</span>
-                                        <div class="dist-bar"><div class="dist-fill" id="dist-05-1"></div></div>
-                                        <span class="dist-count" id="dist-count-05-1">0</span>
+                                        <span class="dist-label">2-5mm</span>
+                                        <div class="dist-bar"><div class="dist-fill" id="dist-2-5"></div></div>
+                                        <span class="dist-count" id="dist-count-2-5">0</span>
                                     </div>
                                     <div class="distance-row">
-                                        <span class="dist-label">1-2cm</span>
-                                        <div class="dist-bar"><div class="dist-fill" id="dist-1-2"></div></div>
-                                        <span class="dist-count" id="dist-count-1-2">0</span>
+                                        <span class="dist-label">5-10mm</span>
+                                        <div class="dist-bar"><div class="dist-fill" id="dist-5-10"></div></div>
+                                        <span class="dist-count" id="dist-count-5-10">0</span>
                                     </div>
                                     <div class="distance-row">
-                                        <span class="dist-label">&gt;2cm</span>
-                                        <div class="dist-bar"><div class="dist-fill" id="dist-2plus"></div></div>
-                                        <span class="dist-count" id="dist-count-2plus">0</span>
+                                        <span class="dist-label">&gt;10mm</span>
+                                        <div class="dist-bar"><div class="dist-fill" id="dist-10plus"></div></div>
+                                        <span class="dist-count" id="dist-count-10plus">0</span>
                                     </div>
                                 </div>
                             </div>

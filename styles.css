@@ -1447,35 +1447,30 @@ tr:hover td {
     font-size: 0.75rem;
 }
 
-.t20-direction-grid {
+.t20-direction-grid-8 {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    grid-template-rows: auto auto auto;
-    gap: 0.5rem;
-    grid-template-areas:
-        ". oben ."
-        "links center rechts"
-        ". unten .";
+    gap: 0.4rem;
 }
 
 .direction-card {
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    padding: 0.75rem;
+    padding: 0.4rem;
     text-align: center;
+    min-height: 60px;
 }
 
-.direction-card#t20-miss-oben { grid-area: oben; }
-.direction-card#t20-miss-links { grid-area: links; }
-.direction-card#t20-miss-center { grid-area: center; background: var(--accent-green); color: #000; }
-.direction-card#t20-miss-rechts { grid-area: rechts; }
-.direction-card#t20-miss-unten { grid-area: unten; }
+.direction-card.center {
+    background: var(--accent-green);
+    color: #000;
+}
 
 .direction-label {
-    font-size: 0.7rem;
+    font-size: 0.6rem;
     color: var(--text-muted);
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.15rem;
 }
 
 .direction-card.center .direction-label {
@@ -1483,13 +1478,21 @@ tr:hover td {
 }
 
 .direction-value {
-    font-size: 1.1rem;
+    font-size: 0.95rem;
     font-weight: 700;
     color: var(--text-primary);
 }
 
 .direction-card.center .direction-value {
     color: #000;
+    font-size: 1.4rem;
+}
+
+.direction-detail {
+    font-size: 0.55rem;
+    color: var(--text-muted);
+    margin-top: 0.15rem;
+    line-height: 1.2;
 }
 
 .t20-distance-breakdown {

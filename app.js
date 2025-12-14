@@ -14,6 +14,9 @@ const T20_POLYGON = [
 ];
 const T20_CENTROID = [-0.0006088, 0.5932017]; // Mittelpunkt des T20-Felds
 
+// Skalierungsfaktor: 1 normalisierte Einheit = 173mm (basierend auf Triple-Ring bei 103mm)
+const COORD_TO_MM = 173;
+
 // Prüft ob ein Punkt innerhalb eines Polygons liegt (Ray-casting Algorithmus)
 function pointInPolygon(x, y, polygon) {
     let inside = false;
@@ -45,30 +48,43 @@ function distanceToPolygon(x, y, polygon) {
     return minDist;
 }
 
-// Berechnet Richtung vom T20-Zentrum zum Punkt (für "links", "rechts", "oben", "unten")
+// Berechnet Richtung vom T20-Zentrum zum Punkt (8 Richtungen)
+// oben = Richtung Bull, unten = Richtung Draht/außen
+// links = Richtung 5, rechts = Richtung 1
 function getDirectionFromT20(x, y) {
     const dx = x - T20_CENTROID[0];
     const dy = y - T20_CENTROID[1];
     const angle = Math.atan2(dy, dx) * 180 / Math.PI; // -180 bis 180
 
-    // Richtungen relativ zum Spieler (der auf die Scheibe schaut)
-    // oben = höheres Y (Richtung Bull), unten = niedrigeres Y (Richtung außen)
-    // links = negatives X, rechts = positives X
-    if (angle >= -45 && angle < 45) return 'rechts';
-    if (angle >= 45 && angle < 135) return 'oben'; // Richtung Bull
-    if (angle >= -135 && angle < -45) return 'unten'; // Richtung Draht
-    return 'links';
+    // 8 Richtungen: je 45° Segmente
+    // Rechts = 0°, Oben = 90°, Links = 180°/-180°, Unten = -90°
+    if (angle >= -22.5 && angle < 22.5) return 'rechts-mitte';
+    if (angle >= 22.5 && angle < 67.5) return 'rechts-oben';
+    if (angle >= 67.5 && angle < 112.5) return 'oben';
+    if (angle >= 112.5 && angle < 157.5) return 'links-oben';
+    if (angle >= 157.5 || angle < -157.5) return 'links-mitte';
+    if (angle >= -157.5 && angle < -112.5) return 'links-unten';
+    if (angle >= -112.5 && angle < -67.5) return 'unten';
+    return 'rechts-unten'; // -67.5 bis -22.5
 }
 
 // Analysiert T20-Würfe und gruppiert Fehlwürfe nach Richtung und Distanz
 function analyzeT20Misses(throws) {
     const t20Area = throws.filter(t => [20, 1, 5].includes(t.segment_number) && t.coord_x != null && t.coord_y != null);
+
+    // 8 Richtungen mit Distanz-Kategorien
+    const directions = ['links-oben', 'links-mitte', 'links-unten', 'oben', 'unten', 'rechts-oben', 'rechts-mitte', 'rechts-unten'];
+    const byDirection = {};
+    directions.forEach(d => {
+        byDirection[d] = { close: [], far: [] }; // close: 0-5mm, far: >5mm
+    });
+
     const results = {
         total: t20Area.length,
         hits: 0,
         misses: [],
-        byDirection: { links: [], rechts: [], oben: [], unten: [] },
-        byDistance: { '0-0.5cm': 0, '0.5-1cm': 0, '1-2cm': 0, '>2cm': 0 }
+        byDirection,
+        byDistance: { '0-2mm': 0, '2-5mm': 0, '5-10mm': 0, '>10mm': 0 }
     };
 
     t20Area.forEach(t => {
@@ -77,16 +93,23 @@ function analyzeT20Misses(throws) {
             results.hits++;
         } else {
             const dist = distanceToPolygon(t.coord_x, t.coord_y, T20_POLYGON);
-            const distCm = dist * 170; // Umrechnung in cm (Board-Radius ~170mm normalisiert auf 1)
+            const distMm = dist * COORD_TO_MM; // Umrechnung in mm
             const direction = getDirectionFromT20(t.coord_x, t.coord_y);
 
-            results.misses.push({ x: t.coord_x, y: t.coord_y, dist: distCm, direction, segment: t.segment_name });
-            results.byDirection[direction].push(distCm);
+            results.misses.push({ x: t.coord_x, y: t.coord_y, distMm, direction, segment: t.segment_name });
 
-            if (distCm <= 0.5) results.byDistance['0-0.5cm']++;
-            else if (distCm <= 1) results.byDistance['0.5-1cm']++;
-            else if (distCm <= 2) results.byDistance['1-2cm']++;
-            else results.byDistance['>2cm']++;
+            // Nach Richtung und Nähe gruppieren
+            if (distMm <= 5) {
+                results.byDirection[direction].close.push(distMm);
+            } else {
+                results.byDirection[direction].far.push(distMm);
+            }
+
+            // Distanz-Kategorien
+            if (distMm <= 2) results.byDistance['0-2mm']++;
+            else if (distMm <= 5) results.byDistance['2-5mm']++;
+            else if (distMm <= 10) results.byDistance['5-10mm']++;
+            else results.byDistance['>10mm']++;
         }
     });
 
@@ -804,23 +827,31 @@ class AutodartsStats {
         document.getElementById('t20-hit-rate').textContent = hitRate !== '-' ? hitRate + '%' : '-';
         document.getElementById('t20-total-attempts').textContent = analysis.total || '-';
 
-        // Average miss distance
+        // Average miss distance in mm
         if (analysis.misses.length > 0) {
-            const avgDist = analysis.misses.reduce((s, m) => s + m.dist, 0) / analysis.misses.length;
-            document.getElementById('t20-avg-miss-dist').textContent = avgDist.toFixed(2) + 'cm';
+            const avgDist = analysis.misses.reduce((s, m) => s + m.distMm, 0) / analysis.misses.length;
+            document.getElementById('t20-avg-miss-dist').textContent = avgDist.toFixed(1) + 'mm';
         } else {
             document.getElementById('t20-avg-miss-dist').textContent = '-';
         }
 
-        // Direction stats
-        const directions = ['oben', 'unten', 'links', 'rechts'];
+        // 8 Direction stats
+        const directions = ['links-oben', 'links-mitte', 'links-unten', 'oben', 'unten', 'rechts-oben', 'rechts-mitte', 'rechts-unten'];
         directions.forEach(dir => {
             const el = document.getElementById(`t20-miss-${dir}`);
             if (el) {
-                const misses = analysis.byDirection[dir];
-                const count = misses.length;
-                const avgDist = count > 0 ? (misses.reduce((s, d) => s + d, 0) / count).toFixed(2) : '-';
-                el.querySelector('.direction-value').textContent = count > 0 ? `${count} (Ø ${avgDist}cm)` : '-';
+                const data = analysis.byDirection[dir];
+                const closeCount = data.close.length;
+                const farCount = data.far.length;
+                const total = closeCount + farCount;
+
+                if (total > 0) {
+                    el.querySelector('.direction-value').textContent = total;
+                    el.querySelector('.direction-detail').textContent = `≤5mm: ${closeCount} | >5mm: ${farCount}`;
+                } else {
+                    el.querySelector('.direction-value').textContent = '-';
+                    el.querySelector('.direction-detail').textContent = '';
+                }
             }
         });
 
@@ -830,13 +861,13 @@ class AutodartsStats {
             centerEl.querySelector('.direction-value').textContent = analysis.hits || '0';
         }
 
-        // Distance breakdown bars
+        // Distance breakdown bars (now in mm)
         const totalMisses = analysis.misses.length || 1;
         const distMapping = {
-            '0-0.5cm': { fillId: 'dist-0-05', countId: 'dist-count-0-05' },
-            '0.5-1cm': { fillId: 'dist-05-1', countId: 'dist-count-05-1' },
-            '1-2cm': { fillId: 'dist-1-2', countId: 'dist-count-1-2' },
-            '>2cm': { fillId: 'dist-2plus', countId: 'dist-count-2plus' }
+            '0-2mm': { fillId: 'dist-0-2', countId: 'dist-count-0-2' },
+            '2-5mm': { fillId: 'dist-2-5', countId: 'dist-count-2-5' },
+            '5-10mm': { fillId: 'dist-5-10', countId: 'dist-count-5-10' },
+            '>10mm': { fillId: 'dist-10plus', countId: 'dist-count-10plus' }
         };
 
         Object.entries(analysis.byDistance).forEach(([key, count]) => {
