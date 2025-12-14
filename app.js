@@ -411,14 +411,21 @@ class AutodartsStats {
             document.getElementById('md-opponent').textContent = `vs ${opp ? (opp.is_bot ? '🤖 Bot ' + Math.round((opp.cpu_ppr||40)/10) : opp.name) : '?'}`;
             document.getElementById('md-result').textContent = isWin ? '✅ Sieg' : '❌ Niederlage';
             document.getElementById('md-result').className = 'match-result ' + (isWin ? 'win' : 'loss');
-            document.getElementById('md-legs').textContent = `${mp.legs_won || 0}:${mp.legs_lost || 0} Legs`;
+
+            // Count legs won/lost from legs data (legs_lost doesn't exist in DB)
+            const myLegsWon = (legs || []).filter(l => l.winner_player_id === mp.id).length;
+            const oppLegsWon = (legs || []).length - myLegsWon;
+            document.getElementById('md-legs').textContent = `${myLegsWon}:${oppLegsWon} Legs`;
 
             // Update stats from DB (no frontend calculation!)
             document.getElementById('md-average').textContent = mp.average?.toFixed(1) || '-';
             document.getElementById('md-first9').textContent = mp.first_9_average?.toFixed(1) || '-';
             document.getElementById('md-avg170').textContent = mp.average_until_170?.toFixed(1) || '-';
             document.getElementById('md-checkout').textContent = mp.checkout_rate ? (mp.checkout_rate * 100).toFixed(1) + '%' : '-';
-            document.getElementById('md-180s').textContent = mp.total_180s || 0;
+
+            // Count 180s from turns for THIS match only (not mp.total_180s which is overall)
+            const match180s = (myTurns || []).filter(t => t.points === 180).length;
+            document.getElementById('md-180s').textContent = match180s;
 
             // Calculate darts thrown from turns
             const dartsThrown = (myTurns?.length || 0) * 3;
@@ -455,7 +462,8 @@ class AutodartsStats {
             const myTurns = this.currentMyTurns.filter(t => t.leg_id === leg.id);
             const avg = myTurns.length ? myTurns.reduce((s, t) => s + (t.points || 0), 0) / myTurns.length : 0;
             const darts = myTurns.length * 3;
-            const won = leg.winner_player_id === this.currentMp?.user_id;
+            // winner_player_id contains match_player.id, NOT user_id!
+            const won = leg.winner_player_id === this.currentMp?.id;
 
             return `<div class="leg-card ${won ? 'won' : 'lost'}" data-leg-id="${leg.id}" onclick="window.app.selectLeg('${leg.id}')">
                 <div class="leg-number">Leg ${leg.leg_number + 1}</div>
@@ -562,7 +570,8 @@ class AutodartsStats {
             const turns = this.currentOppTurns.filter(t => t.leg_id === leg.id);
             return turns.length ? turns.reduce((s, t) => s + (t.points || 0), 0) / turns.length : 0;
         });
-        const colors = this.currentMatchLegs.map(leg => leg.winner_player_id === this.currentMp?.user_id ? CONFIG.COLORS.green : CONFIG.COLORS.red);
+        // winner_player_id contains match_player.id, NOT user_id!
+        const colors = this.currentMatchLegs.map(leg => leg.winner_player_id === this.currentMp?.id ? CONFIG.COLORS.green : CONFIG.COLORS.red);
 
         if (this.legAvgChart) this.legAvgChart.destroy();
         this.legAvgChart = new Chart(ctx, {
