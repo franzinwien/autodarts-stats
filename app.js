@@ -2,6 +2,97 @@
 const BELLACIAO_ID = '7eb1c7f2-1a04-41cd-aae3-0416a8f4db59';
 const FRANZ_ID = 'b81d2805-46e8-4daf-be6c-899e2d70bdfa';
 
+// T20 Polygon (Convex Hull aus 7586 echten T20-Würfen)
+const T20_POLYGON = [
+    [-0.089152, 0.565903], [0.079155, 0.5653], [0.08823, 0.565993], [0.090225, 0.569936],
+    [0.090479, 0.571558], [0.096431, 0.61163], [0.09477, 0.62118], [0.092786, 0.621972],
+    [0.080128, 0.624283], [0.073509, 0.625], [0.051897, 0.627071], [0.018904, 0.62905],
+    [0.002049, 0.629261], [-0.011489, 0.629035], [-0.025957, 0.628627], [-0.033343, 0.628343],
+    [-0.041776, 0.627821], [-0.059573, 0.626313], [-0.068194, 0.625463], [-0.080342, 0.624259],
+    [-0.095506, 0.621444], [-0.096787, 0.615528], [-0.096603, 0.611639], [-0.095702, 0.604708],
+    [-0.089838, 0.568086]
+];
+const T20_CENTROID = [-0.0006088, 0.5932017]; // Mittelpunkt des T20-Felds
+
+// Prüft ob ein Punkt innerhalb eines Polygons liegt (Ray-casting Algorithmus)
+function pointInPolygon(x, y, polygon) {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i][0], yi = polygon[i][1];
+        const xj = polygon[j][0], yj = polygon[j][1];
+        if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+            inside = !inside;
+        }
+    }
+    return inside;
+}
+
+// Berechnet kürzeste Distanz von einem Punkt zu einem Liniensegment
+function distanceToSegment(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)));
+    const nearX = x1 + t * dx, nearY = y1 + t * dy;
+    return Math.sqrt((px - nearX) ** 2 + (py - nearY) ** 2);
+}
+
+// Berechnet kürzeste Distanz von einem Punkt zum Polygon-Rand
+function distanceToPolygon(x, y, polygon) {
+    let minDist = Infinity;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const dist = distanceToSegment(x, y, polygon[j][0], polygon[j][1], polygon[i][0], polygon[i][1]);
+        if (dist < minDist) minDist = dist;
+    }
+    return minDist;
+}
+
+// Berechnet Richtung vom T20-Zentrum zum Punkt (für "links", "rechts", "oben", "unten")
+function getDirectionFromT20(x, y) {
+    const dx = x - T20_CENTROID[0];
+    const dy = y - T20_CENTROID[1];
+    const angle = Math.atan2(dy, dx) * 180 / Math.PI; // -180 bis 180
+
+    // Richtungen relativ zum Spieler (der auf die Scheibe schaut)
+    // oben = höheres Y (Richtung Bull), unten = niedrigeres Y (Richtung außen)
+    // links = negatives X, rechts = positives X
+    if (angle >= -45 && angle < 45) return 'rechts';
+    if (angle >= 45 && angle < 135) return 'oben'; // Richtung Bull
+    if (angle >= -135 && angle < -45) return 'unten'; // Richtung Draht
+    return 'links';
+}
+
+// Analysiert T20-Würfe und gruppiert Fehlwürfe nach Richtung und Distanz
+function analyzeT20Misses(throws) {
+    const t20Area = throws.filter(t => [20, 1, 5].includes(t.segment_number) && t.coord_x != null && t.coord_y != null);
+    const results = {
+        total: t20Area.length,
+        hits: 0,
+        misses: [],
+        byDirection: { links: [], rechts: [], oben: [], unten: [] },
+        byDistance: { '0-0.5cm': 0, '0.5-1cm': 0, '1-2cm': 0, '>2cm': 0 }
+    };
+
+    t20Area.forEach(t => {
+        const inT20 = pointInPolygon(t.coord_x, t.coord_y, T20_POLYGON);
+        if (inT20) {
+            results.hits++;
+        } else {
+            const dist = distanceToPolygon(t.coord_x, t.coord_y, T20_POLYGON);
+            const distCm = dist * 170; // Umrechnung in cm (Board-Radius ~170mm normalisiert auf 1)
+            const direction = getDirectionFromT20(t.coord_x, t.coord_y);
+
+            results.misses.push({ x: t.coord_x, y: t.coord_y, dist: distCm, direction, segment: t.segment_name });
+            results.byDirection[direction].push(distCm);
+
+            if (distCm <= 0.5) results.byDistance['0-0.5cm']++;
+            else if (distCm <= 1) results.byDistance['0.5-1cm']++;
+            else if (distCm <= 2) results.byDistance['1-2cm']++;
+            else results.byDistance['>2cm']++;
+        }
+    });
+
+    return results;
+}
+
 class AutodartsStats {
     constructor() { this.user = null; this.currentPlayerId = null; this.allPlayers = []; this.allMatchPlayers = []; this.allMatches = []; this.opponentMap = {}; this.overallAverage = 0; this.matchRankings = []; this.filters = { time: 'all', type: '', variant: 'X01' }; this.init(); }
     
@@ -584,6 +675,9 @@ class AutodartsStats {
             this.renderMatchScoringChart();
             this.renderMatchFirst9Chart();
 
+            // Render T20 Streuungsanalyse
+            this.renderT20Analysis(myThrows);
+
             // Select first leg
             if (this.currentMatchLegs.length > 0) {
                 this.selectLeg(this.currentMatchLegs[0].id);
@@ -700,6 +794,60 @@ class AutodartsStats {
         }
 
         tbody.innerHTML = rows.join('');
+    }
+
+    renderT20Analysis(throws) {
+        const analysis = analyzeT20Misses(throws);
+
+        // Update stats
+        const hitRate = analysis.total > 0 ? ((analysis.hits / analysis.total) * 100).toFixed(1) : '-';
+        document.getElementById('t20-hit-rate').textContent = hitRate !== '-' ? hitRate + '%' : '-';
+        document.getElementById('t20-total-attempts').textContent = analysis.total || '-';
+
+        // Average miss distance
+        if (analysis.misses.length > 0) {
+            const avgDist = analysis.misses.reduce((s, m) => s + m.dist, 0) / analysis.misses.length;
+            document.getElementById('t20-avg-miss-dist').textContent = avgDist.toFixed(2) + 'cm';
+        } else {
+            document.getElementById('t20-avg-miss-dist').textContent = '-';
+        }
+
+        // Direction stats
+        const directions = ['oben', 'unten', 'links', 'rechts'];
+        directions.forEach(dir => {
+            const el = document.getElementById(`t20-miss-${dir}`);
+            if (el) {
+                const misses = analysis.byDirection[dir];
+                const count = misses.length;
+                const avgDist = count > 0 ? (misses.reduce((s, d) => s + d, 0) / count).toFixed(2) : '-';
+                el.querySelector('.direction-value').textContent = count > 0 ? `${count} (Ø ${avgDist}cm)` : '-';
+            }
+        });
+
+        // Center (T20 hits)
+        const centerEl = document.getElementById('t20-miss-center');
+        if (centerEl) {
+            centerEl.querySelector('.direction-value').textContent = analysis.hits || '0';
+        }
+
+        // Distance breakdown bars
+        const totalMisses = analysis.misses.length || 1;
+        const distMapping = {
+            '0-0.5cm': { fillId: 'dist-0-05', countId: 'dist-count-0-05' },
+            '0.5-1cm': { fillId: 'dist-05-1', countId: 'dist-count-05-1' },
+            '1-2cm': { fillId: 'dist-1-2', countId: 'dist-count-1-2' },
+            '>2cm': { fillId: 'dist-2plus', countId: 'dist-count-2plus' }
+        };
+
+        Object.entries(analysis.byDistance).forEach(([key, count]) => {
+            const mapping = distMapping[key];
+            if (mapping) {
+                const fillEl = document.getElementById(mapping.fillId);
+                const countEl = document.getElementById(mapping.countId);
+                if (fillEl) fillEl.style.width = ((count / totalMisses) * 100) + '%';
+                if (countEl) countEl.textContent = count;
+            }
+        });
     }
 
     renderLegProgressionChart(myTurns, oppTurns, leg) {

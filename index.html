@@ -598,6 +598,74 @@
                         </div>
                     </div>
 
+                    <!-- T20 Streuungsanalyse -->
+                    <div class="t20-analysis-section">
+                        <h3>🎯 T20 Streuungsanalyse</h3>
+                        <div class="t20-analysis-grid">
+                            <div class="t20-stats">
+                                <div class="stat-card small">
+                                    <div class="stat-value" id="t20-hit-rate">-</div>
+                                    <div class="stat-label">Trefferquote</div>
+                                </div>
+                                <div class="stat-card small">
+                                    <div class="stat-value" id="t20-total-attempts">-</div>
+                                    <div class="stat-label">T20-Bereich Würfe</div>
+                                </div>
+                                <div class="stat-card small">
+                                    <div class="stat-value" id="t20-avg-miss-dist">-</div>
+                                    <div class="stat-label">Ø Fehlwurf-Distanz</div>
+                                </div>
+                            </div>
+                            <div class="t20-direction-grid">
+                                <div class="direction-card" id="t20-miss-oben">
+                                    <div class="direction-label">↑ Oben (Bull)</div>
+                                    <div class="direction-value">-</div>
+                                </div>
+                                <div class="direction-card" id="t20-miss-links">
+                                    <div class="direction-label">← Links (5)</div>
+                                    <div class="direction-value">-</div>
+                                </div>
+                                <div class="direction-card center" id="t20-miss-center">
+                                    <div class="direction-label">T20</div>
+                                    <div class="direction-value">-</div>
+                                </div>
+                                <div class="direction-card" id="t20-miss-rechts">
+                                    <div class="direction-label">→ Rechts (1)</div>
+                                    <div class="direction-value">-</div>
+                                </div>
+                                <div class="direction-card" id="t20-miss-unten">
+                                    <div class="direction-label">↓ Unten (Draht)</div>
+                                    <div class="direction-value">-</div>
+                                </div>
+                            </div>
+                            <div class="t20-distance-breakdown">
+                                <h4>Fehlwürfe nach Distanz</h4>
+                                <div class="distance-bars" id="t20-distance-bars">
+                                    <div class="distance-row">
+                                        <span class="dist-label">0-0.5cm</span>
+                                        <div class="dist-bar"><div class="dist-fill" id="dist-0-05"></div></div>
+                                        <span class="dist-count" id="dist-count-0-05">0</span>
+                                    </div>
+                                    <div class="distance-row">
+                                        <span class="dist-label">0.5-1cm</span>
+                                        <div class="dist-bar"><div class="dist-fill" id="dist-05-1"></div></div>
+                                        <span class="dist-count" id="dist-count-05-1">0</span>
+                                    </div>
+                                    <div class="distance-row">
+                                        <span class="dist-label">1-2cm</span>
+                                        <div class="dist-bar"><div class="dist-fill" id="dist-1-2"></div></div>
+                                        <span class="dist-count" id="dist-count-1-2">0</span>
+                                    </div>
+                                    <div class="distance-row">
+                                        <span class="dist-label">&gt;2cm</span>
+                                        <div class="dist-bar"><div class="dist-fill" id="dist-2plus"></div></div>
+                                        <span class="dist-count" id="dist-count-2plus">0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Leg Detail -->
                     <div class="leg-detail-section">
                         <h3>📋 Leg Detail <span id="leg-detail-title"></span></h3>
