@@ -107,6 +107,7 @@
             <button class="nav-btn" data-page="scoring">🎯 Scoring</button>
             <button class="nav-btn" data-page="checkout">✅ Checkout</button>
             <button class="nav-btn" data-page="matches">🎮 Matches</button>
+            <button class="nav-btn" data-page="matchdetail">📋 Match Detail</button>
             <button class="nav-btn" data-page="heatmap">🔥 Heatmap</button>
             <button class="nav-btn" data-page="opponents">👥 Gegner</button>
             <button class="nav-btn" data-page="advanced">🧪 Analyse</button>
@@ -457,6 +458,126 @@
                     </table>
                 </div>
                 <div class="pagination" id="matches-pagination"></div>
+            </div>
+
+            <!-- Match Detail Page -->
+            <div id="page-matchdetail" class="page">
+                <div class="page-header">
+                    <h2>📋 Match Detail</h2>
+                    <div class="match-selector">
+                        <select id="match-detail-select">
+                            <option value="">Match auswählen...</option>
+                        </select>
+                        <button id="match-detail-prev" class="btn btn-ghost btn-sm">← Vorheriges</button>
+                        <button id="match-detail-next" class="btn btn-ghost btn-sm">Nächstes →</button>
+                    </div>
+                </div>
+
+                <!-- Match Header -->
+                <div id="match-detail-header" class="match-detail-header hidden">
+                    <div class="match-info-bar">
+                        <span class="match-date" id="md-date"></span>
+                        <span class="match-opponent" id="md-opponent"></span>
+                        <span class="match-result" id="md-result"></span>
+                        <span class="match-legs" id="md-legs"></span>
+                    </div>
+                </div>
+
+                <!-- Match Stats -->
+                <div id="match-detail-content" class="hidden">
+                    <div class="stats-grid stats-grid-6">
+                        <div class="stat-card">
+                            <div class="stat-icon">📈</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="md-average">-</div>
+                                <div class="stat-label">Match Average</div>
+                            </div>
+                        </div>
+                        <div class="stat-card highlight">
+                            <div class="stat-icon">⚡</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="md-first9">-</div>
+                                <div class="stat-label">First 9 Avg</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">🎯</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="md-avg170">-</div>
+                                <div class="stat-label">Avg bis 170</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">✅</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="md-checkout">-</div>
+                                <div class="stat-label">Checkout %</div>
+                            </div>
+                        </div>
+                        <div class="stat-card highlight-gold">
+                            <div class="stat-icon">💎</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="md-180s">-</div>
+                                <div class="stat-label">180s</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">🎪</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="md-darts">-</div>
+                                <div class="stat-label">Darts geworfen</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Leg Overview -->
+                    <div class="leg-overview-section">
+                        <h3>🦵 Leg-Übersicht</h3>
+                        <div class="leg-tabs" id="leg-tabs"></div>
+                        <div class="leg-overview-grid" id="leg-overview-grid"></div>
+                    </div>
+
+                    <!-- Charts -->
+                    <div class="charts-grid">
+                        <div class="chart-card large">
+                            <h3>📈 Score-Verlauf (ausgewähltes Leg)</h3>
+                            <div class="chart-container chart-container-large">
+                                <canvas id="chart-leg-progression"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-card">
+                            <h3>📊 Leg Averages</h3>
+                            <div class="chart-container">
+                                <canvas id="chart-leg-averages"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Leg Detail -->
+                    <div class="leg-detail-section">
+                        <h3>📋 Leg Detail <span id="leg-detail-title"></span></h3>
+                        <div class="table-container">
+                            <table id="leg-detail-table">
+                                <thead>
+                                    <tr>
+                                        <th>Visit</th>
+                                        <th>Punkte</th>
+                                        <th>Rest</th>
+                                        <th>Gegner Punkte</th>
+                                        <th>Gegner Rest</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div id="match-detail-empty" class="empty-state">
+                    <div class="empty-icon">📋</div>
+                    <p>Wähle ein Match aus der Liste oben aus, um Details zu sehen.</p>
+                </div>
             </div>
 
             <!-- Heatmap Page -->

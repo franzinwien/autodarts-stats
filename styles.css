@@ -1084,3 +1084,225 @@ tr:hover td {
         font-size: 2rem;
     }
 }
+
+/* =====================================================
+   MATCH DETAIL PAGE
+   ===================================================== */
+
+.match-selector {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.match-selector select {
+    min-width: 300px;
+    padding: 0.5rem 1rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.match-detail-header {
+    background: linear-gradient(135deg, var(--bg-secondary), var(--bg-tertiary));
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--border-color);
+}
+
+.match-info-bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+.match-info-bar span {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.1rem;
+}
+
+.match-info-bar .match-result {
+    font-weight: 700;
+    font-size: 1.3rem;
+}
+
+.match-info-bar .match-result.win {
+    color: var(--accent-green);
+}
+
+.match-info-bar .match-result.loss {
+    color: var(--accent-red);
+}
+
+.leg-overview-section {
+    margin: 1.5rem 0;
+}
+
+.leg-overview-section h3 {
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+
+.leg-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.leg-tab {
+    padding: 0.5rem 1rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.85rem;
+}
+
+.leg-tab:hover {
+    background: var(--bg-card);
+    color: var(--text-primary);
+}
+
+.leg-tab.active {
+    background: var(--accent-green);
+    border-color: var(--accent-green);
+    color: white;
+}
+
+.leg-tab.won {
+    border-left: 3px solid var(--accent-green);
+}
+
+.leg-tab.lost {
+    border-left: 3px solid var(--accent-red);
+}
+
+.leg-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.75rem;
+}
+
+.leg-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-sm);
+    padding: 1rem;
+    text-align: center;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.leg-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+}
+
+.leg-card.active {
+    border-color: var(--accent-green);
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.leg-card.won {
+    border-top: 3px solid var(--accent-green);
+}
+
+.leg-card.lost {
+    border-top: 3px solid var(--accent-red);
+}
+
+.leg-card .leg-number {
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary);
+}
+
+.leg-card .leg-avg {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.leg-card .leg-darts {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+.leg-card .leg-result {
+    font-size: 1.2rem;
+    margin-top: 0.25rem;
+}
+
+.leg-detail-section {
+    margin-top: 1.5rem;
+}
+
+.leg-detail-section h3 {
+    margin-bottom: 1rem;
+}
+
+.leg-detail-section h3 span {
+    color: var(--accent-green);
+    font-weight: 400;
+}
+
+#leg-detail-table tbody tr:nth-child(odd) {
+    background: var(--bg-tertiary);
+}
+
+#leg-detail-table td {
+    text-align: center;
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.empty-state .empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.empty-state p {
+    font-size: 1.1rem;
+}
+
+@media (max-width: 768px) {
+    .match-selector {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .match-selector select {
+        width: 100%;
+        min-width: unset;
+    }
+
+    .match-info-bar {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .leg-overview-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    }
+}

@@ -35,7 +35,7 @@ class AutodartsStats {
     showDashboard() { document.getElementById('login-screen').classList.add('hidden'); document.getElementById('dashboard-screen').classList.remove('hidden'); }
     showLoading() { document.getElementById('loading-overlay')?.classList.remove('hidden'); }
     hideLoading() { document.getElementById('loading-overlay')?.classList.add('hidden'); }
-    navigateTo(page) { document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === page)); document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+page)); ({overview:()=>this.loadOverviewData(),scoring:()=>this.loadScoringData(),checkout:()=>this.loadCheckoutData(),matches:()=>this.loadMatchesPage(),heatmap:()=>this.loadHeatmapData(),opponents:()=>this.loadOpponentsData(),advanced:()=>this.loadAdvancedData(),headtohead:()=>this.loadH2HData()})[page]?.(); }
+    navigateTo(page) { document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === page)); document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+page)); ({overview:()=>this.loadOverviewData(),scoring:()=>this.loadScoringData(),checkout:()=>this.loadCheckoutData(),matches:()=>this.loadMatchesPage(),matchdetail:()=>this.loadMatchDetailPage(),heatmap:()=>this.loadHeatmapData(),opponents:()=>this.loadOpponentsData(),advanced:()=>this.loadAdvancedData(),headtohead:()=>this.loadH2HData()})[page]?.(); }
 
     // ========== OVERVIEW ==========
     async loadOverviewData() { this.showLoading(); try { const matches = this.getFilteredData(), mpIds = matches.map(m=>m.id), total = matches.length; let wins=0, checkoutSum=0, checkoutCnt=0, bestAvg=0, highFin=0; matches.forEach(mp => { if(mp.match.winner===mp.player_index)wins++; if(mp.checkout_rate>0){checkoutSum+=mp.checkout_rate;checkoutCnt++;} if(mp.average>bestAvg)bestAvg=mp.average; }); const turns = await this.loadTurns(mpIds); let pts=0,cnt=0,f9pts=0,f9cnt=0,c180=0,scorePts=0,scoreCnt=0; const byMp={}; turns.forEach(t=>{if(t.points!==null){pts+=t.points;cnt++;if(t.points===180)c180++;if(t.round<=3){f9pts+=t.points;f9cnt++;}if(t.score_remaining===null||t.score_remaining>100){scorePts+=t.points;scoreCnt++;}if(!byMp[t.match_player_id])byMp[t.match_player_id]=[];byMp[t.match_player_id].push(t.points);}}); turns.filter(t=>t.score_remaining===0).forEach(t=>{if(t.points>highFin)highFin=t.points;}); 
@@ -331,6 +331,262 @@ class AutodartsStats {
                 '</tr>';
         }).join('');
     }
+
+    // ========== MATCH DETAIL ==========
+    async loadMatchDetailPage() {
+        const select = document.getElementById('match-detail-select');
+        if (!select) return;
+
+        // Populate match dropdown
+        const matches = this.getFilteredData();
+        select.innerHTML = '<option value="">Match auswählen...</option>' +
+            matches.map(mp => {
+                const d = new Date(mp.match.finished_at);
+                const opp = this.opponentMap[mp.match_id];
+                const oppName = opp ? (opp.is_bot ? '🤖 Bot ' + Math.round((opp.cpu_ppr||40)/10) : opp.name || 'Gegner') : '?';
+                const win = mp.match.winner === mp.player_index;
+                return `<option value="${mp.match_id}">${d.toLocaleDateString('de-DE')} - vs ${oppName} ${win ? '✅' : '❌'} (${mp.average?.toFixed(1) || '-'})</option>`;
+            }).join('');
+
+        // Setup event listeners
+        select.onchange = () => this.loadMatchDetail(select.value);
+        document.getElementById('match-detail-prev')?.addEventListener('click', () => this.navigateMatch(-1));
+        document.getElementById('match-detail-next')?.addEventListener('click', () => this.navigateMatch(1));
+
+        // Load first match if available
+        if (matches.length > 0 && !select.value) {
+            // Don't auto-load, show empty state
+        }
+    }
+
+    navigateMatch(direction) {
+        const select = document.getElementById('match-detail-select');
+        if (!select) return;
+        const options = Array.from(select.options).filter(o => o.value);
+        const currentIdx = options.findIndex(o => o.value === select.value);
+        const newIdx = Math.max(0, Math.min(options.length - 1, currentIdx + direction));
+        if (options[newIdx]) {
+            select.value = options[newIdx].value;
+            this.loadMatchDetail(select.value);
+        }
+    }
+
+    async loadMatchDetail(matchId) {
+        if (!matchId) {
+            document.getElementById('match-detail-header')?.classList.add('hidden');
+            document.getElementById('match-detail-content')?.classList.add('hidden');
+            document.getElementById('match-detail-empty')?.classList.remove('hidden');
+            return;
+        }
+
+        this.showLoading();
+        try {
+            // Find match player data
+            const mp = this.allMatchPlayers.find(m => m.match_id === matchId);
+            const match = this.allMatches.find(m => m.id === matchId);
+            const opp = this.opponentMap[matchId];
+            if (!mp || !match) { this.hideLoading(); return; }
+
+            const isWin = match.winner === mp.player_index;
+            const oppMp = opp;
+
+            // Load legs for this match
+            const { data: legs } = await supabase.from('legs').select('*').eq('match_id', matchId).order('leg_number');
+
+            // Load turns for both players
+            const { data: myTurns } = await supabase.from('turns').select('*').eq('match_player_id', mp.id).order('created_at');
+            let oppTurns = [];
+            if (oppMp) {
+                const { data } = await supabase.from('turns').select('*').eq('match_player_id', oppMp.id).order('created_at');
+                oppTurns = data || [];
+            }
+
+            // Update header
+            document.getElementById('match-detail-header')?.classList.remove('hidden');
+            document.getElementById('match-detail-content')?.classList.remove('hidden');
+            document.getElementById('match-detail-empty')?.classList.add('hidden');
+
+            const d = new Date(match.finished_at);
+            document.getElementById('md-date').textContent = `📅 ${d.toLocaleDateString('de-DE')} ${d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})}`;
+            document.getElementById('md-opponent').textContent = `vs ${opp ? (opp.is_bot ? '🤖 Bot ' + Math.round((opp.cpu_ppr||40)/10) : opp.name) : '?'}`;
+            document.getElementById('md-result').textContent = isWin ? '✅ Sieg' : '❌ Niederlage';
+            document.getElementById('md-result').className = 'match-result ' + (isWin ? 'win' : 'loss');
+            document.getElementById('md-legs').textContent = `${mp.legs_won || 0}:${mp.legs_lost || 0} Legs`;
+
+            // Update stats from DB (no frontend calculation!)
+            document.getElementById('md-average').textContent = mp.average?.toFixed(1) || '-';
+            document.getElementById('md-first9').textContent = mp.first_9_average?.toFixed(1) || '-';
+            document.getElementById('md-avg170').textContent = mp.average_until_170?.toFixed(1) || '-';
+            document.getElementById('md-checkout').textContent = mp.checkout_rate ? (mp.checkout_rate * 100).toFixed(1) + '%' : '-';
+            document.getElementById('md-180s').textContent = mp.total_180s || 0;
+
+            // Calculate darts thrown from turns
+            const dartsThrown = (myTurns?.length || 0) * 3;
+            document.getElementById('md-darts').textContent = dartsThrown || '-';
+
+            // Store data for leg display
+            this.currentMatchLegs = legs || [];
+            this.currentMyTurns = myTurns || [];
+            this.currentOppTurns = oppTurns;
+            this.currentMp = mp;
+            this.currentOppMp = oppMp;
+
+            // Render leg overview
+            this.renderLegOverview();
+            this.renderLegAveragesChart();
+
+            // Select first leg
+            if (this.currentMatchLegs.length > 0) {
+                this.selectLeg(this.currentMatchLegs[0].id);
+            }
+
+        } catch (e) {
+            console.error('loadMatchDetail error:', e);
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    renderLegOverview() {
+        const grid = document.getElementById('leg-overview-grid');
+        if (!grid || !this.currentMatchLegs) return;
+
+        grid.innerHTML = this.currentMatchLegs.map((leg, i) => {
+            const myTurns = this.currentMyTurns.filter(t => t.leg_id === leg.id);
+            const avg = myTurns.length ? myTurns.reduce((s, t) => s + (t.points || 0), 0) / myTurns.length : 0;
+            const darts = myTurns.length * 3;
+            const won = leg.winner_player_id === this.currentMp?.user_id;
+
+            return `<div class="leg-card ${won ? 'won' : 'lost'}" data-leg-id="${leg.id}" onclick="window.app.selectLeg('${leg.id}')">
+                <div class="leg-number">Leg ${leg.leg_number + 1}</div>
+                <div class="leg-avg">${avg.toFixed(1)}</div>
+                <div class="leg-darts">${darts} Darts</div>
+                <div class="leg-result">${won ? '✅' : '❌'}</div>
+            </div>`;
+        }).join('');
+    }
+
+    selectLeg(legId) {
+        // Update active state
+        document.querySelectorAll('.leg-card').forEach(c => c.classList.toggle('active', c.dataset.legId === legId));
+
+        const leg = this.currentMatchLegs.find(l => l.id === legId);
+        if (!leg) return;
+
+        document.getElementById('leg-detail-title').textContent = `- Leg ${leg.leg_number + 1}`;
+
+        // Get turns for this leg
+        const myTurns = this.currentMyTurns.filter(t => t.leg_id === legId).sort((a,b) => a.turn - b.turn);
+        const oppTurns = this.currentOppTurns.filter(t => t.leg_id === legId).sort((a,b) => a.turn - b.turn);
+
+        // Render detail table
+        this.renderLegDetailTable(myTurns, oppTurns);
+
+        // Render score progression chart
+        this.renderLegProgressionChart(myTurns, oppTurns, leg);
+    }
+
+    renderLegDetailTable(myTurns, oppTurns) {
+        const tbody = document.querySelector('#leg-detail-table tbody');
+        if (!tbody) return;
+
+        const maxVisits = Math.max(myTurns.length, oppTurns.length);
+        let rows = [];
+
+        for (let i = 0; i < maxVisits; i++) {
+            const my = myTurns[i];
+            const opp = oppTurns[i];
+            rows.push(`<tr>
+                <td>${i + 1}</td>
+                <td>${my?.points ?? '-'}</td>
+                <td>${my?.score_remaining ?? '-'}</td>
+                <td>${opp?.points ?? '-'}</td>
+                <td>${opp?.score_remaining ?? '-'}</td>
+            </tr>`);
+        }
+
+        tbody.innerHTML = rows.join('');
+    }
+
+    renderLegProgressionChart(myTurns, oppTurns, leg) {
+        const ctx = document.getElementById('chart-leg-progression');
+        if (!ctx) return;
+
+        // Build score progression
+        const startScore = 501;
+        const myScores = [startScore];
+        const oppScores = [startScore];
+
+        myTurns.forEach(t => {
+            if (t.score_remaining !== null) myScores.push(t.score_remaining);
+        });
+
+        oppTurns.forEach(t => {
+            if (t.score_remaining !== null) oppScores.push(t.score_remaining);
+        });
+
+        const labels = Array.from({length: Math.max(myScores.length, oppScores.length)}, (_, i) => i === 0 ? 'Start' : `V${i}`);
+
+        if (this.legProgressionChart) this.legProgressionChart.destroy();
+        this.legProgressionChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Du', data: myScores, borderColor: CONFIG.COLORS.green, backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.3 },
+                    { label: 'Gegner', data: oppScores, borderColor: CONFIG.COLORS.red, backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.3 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'top', labels: { color: '#94a3b8' } } },
+                scales: {
+                    x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                    y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' }, reverse: false, min: 0, max: 520 }
+                }
+            }
+        });
+    }
+
+    renderLegAveragesChart() {
+        const ctx = document.getElementById('chart-leg-averages');
+        if (!ctx || !this.currentMatchLegs) return;
+
+        const labels = this.currentMatchLegs.map((l, i) => `L${i + 1}`);
+        const myAvgs = this.currentMatchLegs.map(leg => {
+            const turns = this.currentMyTurns.filter(t => t.leg_id === leg.id);
+            return turns.length ? turns.reduce((s, t) => s + (t.points || 0), 0) / turns.length : 0;
+        });
+        const oppAvgs = this.currentMatchLegs.map(leg => {
+            const turns = this.currentOppTurns.filter(t => t.leg_id === leg.id);
+            return turns.length ? turns.reduce((s, t) => s + (t.points || 0), 0) / turns.length : 0;
+        });
+        const colors = this.currentMatchLegs.map(leg => leg.winner_player_id === this.currentMp?.user_id ? CONFIG.COLORS.green : CONFIG.COLORS.red);
+
+        if (this.legAvgChart) this.legAvgChart.destroy();
+        this.legAvgChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Dein Avg', data: myAvgs.map(a => a.toFixed(1)), backgroundColor: colors, borderRadius: 4 },
+                    { label: 'Gegner Avg', data: oppAvgs.map(a => a.toFixed(1)), backgroundColor: 'rgba(148,163,184,0.5)', borderRadius: 4 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'top', labels: { color: '#94a3b8' } } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
+                    y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' }, suggestedMin: 20, suggestedMax: 60 }
+                }
+            }
+        });
+    }
 }
 
-document.addEventListener('DOMContentLoaded', () => new AutodartsStats());
+// Global reference for onclick handlers
+window.app = null;
+document.addEventListener('DOMContentLoaded', () => { window.app = new AutodartsStats(); });
