@@ -381,23 +381,23 @@ class AutodartsStats {
         if (this.matchHistoryLoaded) return;
 
         try {
-            // Get filtered match IDs (respects variant filter)
+            // Get filtered matches and their match_player_ids (only current player)
             const filteredMatches = this.getFilteredData();
-            const filteredMatchIds = filteredMatches.map(m => m.match_id);
+            const filteredMpIds = filteredMatches.map(m => m.id); // match_player.id, not match_id
 
-            if (filteredMatchIds.length === 0) {
+            if (filteredMpIds.length === 0) {
                 this.matchHistory = [];
                 this.matchHistoryLoaded = true;
                 return;
             }
 
-            // Load from view, filtering by match_ids
+            // Load from view, filtering by match_player_id (only current player's entries)
             let allData = [];
-            for (let i = 0; i < filteredMatchIds.length; i += 50) {
+            for (let i = 0; i < filteredMpIds.length; i += 50) {
                 const { data, error } = await supabase
                     .from('match_averages')
                     .select('*')
-                    .in('match_id', filteredMatchIds.slice(i, i + 50));
+                    .in('match_player_id', filteredMpIds.slice(i, i + 50));
                 if (data) allData.push(...data);
             }
 
