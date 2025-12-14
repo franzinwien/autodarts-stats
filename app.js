@@ -497,13 +497,13 @@ class AutodartsStats {
             const match180s = (myTurns || []).filter(t => t.points === 180).length;
             document.getElementById('md-180s').textContent = match180s;
 
-            // Calculate darts thrown from turns
-            const dartsThrown = (myTurns?.length || 0) * 3;
-            document.getElementById('md-darts').textContent = dartsThrown || '-';
-
-            // Load throws for T20 stats
+            // Load throws for T20 stats and accurate dart count
             const turnIds = (myTurns || []).map(t => t.id);
             const myThrows = await this.loadThrows(turnIds, 10000);
+
+            // Calculate actual darts thrown from throws table
+            const dartsThrown = myThrows.length || (myTurns?.length || 0) * 3;
+            document.getElementById('md-darts').textContent = dartsThrown || '-';
 
             // T20 count and rate
             const t20Throws = myThrows.filter(t => t.segment_name === 'T20');
@@ -552,10 +552,27 @@ class AutodartsStats {
         const grid = document.getElementById('leg-overview-grid');
         if (!grid || !this.currentMatchLegs) return;
 
+        // Group throws by turn_id to count actual darts per turn
+        const dartsByTurn = {};
+        if (this.currentMyThrows) {
+            this.currentMyThrows.forEach(th => {
+                dartsByTurn[th.turn_id] = (dartsByTurn[th.turn_id] || 0) + 1;
+            });
+        }
+
         grid.innerHTML = this.currentMatchLegs.map((leg, i) => {
             const myTurns = this.currentMyTurns.filter(t => t.leg_id === leg.id);
-            const avg = myTurns.length ? myTurns.reduce((s, t) => s + (t.points || 0), 0) / myTurns.length : 0;
-            const darts = myTurns.length * 3;
+            const totalPoints = myTurns.reduce((s, t) => s + (t.points || 0), 0);
+
+            // Calculate actual darts thrown (from throws table, fallback to turns * 3)
+            let totalDarts = 0;
+            myTurns.forEach(t => {
+                totalDarts += dartsByTurn[t.id] || 3; // fallback to 3 if no throws data
+            });
+
+            // 3-Dart-Average = (Total Points / Total Darts) * 3
+            const avg = totalDarts > 0 ? (totalPoints / totalDarts) * 3 : 0;
+
             // winner_player_id contains match_player.id, NOT user_id!
             const won = leg.winner_player_id === this.currentMp?.id;
 
@@ -566,7 +583,7 @@ class AutodartsStats {
             return `<div class="leg-card ${won ? 'won' : 'lost'}" data-leg-id="${leg.id}" onclick="window.app.selectLeg('${leg.id}')">
                 <div class="leg-number">Leg ${leg.leg_number + 1}</div>
                 <div class="leg-avg">${avg.toFixed(1)}</div>
-                <div class="leg-darts">${darts} Darts</div>
+                <div class="leg-darts">${totalDarts} Darts</div>
                 <div class="leg-rank">${rankHtml}</div>
                 <div class="leg-result">${won ? '✅' : '❌'}</div>
             </div>`;
@@ -671,13 +688,25 @@ class AutodartsStats {
         const ctx = document.getElementById('chart-leg-averages');
         if (!ctx || !this.currentMatchLegs) return;
 
+        // Group throws by turn_id to count actual darts per turn
+        const dartsByTurn = {};
+        if (this.currentMyThrows) {
+            this.currentMyThrows.forEach(th => {
+                dartsByTurn[th.turn_id] = (dartsByTurn[th.turn_id] || 0) + 1;
+            });
+        }
+
         const labels = this.currentMatchLegs.map((l, i) => `L${i + 1}`);
         const myAvgs = this.currentMatchLegs.map(leg => {
             const turns = this.currentMyTurns.filter(t => t.leg_id === leg.id);
-            return turns.length ? turns.reduce((s, t) => s + (t.points || 0), 0) / turns.length : 0;
+            const totalPoints = turns.reduce((s, t) => s + (t.points || 0), 0);
+            let totalDarts = 0;
+            turns.forEach(t => { totalDarts += dartsByTurn[t.id] || 3; });
+            return totalDarts > 0 ? (totalPoints / totalDarts) * 3 : 0;
         });
         const oppAvgs = this.currentMatchLegs.map(leg => {
             const turns = this.currentOppTurns.filter(t => t.leg_id === leg.id);
+            // For opponent, we don't have throws, so use turns * 3 as approximation
             return turns.length ? turns.reduce((s, t) => s + (t.points || 0), 0) / turns.length : 0;
         });
         // winner_player_id contains match_player.id, NOT user_id!
