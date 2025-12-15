@@ -131,10 +131,10 @@ class AutodartsStats {
     
     async handleAuthSuccess(user) { this.user = user; this.showLoading(); try { const { data: players } = await supabase.from('allowed_users').select('*'); this.allPlayers = players || []; const cu = this.allPlayers.find(p => p.email === user.email); if (!cu) { alert('Zugang nicht erlaubt.'); await this.logout(); return; } this.currentPlayerId = cu.autodarts_user_id; document.getElementById('user-name').textContent = cu.autodarts_username || user.email; const sel = document.getElementById('global-filter-player'); if (sel) sel.innerHTML = this.allPlayers.map(p => '<option value="'+p.autodarts_user_id+'"'+(p.autodarts_user_id===cu.autodarts_user_id?' selected':'')+'>'+(p.autodarts_username||p.email)+'</option>').join(''); document.getElementById('global-filter-variant').value = 'X01'; this.filters.variant = 'X01'; await this.loadPlayerData(this.currentPlayerId); this.showDashboard(); this.navigateTo('overview'); } catch (e) { console.error(e); } finally { this.hideLoading(); } }
     
-    async loadPlayerData(pid) { const { data: mp } = await supabase.from('match_players').select('*').eq('user_id', pid); this.allMatchPlayers = mp || []; if (!this.allMatchPlayers.length) return; const mids = [...new Set(this.allMatchPlayers.map(m => m.match_id))]; this.allMatches = []; for (let i = 0; i < mids.length; i += 50) { const { data } = await supabase.from('matches').select('*').in('id', mids.slice(i, i+50)); if (data) this.allMatches.push(...data); } this.opponentMap = {}; for (let i = 0; i < mids.length; i += 50) { const { data } = await supabase.from('match_players').select('*').in('match_id', mids.slice(i, i+50)); data?.forEach(p => { if (p.user_id !== pid && !this.opponentMap[p.match_id]) this.opponentMap[p.match_id] = p; }); } const avgs = this.allMatchPlayers.filter(m => m.average > 0).map(m => m.average); this.overallAverage = avgs.length ? avgs.reduce((a,b)=>a+b,0)/avgs.length : 0; }
+    async loadPlayerData(pid) { const { data: mp } = await supabase.from('match_players').select('*').eq('user_id', pid); this.allMatchPlayers = mp || []; if (!this.allMatchPlayers.length) return; const mids = [...new Set(this.allMatchPlayers.map(m => m.match_id))]; const batches = []; for (let i = 0; i < mids.length; i += 50) batches.push(mids.slice(i, i+50)); const [matchResults, oppResults] = await Promise.all([Promise.all(batches.map(batch => supabase.from('matches').select('*').in('id', batch))), Promise.all(batches.map(batch => supabase.from('match_players').select('*').in('match_id', batch)))]); this.allMatches = matchResults.flatMap(r => r.data || []); this.opponentMap = {}; oppResults.flatMap(r => r.data || []).forEach(p => { if (p.user_id !== pid && !this.opponentMap[p.match_id]) this.opponentMap[p.match_id] = p; }); const avgs = this.allMatchPlayers.filter(m => m.average > 0).map(m => m.average); this.overallAverage = avgs.length ? avgs.reduce((a,b)=>a+b,0)/avgs.length : 0; }
     
-    async loadTurns(mpIds) { if (!mpIds.length) return []; let r = []; for (let i = 0; i < mpIds.length; i += 50) { const batch = mpIds.slice(i,i+50); const { data, error } = await supabase.from('turns').select('id,points,round,match_player_id,created_at,score_remaining').in('match_player_id', batch); if (error) console.error('loadTurns error:', error, 'batch:', batch); if (data) r.push(...data); } return r; }
-    async loadThrows(tids, lim=5000) { if (!tids.length) return []; let r = []; for (let i = 0; i < Math.min(tids.length,lim); i += 100) { const { data } = await supabase.from('throws').select('*').in('turn_id', tids.slice(i,i+100)); if (data) r.push(...data); } return r; }
+    async loadTurns(mpIds) { if (!mpIds.length) return []; const batches = []; for (let i = 0; i < mpIds.length; i += 50) batches.push(mpIds.slice(i, i+50)); const results = await Promise.all(batches.map(batch => supabase.from('turns').select('id,points,round,match_player_id,created_at,score_remaining').in('match_player_id', batch))); return results.flatMap(r => r.data || []); }
+    async loadThrows(tids, lim=5000) { if (!tids.length) return []; const limitedTids = tids.slice(0, lim); const batches = []; for (let i = 0; i < limitedTids.length; i += 100) batches.push(limitedTids.slice(i, i+100)); const results = await Promise.all(batches.map(batch => supabase.from('throws').select('*').in('turn_id', batch))); return results.flatMap(r => r.data || []); }
     
     // Calculate average from turns for a match_player
     calcAvgFromTurns(turns, mpId) { const t = turns.filter(x => x.match_player_id === mpId && x.points !== null); return t.length ? t.reduce((s,x) => s + x.points, 0) / t.length : 0; }
@@ -204,29 +204,28 @@ class AutodartsStats {
     async loadH2HData() {
         this.showLoading();
         try {
-            // Get all matches where both players participated
-            const { data: franzMatches } = await supabase.from('match_players').select('match_id').eq('user_id', FRANZ_ID);
-            const { data: bellaMatches } = await supabase.from('match_players').select('match_id').eq('user_id', BELLACIAO_ID);
-            
+            // Get all matches where both players participated (parallel)
+            const [{ data: franzMatches }, { data: bellaMatches }] = await Promise.all([
+                supabase.from('match_players').select('match_id').eq('user_id', FRANZ_ID),
+                supabase.from('match_players').select('match_id').eq('user_id', BELLACIAO_ID)
+            ]);
+
             if (!franzMatches || !bellaMatches) { this.hideLoading(); return; }
-            
+
             const franzMatchIds = new Set(franzMatches.map(m => m.match_id));
             const commonMatchIds = bellaMatches.filter(m => franzMatchIds.has(m.match_id)).map(m => m.match_id);
-            
+
             if (commonMatchIds.length === 0) {
                 document.getElementById('h2h-total-matches').textContent = '0';
                 this.hideLoading();
                 return;
             }
-            
-            // Load match details
-            let matches = [];
-            for (let i = 0; i < commonMatchIds.length; i += 50) {
-                const batch = commonMatchIds.slice(i, i + 50);
-                const { data } = await supabase.from('matches').select('*').in('id', batch);
-                if (data) matches.push(...data);
-            }
-            
+
+            // Load match details (parallel batches)
+            const matchBatches = []; for (let i = 0; i < commonMatchIds.length; i += 50) matchBatches.push(commonMatchIds.slice(i, i + 50));
+            const matchResults = await Promise.all(matchBatches.map(batch => supabase.from('matches').select('*').in('id', batch)));
+            let matches = matchResults.flatMap(r => r.data || []);
+
             // Apply filters (time, type, variant) - but NOT player filter
             if (this.filters.time !== 'all') {
                 const days = parseInt(this.filters.time);
@@ -240,7 +239,7 @@ class AutodartsStats {
             if (this.filters.variant) {
                 matches = matches.filter(m => m.variant === this.filters.variant);
             }
-            
+
             if (matches.length === 0) {
                 document.getElementById('h2h-wins1').textContent = '0';
                 document.getElementById('h2h-wins2').textContent = '0';
@@ -253,18 +252,15 @@ class AutodartsStats {
                 this.hideLoading();
                 return;
             }
-            
+
             // Get filtered match IDs for loading players
             const filteredMatchIds = matches.map(m => m.id);
-            
-            // Load match_players for these matches
-            let allPlayers = [];
-            for (let i = 0; i < filteredMatchIds.length; i += 50) {
-                const batch = filteredMatchIds.slice(i, i + 50);
-                const { data } = await supabase.from('match_players').select('*').in('match_id', batch);
-                if (data) allPlayers.push(...data);
-            }
-            
+
+            // Load match_players for these matches (parallel batches)
+            const playerBatches = []; for (let i = 0; i < filteredMatchIds.length; i += 50) playerBatches.push(filteredMatchIds.slice(i, i + 50));
+            const playerResults = await Promise.all(playerBatches.map(batch => supabase.from('match_players').select('*').in('match_id', batch)));
+            const allPlayers = playerResults.flatMap(r => r.data || []);
+
             // Load turns for calculating real averages
             const mpIds = allPlayers.map(p => p.id);
             const turns = await this.loadTurns(mpIds);
@@ -463,15 +459,10 @@ class AutodartsStats {
                 return;
             }
 
-            // Load from leg_averages view by match_id (fewer batches than by mp_id)
-            let allLegAvgs = [];
-            for (let i = 0; i < filteredMatchIds.length; i += 100) {
-                const { data, error } = await supabase
-                    .from('leg_averages')
-                    .select('*')
-                    .in('match_id', filteredMatchIds.slice(i, i + 100));
-                if (data) allLegAvgs.push(...data);
-            }
+            // Load from leg_averages view by match_id (parallel batches)
+            const legBatches = []; for (let i = 0; i < filteredMatchIds.length; i += 100) legBatches.push(filteredMatchIds.slice(i, i + 100));
+            const legResults = await Promise.all(legBatches.map(batch => supabase.from('leg_averages').select('*').in('match_id', batch)));
+            const allLegAvgs = legResults.flatMap(r => r.data || []);
 
             // Filter to only current player's legs (not opponent's)
             const myLegAvgs = allLegAvgs.filter(l => mpIdSet.has(l.match_player_id));
