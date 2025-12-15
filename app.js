@@ -76,7 +76,7 @@ function analyzeT20Misses(throws) {
     const directions = ['links-oben', 'links-mitte', 'links-unten', 'oben', 'unten', 'rechts-oben', 'rechts-mitte', 'rechts-unten'];
     const byDirection = {};
     directions.forEach(d => {
-        byDirection[d] = { close: [], far: [] }; // close: 0-5mm, far: >5mm
+        byDirection[d] = { close: [], far: [] }; // close: 0-1cm, far: >1cm
     });
 
     const results = {
@@ -84,7 +84,7 @@ function analyzeT20Misses(throws) {
         hits: 0,
         misses: [],
         byDirection,
-        byDistance: { '0-2mm': 0, '2-5mm': 0, '5-10mm': 0, '>10mm': 0 }
+        byDistance: { '0-1cm': 0, '1-2cm': 0, '2-3cm': 0, '>3cm': 0 }
     };
 
     t20Area.forEach(t => {
@@ -98,18 +98,18 @@ function analyzeT20Misses(throws) {
 
             results.misses.push({ x: t.coord_x, y: t.coord_y, distMm, direction, segment: t.segment_name });
 
-            // Nach Richtung und Nähe gruppieren
-            if (distMm <= 5) {
+            // Nach Richtung und Nähe gruppieren (1cm = 10mm)
+            if (distMm <= 10) {
                 results.byDirection[direction].close.push(distMm);
             } else {
                 results.byDirection[direction].far.push(distMm);
             }
 
-            // Distanz-Kategorien
-            if (distMm <= 2) results.byDistance['0-2mm']++;
-            else if (distMm <= 5) results.byDistance['2-5mm']++;
-            else if (distMm <= 10) results.byDistance['5-10mm']++;
-            else results.byDistance['>10mm']++;
+            // Distanz-Kategorien in cm
+            if (distMm <= 10) results.byDistance['0-1cm']++;
+            else if (distMm <= 20) results.byDistance['1-2cm']++;
+            else if (distMm <= 30) results.byDistance['2-3cm']++;
+            else results.byDistance['>3cm']++;
         }
     });
 
@@ -842,7 +842,7 @@ class AutodartsStats {
 
                 if (total > 0) {
                     el.querySelector('.direction-value').textContent = total;
-                    el.querySelector('.direction-detail').textContent = `≤5mm: ${closeCount} | >5mm: ${farCount}`;
+                    el.querySelector('.direction-detail').textContent = `≤1cm: ${closeCount} | >1cm: ${farCount}`;
 
                     // Heatmap color based on intensity
                     const intensity = total / maxCount;
@@ -871,12 +871,12 @@ class AutodartsStats {
             centerEl.querySelector('.direction-value').textContent = analysis.hits || '0';
         }
 
-        // Distance breakdown bars (now in mm)
+        // Distance breakdown bars (in cm)
         const distMapping = {
-            '0-2mm': { fillId: 'dist-0-2', countId: 'dist-count-0-2' },
-            '2-5mm': { fillId: 'dist-2-5', countId: 'dist-count-2-5' },
-            '5-10mm': { fillId: 'dist-5-10', countId: 'dist-count-5-10' },
-            '>10mm': { fillId: 'dist-10plus', countId: 'dist-count-10plus' }
+            '0-1cm': { fillId: 'dist-0-1', countId: 'dist-count-0-1' },
+            '1-2cm': { fillId: 'dist-1-2', countId: 'dist-count-1-2' },
+            '2-3cm': { fillId: 'dist-2-3', countId: 'dist-count-2-3' },
+            '>3cm': { fillId: 'dist-3plus', countId: 'dist-count-3plus' }
         };
 
         Object.entries(analysis.byDistance).forEach(([key, count]) => {
@@ -891,6 +891,140 @@ class AutodartsStats {
 
         // Textual analysis
         this.renderT20TextAnalysis(analysis, totalMisses);
+
+        // Extended analysis
+        this.renderT20Scatter(throws, analysis);
+        this.renderT20Comparison(analysis);
+        this.renderT20Fatigue(throws);
+    }
+
+    renderT20Scatter(throws, analysis) {
+        const canvas = document.getElementById('t20-scatter-canvas');
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width;
+        const h = canvas.height;
+        const cx = w / 2;
+        const cy = h / 2;
+
+        // Clear canvas
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(0, 0, w, h);
+
+        // Draw T20 area reference (simplified rectangle)
+        const scale = 1800; // Scale factor for coordinates
+        ctx.strokeStyle = 'rgba(16, 185, 129, 0.3)';
+        ctx.lineWidth = 2;
+
+        // Draw T20 polygon
+        ctx.beginPath();
+        T20_POLYGON.forEach((p, i) => {
+            const x = cx + p[0] * scale;
+            const y = cy - p[1] * scale + 110; // Offset to center T20 in view
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
+        ctx.fill();
+        ctx.stroke();
+
+        // Draw crosshair at T20 center
+        const t20cx = cx + T20_CENTROID[0] * scale;
+        const t20cy = cy - T20_CENTROID[1] * scale + 110;
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(t20cx - 15, t20cy);
+        ctx.lineTo(t20cx + 15, t20cy);
+        ctx.moveTo(t20cx, t20cy - 15);
+        ctx.lineTo(t20cx, t20cy + 15);
+        ctx.stroke();
+
+        // Draw all throws
+        const t20Throws = throws.filter(t => [20, 1, 5].includes(t.segment_number) && t.coord_x != null && t.coord_y != null);
+
+        t20Throws.forEach(t => {
+            const x = cx + t.coord_x * scale;
+            const y = cy - t.coord_y * scale + 110;
+
+            const inT20 = pointInPolygon(t.coord_x, t.coord_y, T20_POLYGON);
+            const dist = inT20 ? 0 : distanceToPolygon(t.coord_x, t.coord_y, T20_POLYGON) * COORD_TO_MM;
+
+            // Color based on result
+            if (inT20) {
+                ctx.fillStyle = '#10b981'; // Green for hits
+            } else if (dist <= 10) {
+                ctx.fillStyle = '#f59e0b'; // Yellow for close misses (≤1cm)
+            } else {
+                ctx.fillStyle = '#ef4444'; // Red for far misses
+            }
+
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        // Draw center dot
+        ctx.fillStyle = '#10b981';
+        ctx.beginPath();
+        ctx.arc(t20cx, t20cy, 3, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    renderT20Comparison(analysis) {
+        const matchRate = analysis.total > 0 ? (analysis.hits / analysis.total) * 100 : 0;
+        document.getElementById('t20-match-rate').textContent = matchRate.toFixed(1) + '%';
+
+        // Calculate average T20 rate from all matches (using cached data if available)
+        if (this.avgT20Rate !== undefined) {
+            document.getElementById('t20-avg-rate').textContent = this.avgT20Rate.toFixed(1) + '%';
+            const diff = matchRate - this.avgT20Rate;
+            const diffEl = document.getElementById('t20-diff-rate');
+            diffEl.textContent = (diff >= 0 ? '+' : '') + diff.toFixed(1) + '%';
+            diffEl.className = 'comp-value ' + (diff >= 0 ? 'positive' : 'negative');
+        } else {
+            document.getElementById('t20-avg-rate').textContent = '-';
+            document.getElementById('t20-diff-rate').textContent = '-';
+        }
+    }
+
+    renderT20Fatigue(throws) {
+        const t20Throws = throws.filter(t => [20, 1, 5].includes(t.segment_number) && t.coord_x != null && t.coord_y != null);
+        if (t20Throws.length < 4) {
+            document.getElementById('t20-first-half').textContent = '-';
+            document.getElementById('t20-second-half').textContent = '-';
+            document.getElementById('t20-fatigue').textContent = 'Zu wenige Daten';
+            return;
+        }
+
+        const mid = Math.floor(t20Throws.length / 2);
+        const firstHalf = t20Throws.slice(0, mid);
+        const secondHalf = t20Throws.slice(mid);
+
+        const firstHits = firstHalf.filter(t => pointInPolygon(t.coord_x, t.coord_y, T20_POLYGON)).length;
+        const secondHits = secondHalf.filter(t => pointInPolygon(t.coord_x, t.coord_y, T20_POLYGON)).length;
+
+        const firstRate = (firstHits / firstHalf.length) * 100;
+        const secondRate = (secondHits / secondHalf.length) * 100;
+
+        document.getElementById('t20-first-half').textContent = firstRate.toFixed(1) + '%';
+        document.getElementById('t20-second-half').textContent = secondRate.toFixed(1) + '%';
+
+        const diff = secondRate - firstRate;
+        const fatigueEl = document.getElementById('t20-fatigue');
+
+        if (diff > 3) {
+            fatigueEl.textContent = '📈 Verbesserung (+' + diff.toFixed(1) + '%)';
+            fatigueEl.className = 'comp-value positive';
+        } else if (diff < -3) {
+            fatigueEl.textContent = '📉 Ermüdung (' + diff.toFixed(1) + '%)';
+            fatigueEl.className = 'comp-value negative';
+        } else {
+            fatigueEl.textContent = '➡️ Konstant (' + (diff >= 0 ? '+' : '') + diff.toFixed(1) + '%)';
+            fatigueEl.className = 'comp-value';
+        }
     }
 
     getHeatmapColor(intensity) {
@@ -969,8 +1103,8 @@ class AutodartsStats {
         const closeRatio = closeTotal / totalMisses;
 
         if (closeRatio > 0.5) {
-            insights.push(`✅ Gute Präzision - ${(closeRatio * 100).toFixed(0)}% knapp daneben (≤5mm)`);
-        } else if (closeRatio < 0.2) {
+            insights.push(`✅ Gute Präzision - ${(closeRatio * 100).toFixed(0)}% knapp daneben (≤1cm)`);
+        } else if (closeRatio < 0.3) {
             insights.push(`⚠️ Hohe Streuung - nur ${(closeRatio * 100).toFixed(0)}% knapp daneben`);
         }
 

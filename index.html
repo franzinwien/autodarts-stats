@@ -669,30 +669,75 @@
                                 <h4>Fehlwürfe nach Distanz</h4>
                                 <div class="distance-bars" id="t20-distance-bars">
                                     <div class="distance-row">
-                                        <span class="dist-label">0-2mm</span>
-                                        <div class="dist-bar"><div class="dist-fill" id="dist-0-2"></div></div>
-                                        <span class="dist-count" id="dist-count-0-2">0</span>
+                                        <span class="dist-label">0-1cm</span>
+                                        <div class="dist-bar"><div class="dist-fill dist-close" id="dist-0-1"></div></div>
+                                        <span class="dist-count" id="dist-count-0-1">0</span>
                                     </div>
                                     <div class="distance-row">
-                                        <span class="dist-label">2-5mm</span>
-                                        <div class="dist-bar"><div class="dist-fill" id="dist-2-5"></div></div>
-                                        <span class="dist-count" id="dist-count-2-5">0</span>
+                                        <span class="dist-label">1-2cm</span>
+                                        <div class="dist-bar"><div class="dist-fill dist-medium" id="dist-1-2"></div></div>
+                                        <span class="dist-count" id="dist-count-1-2">0</span>
                                     </div>
                                     <div class="distance-row">
-                                        <span class="dist-label">5-10mm</span>
-                                        <div class="dist-bar"><div class="dist-fill" id="dist-5-10"></div></div>
-                                        <span class="dist-count" id="dist-count-5-10">0</span>
+                                        <span class="dist-label">2-3cm</span>
+                                        <div class="dist-bar"><div class="dist-fill dist-far" id="dist-2-3"></div></div>
+                                        <span class="dist-count" id="dist-count-2-3">0</span>
                                     </div>
                                     <div class="distance-row">
-                                        <span class="dist-label">&gt;10mm</span>
-                                        <div class="dist-bar"><div class="dist-fill" id="dist-10plus"></div></div>
-                                        <span class="dist-count" id="dist-count-10plus">0</span>
+                                        <span class="dist-label">&gt;3cm</span>
+                                        <div class="dist-bar"><div class="dist-fill dist-veryfar" id="dist-3plus"></div></div>
+                                        <span class="dist-count" id="dist-count-3plus">0</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div class="t20-text-analysis" id="t20-text-analysis">
                             Analyse wird geladen...
+                        </div>
+
+                        <!-- Erweiterte T20-Analyse -->
+                        <div class="t20-extended-analysis">
+                            <div class="t20-dartboard-section">
+                                <h4>📍 Wurfverteilung</h4>
+                                <canvas id="t20-scatter-canvas" width="300" height="300"></canvas>
+                                <div class="dartboard-legend">
+                                    <span class="legend-item"><span class="dot green"></span> T20 Treffer</span>
+                                    <span class="legend-item"><span class="dot yellow"></span> ≤1cm daneben</span>
+                                    <span class="legend-item"><span class="dot red"></span> >1cm daneben</span>
+                                </div>
+                            </div>
+                            <div class="t20-comparison-section">
+                                <h4>📊 Match vs. Durchschnitt</h4>
+                                <div class="comparison-stats">
+                                    <div class="comparison-row">
+                                        <span class="comp-label">Dieses Match</span>
+                                        <span class="comp-value" id="t20-match-rate">-</span>
+                                    </div>
+                                    <div class="comparison-row">
+                                        <span class="comp-label">Ø Alle Matches</span>
+                                        <span class="comp-value" id="t20-avg-rate">-</span>
+                                    </div>
+                                    <div class="comparison-row highlight">
+                                        <span class="comp-label">Differenz</span>
+                                        <span class="comp-value" id="t20-diff-rate">-</span>
+                                    </div>
+                                </div>
+                                <h4 style="margin-top: 1rem;">⏱️ Zeitverlauf</h4>
+                                <div class="comparison-stats">
+                                    <div class="comparison-row">
+                                        <span class="comp-label">1. Hälfte</span>
+                                        <span class="comp-value" id="t20-first-half">-</span>
+                                    </div>
+                                    <div class="comparison-row">
+                                        <span class="comp-label">2. Hälfte</span>
+                                        <span class="comp-value" id="t20-second-half">-</span>
+                                    </div>
+                                    <div class="comparison-row" id="t20-fatigue-row">
+                                        <span class="comp-label">Trend</span>
+                                        <span class="comp-value" id="t20-fatigue">-</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
