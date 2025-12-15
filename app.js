@@ -912,42 +912,58 @@ class AutodartsStats {
         ctx.fillStyle = '#1e293b';
         ctx.fillRect(0, 0, w, h);
 
-        // Draw T20 area reference (simplified rectangle)
-        const scale = 1800; // Scale factor for coordinates
-        ctx.strokeStyle = 'rgba(16, 185, 129, 0.3)';
-        ctx.lineWidth = 2;
+        // Scale and center on T20
+        const scale = 2500;
+        const t20x = T20_CENTROID[0];
+        const t20y = T20_CENTROID[1];
+
+        // Helper to transform coordinates (centered on T20)
+        const toCanvasX = (x) => cx + (x - t20x) * scale;
+        const toCanvasY = (y) => cy - (y - t20y) * scale;
 
         // Draw T20 polygon
+        ctx.strokeStyle = 'rgba(16, 185, 129, 0.5)';
+        ctx.lineWidth = 2;
         ctx.beginPath();
         T20_POLYGON.forEach((p, i) => {
-            const x = cx + p[0] * scale;
-            const y = cy - p[1] * scale + 110; // Offset to center T20 in view
+            const x = toCanvasX(p[0]);
+            const y = toCanvasY(p[1]);
             if (i === 0) ctx.moveTo(x, y);
             else ctx.lineTo(x, y);
         });
         ctx.closePath();
-        ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.2)';
         ctx.fill();
         ctx.stroke();
 
         // Draw crosshair at T20 center
-        const t20cx = cx + T20_CENTROID[0] * scale;
-        const t20cy = cy - T20_CENTROID[1] * scale + 110;
-        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(t20cx - 15, t20cy);
-        ctx.lineTo(t20cx + 15, t20cy);
-        ctx.moveTo(t20cx, t20cy - 15);
-        ctx.lineTo(t20cx, t20cy + 15);
+        ctx.moveTo(cx - 20, cy);
+        ctx.lineTo(cx + 20, cy);
+        ctx.moveTo(cx, cy - 20);
+        ctx.lineTo(cx, cy + 20);
         ctx.stroke();
+
+        // Draw distance rings (1cm, 2cm, 3cm)
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        [10, 20, 30].forEach(mm => {
+            const radius = (mm / COORD_TO_MM) * scale;
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.stroke();
+        });
 
         // Draw all throws
         const t20Throws = throws.filter(t => [20, 1, 5].includes(t.segment_number) && t.coord_x != null && t.coord_y != null);
 
         t20Throws.forEach(t => {
-            const x = cx + t.coord_x * scale;
-            const y = cy - t.coord_y * scale + 110;
+            const x = toCanvasX(t.coord_x);
+            const y = toCanvasY(t.coord_y);
+
+            // Skip if outside canvas
+            if (x < -10 || x > w + 10 || y < -10 || y > h + 10) return;
 
             const inT20 = pointInPolygon(t.coord_x, t.coord_y, T20_POLYGON);
             const dist = inT20 ? 0 : distanceToPolygon(t.coord_x, t.coord_y, T20_POLYGON) * COORD_TO_MM;
@@ -962,14 +978,19 @@ class AutodartsStats {
             }
 
             ctx.beginPath();
-            ctx.arc(x, y, 4, 0, Math.PI * 2);
+            ctx.arc(x, y, 5, 0, Math.PI * 2);
             ctx.fill();
+
+            // Add border for visibility
+            ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
         });
 
-        // Draw center dot
-        ctx.fillStyle = '#10b981';
+        // Draw center marker
+        ctx.fillStyle = '#fff';
         ctx.beginPath();
-        ctx.arc(t20cx, t20cy, 3, 0, Math.PI * 2);
+        ctx.arc(cx, cy, 2, 0, Math.PI * 2);
         ctx.fill();
     }
 
