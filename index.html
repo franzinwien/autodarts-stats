@@ -559,136 +559,143 @@
                         </div>
                     </div>
 
-                    <!-- Leg Overview -->
-                    <div class="leg-overview-section">
-                        <h3>🦵 Leg-Übersicht</h3>
-                        <div class="leg-tabs" id="leg-tabs"></div>
-                        <div class="leg-overview-grid" id="leg-overview-grid"></div>
+                    <!-- Leg Filter/Selector -->
+                    <div class="leg-filter-section">
+                        <h3>🎯 Ansicht wählen</h3>
+                        <div class="leg-filter-tabs" id="leg-filter-tabs">
+                            <button class="leg-filter-tab active" data-leg="match" onclick="window.app.selectView('match')">
+                                📊 Gesamtes Match
+                            </button>
+                            <!-- Leg buttons will be added dynamically -->
+                        </div>
+                        <div class="leg-overview-grid compact" id="leg-overview-grid"></div>
                     </div>
 
-                    <!-- Charts -->
-                    <div class="charts-grid">
+                    <!-- MATCH-ONLY Charts -->
+                    <div class="match-only-section" id="match-only-charts">
+                        <div class="charts-grid charts-grid-compact">
+                            <div class="chart-card">
+                                <h4>📊 Leg Averages</h4>
+                                <div class="chart-container">
+                                    <canvas id="chart-leg-averages"></canvas>
+                                </div>
+                            </div>
+                            <div class="chart-card">
+                                <h4>⚡ First 9 vs Rest</h4>
+                                <div class="chart-container">
+                                    <canvas id="chart-match-first9"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- LEG-ONLY Charts -->
+                    <div class="leg-only-section hidden" id="leg-only-charts">
                         <div class="chart-card large">
-                            <h3>📈 Score-Verlauf (ausgewähltes Leg)</h3>
+                            <h3>📈 Score-Verlauf <span id="score-chart-title"></span></h3>
                             <div class="chart-container chart-container-large">
                                 <canvas id="chart-leg-progression"></canvas>
                             </div>
                         </div>
-                        <div class="chart-card">
-                            <h3>📊 Leg Averages</h3>
-                            <div class="chart-container">
-                                <canvas id="chart-leg-averages"></canvas>
+
+                        <!-- Leg Detail Table -->
+                        <div class="leg-detail-compact">
+                            <h4>📋 Aufnahmen <span id="leg-detail-title"></span></h4>
+                            <div class="table-container compact">
+                                <table id="leg-detail-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Visit</th>
+                                            <th>Punkte</th>
+                                            <th>Rest</th>
+                                            <th>Gegner</th>
+                                            <th>Gegner Rest</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Rolling Average Chart -->
-                    <div class="section-collapsible">
-                        <div class="section-header" onclick="window.app.toggleSection(this)">
-                            <h3>📈 Momentum & Rolling Average</h3>
-                            <span class="section-toggle">▼</span>
-                        </div>
-                        <div class="section-content">
-                            <div class="momentum-stats-grid">
-                                <div class="stat-card small">
-                                    <div class="stat-value" id="md-best-streak">-</div>
-                                    <div class="stat-label">Beste Serie (3+ Würfe 60+)</div>
-                                </div>
-                                <div class="stat-card small">
-                                    <div class="stat-value" id="md-worst-streak">-</div>
-                                    <div class="stat-label">Schlechteste Serie</div>
-                                </div>
-                                <div class="stat-card small">
-                                    <div class="stat-value" id="md-std-dev">-</div>
-                                    <div class="stat-label">Konsistenz (σ)</div>
-                                </div>
-                                <div class="stat-card small">
-                                    <div class="stat-value" id="md-60plus-rate">-</div>
-                                    <div class="stat-label">60+ Rate</div>
-                                </div>
-                                <div class="stat-card small">
-                                    <div class="stat-value" id="md-100plus-rate">-</div>
-                                    <div class="stat-label">100+ Rate</div>
-                                </div>
-                                <div class="stat-card small">
-                                    <div class="stat-value" id="md-140plus-rate">-</div>
-                                    <div class="stat-label">140+ Rate</div>
-                                </div>
+                    <!-- SHARED Charts (both Match & Leg) -->
+                    <div class="shared-charts-section">
+                        <!-- Rolling Average Chart -->
+                        <div class="section-collapsible">
+                            <div class="section-header" onclick="window.app.toggleSection(this)">
+                                <h3>📈 Momentum & Konsistenz <span class="view-indicator" id="momentum-view-indicator"></span></h3>
+                                <span class="section-toggle">▼</span>
                             </div>
-                            <div class="chart-card large">
-                                <h4>Rolling Average (5-Wurf-Fenster)</h4>
-                                <div class="chart-container chart-container-large">
-                                    <canvas id="chart-rolling-avg"></canvas>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Additional Charts Row -->
-                    <div class="section-collapsible">
-                        <div class="section-header" onclick="window.app.toggleSection(this)">
-                            <h3>🎯 Scoring Analyse</h3>
-                            <span class="section-toggle">▼</span>
-                        </div>
-                        <div class="section-content">
-                            <div class="charts-grid">
-                                <div class="chart-card">
-                                    <h4>Scoring Verteilung</h4>
-                                    <div class="chart-container">
-                                        <canvas id="chart-match-scoring"></canvas>
+                            <div class="section-content">
+                                <div class="momentum-stats-grid">
+                                    <div class="stat-card small">
+                                        <div class="stat-value" id="md-best-streak">-</div>
+                                        <div class="stat-label">Beste Serie</div>
+                                    </div>
+                                    <div class="stat-card small">
+                                        <div class="stat-value" id="md-worst-streak">-</div>
+                                        <div class="stat-label">Schlechteste Serie</div>
+                                    </div>
+                                    <div class="stat-card small">
+                                        <div class="stat-value" id="md-std-dev">-</div>
+                                        <div class="stat-label">Konsistenz (σ)</div>
+                                    </div>
+                                    <div class="stat-card small">
+                                        <div class="stat-value" id="md-60plus-rate">-</div>
+                                        <div class="stat-label">60+ Rate</div>
+                                    </div>
+                                    <div class="stat-card small">
+                                        <div class="stat-value" id="md-100plus-rate">-</div>
+                                        <div class="stat-label">100+ Rate</div>
+                                    </div>
+                                    <div class="stat-card small">
+                                        <div class="stat-value" id="md-140plus-rate">-</div>
+                                        <div class="stat-label">140+ Rate</div>
                                     </div>
                                 </div>
                                 <div class="chart-card">
-                                    <h4>First 9 vs Rest</h4>
                                     <div class="chart-container">
-                                        <canvas id="chart-match-first9"></canvas>
+                                        <canvas id="chart-rolling-avg"></canvas>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Doppel-Analyse Section -->
-                    <div class="section-collapsible">
-                        <div class="section-header" onclick="window.app.toggleSection(this)">
-                            <h3>🎯 Doppel-Analyse (Checkout)</h3>
-                            <span class="section-toggle">▼</span>
-                        </div>
-                        <div class="section-content">
-                            <div class="doubles-stats-grid">
-                                <div class="stat-card small">
-                                    <div class="stat-value" id="md-checkout-attempts">-</div>
-                                    <div class="stat-label">Checkout-Versuche</div>
-                                </div>
-                                <div class="stat-card small">
-                                    <div class="stat-value" id="md-checkout-hits">-</div>
-                                    <div class="stat-label">Erfolgreiche Checkouts</div>
-                                </div>
-                                <div class="stat-card small">
-                                    <div class="stat-value" id="md-checkout-rate-calc">-</div>
-                                    <div class="stat-label">Checkout %</div>
-                                </div>
-                                <div class="stat-card small">
-                                    <div class="stat-value" id="md-first-dart-co">-</div>
-                                    <div class="stat-label">1. Dart Checkout</div>
-                                </div>
+                        <!-- Scoring Analysis - Compact -->
+                        <div class="section-collapsible">
+                            <div class="section-header" onclick="window.app.toggleSection(this)">
+                                <h3>🎯 Scoring & Doppel <span class="view-indicator" id="scoring-view-indicator"></span></h3>
+                                <span class="section-toggle">▼</span>
                             </div>
-                            <div class="charts-grid">
-                                <div class="chart-card">
-                                    <h4>Getroffene Doppel</h4>
-                                    <div class="chart-container">
-                                        <canvas id="chart-match-doubles"></canvas>
+                            <div class="section-content">
+                                <div class="charts-grid charts-grid-3">
+                                    <div class="chart-card compact">
+                                        <h4>Scoring Verteilung</h4>
+                                        <div class="chart-container chart-container-small">
+                                            <canvas id="chart-match-scoring"></canvas>
+                                        </div>
+                                    </div>
+                                    <div class="chart-card compact">
+                                        <h4>Checkout Doppel</h4>
+                                        <div class="chart-container chart-container-small">
+                                            <canvas id="chart-match-doubles"></canvas>
+                                        </div>
+                                    </div>
+                                    <div class="chart-card compact">
+                                        <h4>Doppel-Versuche</h4>
+                                        <div class="doubles-heatmap compact" id="doubles-heatmap"></div>
                                     </div>
                                 </div>
-                                <div class="chart-card">
-                                    <h4>Doppel-Versuche nach Feld</h4>
-                                    <div class="doubles-heatmap" id="doubles-heatmap"></div>
+                                <div class="doubles-stats-inline">
+                                    <span><strong>Checkout:</strong> <span id="md-checkout-rate-calc">-</span></span>
+                                    <span><strong>Versuche:</strong> <span id="md-checkout-attempts">-</span></span>
+                                    <span><strong>Hits:</strong> <span id="md-checkout-hits">-</span></span>
+                                    <span><strong>1. Dart CO:</strong> <span id="md-first-dart-co">-</span></span>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- T20 Streuungsanalyse -->
+                        <!-- T20 Streuungsanalyse -->
                     <div class="section-collapsible">
                         <div class="section-header" onclick="window.app.toggleSection(this)">
                             <h3>🎯 T20 Streuungsanalyse</h3>
@@ -835,30 +842,7 @@
                         </div>
                         </div>
                     </div>
-
-                    <!-- Leg Detail -->
-                    <div class="section-collapsible">
-                        <div class="section-header" onclick="window.app.toggleSection(this)">
-                            <h3>📋 Leg Detail <span id="leg-detail-title"></span></h3>
-                            <span class="section-toggle">▼</span>
-                        </div>
-                        <div class="section-content leg-detail-section">
-                            <div class="table-container">
-                                <table id="leg-detail-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Visit</th>
-                                            <th>Punkte</th>
-                                            <th>Rest</th>
-                                            <th>Gegner Punkte</th>
-                                            <th>Gegner Rest</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody></tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
+                    </div><!-- /shared-charts-section -->
                 </div>
 
                 <!-- Empty State -->
