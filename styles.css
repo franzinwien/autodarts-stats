@@ -1691,3 +1691,201 @@ tr:hover td {
         order: 1;
     }
 }
+
+/* =====================================================
+   COLLAPSIBLE SECTIONS
+   ===================================================== */
+
+.section-collapsible {
+    margin: 1.5rem 0;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    cursor: pointer;
+    background: linear-gradient(135deg, var(--bg-secondary), var(--bg-tertiary));
+    transition: background 0.2s;
+}
+
+.section-header:hover {
+    background: var(--bg-tertiary);
+}
+
+.section-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+}
+
+.section-toggle {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    transition: transform 0.3s;
+}
+
+.section-collapsible.collapsed .section-toggle {
+    transform: rotate(-90deg);
+}
+
+.section-content {
+    padding: 1.5rem;
+    transition: max-height 0.3s ease, opacity 0.2s ease;
+}
+
+.section-collapsible.collapsed .section-content {
+    display: none;
+}
+
+/* =====================================================
+   STICKY MATCH HEADER
+   ===================================================== */
+
+.match-detail-header.sticky {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow-lg);
+}
+
+/* =====================================================
+   MOMENTUM & ROLLING AVERAGE
+   ===================================================== */
+
+.momentum-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.momentum-stats-grid .stat-card.small {
+    padding: 1rem;
+}
+
+.momentum-stats-grid .stat-value {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.momentum-stats-grid .stat-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}
+
+/* =====================================================
+   DOUBLES ANALYSIS
+   ===================================================== */
+
+.doubles-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.doubles-stats-grid .stat-card.small {
+    padding: 1rem;
+}
+
+.doubles-heatmap {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.5rem;
+    padding: 1rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+}
+
+.double-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 0.5rem;
+    border-radius: var(--radius-sm);
+    text-align: center;
+    transition: transform 0.2s;
+}
+
+.double-cell:hover {
+    transform: scale(1.05);
+}
+
+.double-cell .double-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+
+.double-cell .double-stats {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}
+
+.double-cell.heat-0 { background: var(--bg-tertiary); }
+.double-cell.heat-1 { background: rgba(16, 185, 129, 0.2); }
+.double-cell.heat-2 { background: rgba(16, 185, 129, 0.4); }
+.double-cell.heat-3 { background: rgba(16, 185, 129, 0.6); color: #000; }
+.double-cell.heat-4 { background: rgba(16, 185, 129, 0.8); color: #000; }
+.double-cell.heat-5 { background: var(--accent-green); color: #000; }
+
+.double-cell.miss-heat-1 { background: rgba(239, 68, 68, 0.2); }
+.double-cell.miss-heat-2 { background: rgba(239, 68, 68, 0.4); }
+.double-cell.miss-heat-3 { background: rgba(239, 68, 68, 0.6); color: #000; }
+
+/* Consistency indicators */
+.consistency-good { color: var(--accent-green); }
+.consistency-medium { color: var(--accent-yellow); }
+.consistency-bad { color: var(--accent-red); }
+
+/* =====================================================
+   EXTENDED LEG STATS
+   ===================================================== */
+
+.leg-card .leg-extra-stats {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+}
+
+.leg-card .leg-extra-stats span {
+    background: var(--bg-tertiary);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+}
+
+/* =====================================================
+   RESPONSIVE ADJUSTMENTS
+   ===================================================== */
+
+@media (max-width: 768px) {
+    .section-header {
+        padding: 0.75rem 1rem;
+    }
+
+    .section-content {
+        padding: 1rem;
+    }
+
+    .momentum-stats-grid,
+    .doubles-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .doubles-heatmap {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}

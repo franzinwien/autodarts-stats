@@ -582,25 +582,119 @@
                         </div>
                     </div>
 
-                    <!-- Additional Charts Row -->
-                    <div class="charts-grid">
-                        <div class="chart-card">
-                            <h3>🎯 Scoring Verteilung</h3>
-                            <div class="chart-container">
-                                <canvas id="chart-match-scoring"></canvas>
+                    <!-- Rolling Average Chart -->
+                    <div class="section-collapsible">
+                        <div class="section-header" onclick="window.app.toggleSection(this)">
+                            <h3>📈 Momentum & Rolling Average</h3>
+                            <span class="section-toggle">▼</span>
+                        </div>
+                        <div class="section-content">
+                            <div class="momentum-stats-grid">
+                                <div class="stat-card small">
+                                    <div class="stat-value" id="md-best-streak">-</div>
+                                    <div class="stat-label">Beste Serie (3+ Würfe 60+)</div>
+                                </div>
+                                <div class="stat-card small">
+                                    <div class="stat-value" id="md-worst-streak">-</div>
+                                    <div class="stat-label">Schlechteste Serie</div>
+                                </div>
+                                <div class="stat-card small">
+                                    <div class="stat-value" id="md-std-dev">-</div>
+                                    <div class="stat-label">Konsistenz (σ)</div>
+                                </div>
+                                <div class="stat-card small">
+                                    <div class="stat-value" id="md-60plus-rate">-</div>
+                                    <div class="stat-label">60+ Rate</div>
+                                </div>
+                                <div class="stat-card small">
+                                    <div class="stat-value" id="md-100plus-rate">-</div>
+                                    <div class="stat-label">100+ Rate</div>
+                                </div>
+                                <div class="stat-card small">
+                                    <div class="stat-value" id="md-140plus-rate">-</div>
+                                    <div class="stat-label">140+ Rate</div>
+                                </div>
+                            </div>
+                            <div class="chart-card large">
+                                <h4>Rolling Average (5-Wurf-Fenster)</h4>
+                                <div class="chart-container chart-container-large">
+                                    <canvas id="chart-rolling-avg"></canvas>
+                                </div>
                             </div>
                         </div>
-                        <div class="chart-card">
-                            <h3>⚡ First 9 vs Rest</h3>
-                            <div class="chart-container">
-                                <canvas id="chart-match-first9"></canvas>
+                    </div>
+
+                    <!-- Additional Charts Row -->
+                    <div class="section-collapsible">
+                        <div class="section-header" onclick="window.app.toggleSection(this)">
+                            <h3>🎯 Scoring Analyse</h3>
+                            <span class="section-toggle">▼</span>
+                        </div>
+                        <div class="section-content">
+                            <div class="charts-grid">
+                                <div class="chart-card">
+                                    <h4>Scoring Verteilung</h4>
+                                    <div class="chart-container">
+                                        <canvas id="chart-match-scoring"></canvas>
+                                    </div>
+                                </div>
+                                <div class="chart-card">
+                                    <h4>First 9 vs Rest</h4>
+                                    <div class="chart-container">
+                                        <canvas id="chart-match-first9"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Doppel-Analyse Section -->
+                    <div class="section-collapsible">
+                        <div class="section-header" onclick="window.app.toggleSection(this)">
+                            <h3>🎯 Doppel-Analyse (Checkout)</h3>
+                            <span class="section-toggle">▼</span>
+                        </div>
+                        <div class="section-content">
+                            <div class="doubles-stats-grid">
+                                <div class="stat-card small">
+                                    <div class="stat-value" id="md-checkout-attempts">-</div>
+                                    <div class="stat-label">Checkout-Versuche</div>
+                                </div>
+                                <div class="stat-card small">
+                                    <div class="stat-value" id="md-checkout-hits">-</div>
+                                    <div class="stat-label">Erfolgreiche Checkouts</div>
+                                </div>
+                                <div class="stat-card small">
+                                    <div class="stat-value" id="md-checkout-rate-calc">-</div>
+                                    <div class="stat-label">Checkout %</div>
+                                </div>
+                                <div class="stat-card small">
+                                    <div class="stat-value" id="md-first-dart-co">-</div>
+                                    <div class="stat-label">1. Dart Checkout</div>
+                                </div>
+                            </div>
+                            <div class="charts-grid">
+                                <div class="chart-card">
+                                    <h4>Getroffene Doppel</h4>
+                                    <div class="chart-container">
+                                        <canvas id="chart-match-doubles"></canvas>
+                                    </div>
+                                </div>
+                                <div class="chart-card">
+                                    <h4>Doppel-Versuche nach Feld</h4>
+                                    <div class="doubles-heatmap" id="doubles-heatmap"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- T20 Streuungsanalyse -->
-                    <div class="t20-analysis-section">
-                        <h3>🎯 T20 Streuungsanalyse</h3>
+                    <div class="section-collapsible">
+                        <div class="section-header" onclick="window.app.toggleSection(this)">
+                            <h3>🎯 T20 Streuungsanalyse</h3>
+                            <span class="section-toggle">▼</span>
+                        </div>
+                    <div class="section-content t20-analysis-section">
                         <div class="t20-analysis-grid">
                             <div class="t20-stats">
                                 <div class="stat-card small">
@@ -739,24 +833,30 @@
                                 </div>
                             </div>
                         </div>
+                        </div>
                     </div>
 
                     <!-- Leg Detail -->
-                    <div class="leg-detail-section">
-                        <h3>📋 Leg Detail <span id="leg-detail-title"></span></h3>
-                        <div class="table-container">
-                            <table id="leg-detail-table">
-                                <thead>
-                                    <tr>
-                                        <th>Visit</th>
-                                        <th>Punkte</th>
-                                        <th>Rest</th>
-                                        <th>Gegner Punkte</th>
-                                        <th>Gegner Rest</th>
-                                    </tr>
-                                </thead>
-                                <tbody></tbody>
-                            </table>
+                    <div class="section-collapsible">
+                        <div class="section-header" onclick="window.app.toggleSection(this)">
+                            <h3>📋 Leg Detail <span id="leg-detail-title"></span></h3>
+                            <span class="section-toggle">▼</span>
+                        </div>
+                        <div class="section-content leg-detail-section">
+                            <div class="table-container">
+                                <table id="leg-detail-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Visit</th>
+                                            <th>Punkte</th>
+                                            <th>Rest</th>
+                                            <th>Gegner Punkte</th>
+                                            <th>Gegner Rest</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
