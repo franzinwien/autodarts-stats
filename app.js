@@ -121,16 +121,16 @@ class AutodartsStats {
     
     async init() {
         this.isInitialized = false;
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await window.db.auth.getSession();
         if (session) { await this.handleAuthSuccess(session.user); this.isInitialized = true; }
         else {
             const hp = new URLSearchParams(window.location.hash.substring(1));
             if (hp.get('access_token')) {
-                const { data: { session: ns } } = await supabase.auth.getSession();
+                const { data: { session: ns } } = await window.db.auth.getSession();
                 if (ns) { await this.handleAuthSuccess(ns.user); this.isInitialized = true; window.history.replaceState({}, document.title, window.location.pathname); }
             }
         }
-        supabase.auth.onAuthStateChange(async (e, s) => {
+        window.db.auth.onAuthStateChange(async (e, s) => {
             // Only handle SIGNED_IN on initial login (not TOKEN_REFRESHED which shows as SIGNED_IN too)
             if (e === 'SIGNED_IN' && s && !this.isInitialized) {
                 await this.handleAuthSuccess(s.user);
@@ -150,14 +150,14 @@ class AutodartsStats {
     applyFilters() { this.filters.time = document.getElementById('global-filter-time').value; this.filters.type = document.getElementById('global-filter-type').value; this.filters.variant = document.getElementById('global-filter-variant').value; this.legHistoryLoaded = false; this.matchHistoryLoaded = false; this.navigateTo(document.querySelector('.nav-btn.active')?.dataset.page || 'overview'); }
     getFilteredData() { let d = this.allMatchPlayers.map(mp => ({...mp, match: this.allMatches.find(m => m.id === mp.match_id)})).filter(mp => mp.match); if (this.filters.time !== 'all') { const days = parseInt(this.filters.time), cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days); d = d.filter(mp => new Date(mp.match.finished_at) >= cutoff); } if (this.filters.type) d = d.filter(mp => mp.match.type === this.filters.type); if (this.filters.variant) d = d.filter(mp => mp.match.variant === this.filters.variant); return d.sort((a, b) => new Date(b.match.finished_at) - new Date(a.match.finished_at)); }
     
-    async sendMagicLink() { const email = document.getElementById('email-input').value.trim(), msg = document.getElementById('login-message'); if (!email) { msg.textContent = 'Bitte Email eingeben'; msg.className = 'login-message error'; return; } try { const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } }); if (error) throw error; msg.textContent = 'Magic Link gesendet!'; msg.className = 'login-message success'; } catch (e) { msg.textContent = e.message; msg.className = 'login-message error'; } }
+    async sendMagicLink() { const email = document.getElementById('email-input').value.trim(), msg = document.getElementById('login-message'); if (!email) { msg.textContent = 'Bitte Email eingeben'; msg.className = 'login-message error'; return; } try { const { error } = await window.db.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } }); if (error) throw error; msg.textContent = 'Magic Link gesendet!'; msg.className = 'login-message success'; } catch (e) { msg.textContent = e.message; msg.className = 'login-message error'; } }
     
-    async handleAuthSuccess(user) { this.user = user; this.showLoading(); try { const { data: players } = await supabase.from('allowed_users').select('*'); this.allPlayers = players || []; const cu = this.allPlayers.find(p => p.email === user.email); if (!cu) { alert('Zugang nicht erlaubt.'); await this.logout(); return; } this.currentPlayerId = cu.autodarts_user_id; document.getElementById('user-name').textContent = cu.autodarts_username || user.email; const sel = document.getElementById('global-filter-player'); if (sel) sel.innerHTML = this.allPlayers.map(p => '<option value="'+p.autodarts_user_id+'"'+(p.autodarts_user_id===cu.autodarts_user_id?' selected':'')+'>'+(p.autodarts_username||p.email)+'</option>').join(''); document.getElementById('global-filter-variant').value = 'X01'; this.filters.variant = 'X01'; await this.loadPlayerData(this.currentPlayerId); this.showDashboard(); this.navigateTo('overview'); } catch (e) { console.error(e); } finally { this.hideLoading(); } }
+    async handleAuthSuccess(user) { this.user = user; this.showLoading(); try { const { data: players } = await window.db.from('allowed_users').select('*'); this.allPlayers = players || []; const cu = this.allPlayers.find(p => p.email === user.email); if (!cu) { alert('Zugang nicht erlaubt.'); await this.logout(); return; } this.currentPlayerId = cu.autodarts_user_id; document.getElementById('user-name').textContent = cu.autodarts_username || user.email; const sel = document.getElementById('global-filter-player'); if (sel) sel.innerHTML = this.allPlayers.map(p => '<option value="'+p.autodarts_user_id+'"'+(p.autodarts_user_id===cu.autodarts_user_id?' selected':'')+'>'+(p.autodarts_username||p.email)+'</option>').join(''); document.getElementById('global-filter-variant').value = 'X01'; this.filters.variant = 'X01'; await this.loadPlayerData(this.currentPlayerId); this.showDashboard(); this.navigateTo('overview'); } catch (e) { console.error(e); } finally { this.hideLoading(); } }
     
-    async loadPlayerData(pid) { const { data: mp } = await supabase.from('match_players').select('*').eq('user_id', pid); this.allMatchPlayers = mp || []; if (!this.allMatchPlayers.length) return; const mids = [...new Set(this.allMatchPlayers.map(m => m.match_id))]; const batches = []; for (let i = 0; i < mids.length; i += 50) batches.push(mids.slice(i, i+50)); const [matchResults, oppResults] = await Promise.all([Promise.all(batches.map(batch => supabase.from('matches').select('*').in('id', batch))), Promise.all(batches.map(batch => supabase.from('match_players').select('*').in('match_id', batch)))]); this.allMatches = matchResults.flatMap(r => r.data || []); this.opponentMap = {}; oppResults.flatMap(r => r.data || []).forEach(p => { if (p.user_id !== pid && !this.opponentMap[p.match_id]) this.opponentMap[p.match_id] = p; }); const avgs = this.allMatchPlayers.filter(m => m.average > 0).map(m => m.average); this.overallAverage = avgs.length ? avgs.reduce((a,b)=>a+b,0)/avgs.length : 0; }
+    async loadPlayerData(pid) { const { data: mp } = await window.db.from('match_players').select('*').eq('user_id', pid); this.allMatchPlayers = mp || []; if (!this.allMatchPlayers.length) return; const mids = [...new Set(this.allMatchPlayers.map(m => m.match_id))]; const batches = []; for (let i = 0; i < mids.length; i += 50) batches.push(mids.slice(i, i+50)); const [matchResults, oppResults] = await Promise.all([Promise.all(batches.map(batch => window.db.from('matches').select('*').in('id', batch))), Promise.all(batches.map(batch => window.db.from('match_players').select('*').in('match_id', batch)))]); this.allMatches = matchResults.flatMap(r => r.data || []); this.opponentMap = {}; oppResults.flatMap(r => r.data || []).forEach(p => { if (p.user_id !== pid && !this.opponentMap[p.match_id]) this.opponentMap[p.match_id] = p; }); const avgs = this.allMatchPlayers.filter(m => m.average > 0).map(m => m.average); this.overallAverage = avgs.length ? avgs.reduce((a,b)=>a+b,0)/avgs.length : 0; }
     
-    async loadTurns(mpIds) { if (!mpIds.length) return []; const batches = []; for (let i = 0; i < mpIds.length; i += 50) batches.push(mpIds.slice(i, i+50)); const results = await Promise.all(batches.map(batch => supabase.from('turns').select('id,points,round,match_player_id,created_at,score_remaining').in('match_player_id', batch))); return results.flatMap(r => r.data || []); }
-    async loadThrows(tids, lim=5000) { if (!tids.length) return []; const limitedTids = tids.slice(0, lim); const batches = []; for (let i = 0; i < limitedTids.length; i += 100) batches.push(limitedTids.slice(i, i+100)); const results = await Promise.all(batches.map(batch => supabase.from('throws').select('*').in('turn_id', batch))); return results.flatMap(r => r.data || []); }
+    async loadTurns(mpIds) { if (!mpIds.length) return []; const batches = []; for (let i = 0; i < mpIds.length; i += 50) batches.push(mpIds.slice(i, i+50)); const results = await Promise.all(batches.map(batch => window.db.from('turns').select('id,points,round,match_player_id,created_at,score_remaining').in('match_player_id', batch))); return results.flatMap(r => r.data || []); }
+    async loadThrows(tids, lim=5000) { if (!tids.length) return []; const limitedTids = tids.slice(0, lim); const batches = []; for (let i = 0; i < limitedTids.length; i += 100) batches.push(limitedTids.slice(i, i+100)); const results = await Promise.all(batches.map(batch => window.db.from('throws').select('*').in('turn_id', batch))); return results.flatMap(r => r.data || []); }
     
     // Calculate average from turns for a match_player
     calcAvgFromTurns(turns, mpId) { const t = turns.filter(x => x.match_player_id === mpId && x.points !== null); return t.length ? t.reduce((s,x) => s + x.points, 0) / t.length : 0; }
@@ -167,7 +167,7 @@ class AutodartsStats {
     
     getRankBadge(rank, total) { if (rank === 1) return '<span class="rank-badge rank-gold">🥇 1</span>'; if (rank === 2) return '<span class="rank-badge rank-silver">🥈 2</span>'; if (rank === 3) return '<span class="rank-badge rank-bronze">🥉 3</span>'; if (rank <= 10) return '<span class="rank-badge rank-top10">#' + rank + '</span>'; return '<span class="rank-badge rank-normal">#' + rank + '</span>'; }
     
-    async logout() { await supabase.auth.signOut(); this.showLoginScreen(); }
+    async logout() { await window.db.auth.signOut(); this.showLoginScreen(); }
     showLoginScreen() { document.getElementById('login-screen').classList.remove('hidden'); document.getElementById('dashboard-screen').classList.add('hidden'); }
     showDashboard() { document.getElementById('login-screen').classList.add('hidden'); document.getElementById('dashboard-screen').classList.remove('hidden'); }
     showLoading() { document.getElementById('loading-overlay')?.classList.remove('hidden'); }
@@ -229,8 +229,8 @@ class AutodartsStats {
         try {
             // Get all matches where both players participated (parallel)
             const [{ data: franzMatches }, { data: bellaMatches }] = await Promise.all([
-                supabase.from('match_players').select('match_id').eq('user_id', FRANZ_ID),
-                supabase.from('match_players').select('match_id').eq('user_id', BELLACIAO_ID)
+                window.db.from('match_players').select('match_id').eq('user_id', FRANZ_ID),
+                window.db.from('match_players').select('match_id').eq('user_id', BELLACIAO_ID)
             ]);
 
             if (!franzMatches || !bellaMatches) { this.hideLoading(); return; }
@@ -246,7 +246,7 @@ class AutodartsStats {
 
             // Load match details (parallel batches)
             const matchBatches = []; for (let i = 0; i < commonMatchIds.length; i += 50) matchBatches.push(commonMatchIds.slice(i, i + 50));
-            const matchResults = await Promise.all(matchBatches.map(batch => supabase.from('matches').select('*').in('id', batch)));
+            const matchResults = await Promise.all(matchBatches.map(batch => window.db.from('matches').select('*').in('id', batch)));
             let matches = matchResults.flatMap(r => r.data || []);
 
             // Apply filters (time, type, variant) - but NOT player filter
@@ -281,7 +281,7 @@ class AutodartsStats {
 
             // Load match_players for these matches (parallel batches)
             const playerBatches = []; for (let i = 0; i < filteredMatchIds.length; i += 50) playerBatches.push(filteredMatchIds.slice(i, i + 50));
-            const playerResults = await Promise.all(playerBatches.map(batch => supabase.from('match_players').select('*').in('match_id', batch)));
+            const playerResults = await Promise.all(playerBatches.map(batch => window.db.from('match_players').select('*').in('match_id', batch)));
             const allPlayers = playerResults.flatMap(r => r.data || []);
 
             // Load turns for calculating real averages
@@ -484,7 +484,7 @@ class AutodartsStats {
 
             // Load from leg_averages view by match_id (parallel batches)
             const legBatches = []; for (let i = 0; i < filteredMatchIds.length; i += 100) legBatches.push(filteredMatchIds.slice(i, i + 100));
-            const legResults = await Promise.all(legBatches.map(batch => supabase.from('leg_averages').select('*').in('match_id', batch)));
+            const legResults = await Promise.all(legBatches.map(batch => window.db.from('leg_averages').select('*').in('match_id', batch)));
             const allLegAvgs = legResults.flatMap(r => r.data || []);
 
             // Filter to only current player's legs (not opponent's)
@@ -611,13 +611,13 @@ class AutodartsStats {
             const oppMp = opp;
 
             // Load legs for this match
-            const { data: legs } = await supabase.from('legs').select('*').eq('match_id', matchId).order('leg_number');
+            const { data: legs } = await window.db.from('legs').select('*').eq('match_id', matchId).order('leg_number');
 
             // Load turns for both players
-            const { data: myTurns } = await supabase.from('turns').select('*').eq('match_player_id', mp.id).order('created_at');
+            const { data: myTurns } = await window.db.from('turns').select('*').eq('match_player_id', mp.id).order('created_at');
             let oppTurns = [];
             if (oppMp) {
-                const { data } = await supabase.from('turns').select('*').eq('match_player_id', oppMp.id).order('created_at');
+                const { data } = await window.db.from('turns').select('*').eq('match_player_id', oppMp.id).order('created_at');
                 oppTurns = data || [];
             }
 
