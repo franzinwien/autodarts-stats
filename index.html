@@ -16,7 +16,7 @@
     <!-- Supabase JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
-    <link rel="stylesheet" href="styles.css?v=4">
+    <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
     <!-- Login Screen -->
@@ -712,72 +712,86 @@
                             <span class="section-toggle">▼</span>
                         </div>
                     <div class="section-content t20-analysis-section">
-                        <div class="t20-analysis-grid">
-                            <div class="t20-stats">
-                                <div class="stat-card small">
-                                    <div class="stat-value" id="t20-hit-rate">-</div>
-                                    <div class="stat-label">Trefferquote</div>
-                                </div>
-                                <div class="stat-card small">
-                                    <div class="stat-value" id="t20-total-attempts">-</div>
-                                    <div class="stat-label">T20-Bereich Würfe</div>
-                                </div>
-                                <div class="stat-card small">
-                                    <div class="stat-value" id="t20-avg-miss-dist">-</div>
-                                    <div class="stat-label">Ø Fehlwurf-Distanz</div>
+                        <!-- Row 1: Scatter Plot + Heatmap Grid 50/50 -->
+                        <div class="t20-main-row">
+                            <div class="t20-scatter-section">
+                                <h4>📍 Wurfverteilung</h4>
+                                <canvas id="t20-scatter-canvas" width="280" height="280"></canvas>
+                                <div class="dartboard-legend">
+                                    <span class="legend-item"><span class="dot green"></span> T20</span>
+                                    <span class="legend-item"><span class="dot yellow"></span> ≤1cm</span>
+                                    <span class="legend-item"><span class="dot orange"></span> 1-2cm</span>
+                                    <span class="legend-item"><span class="dot red"></span> 2-3cm</span>
                                 </div>
                             </div>
-                            <div class="t20-direction-grid-8">
-                                <!-- Zeile 1: links-oben, oben, rechts-oben -->
-                                <div class="direction-card" id="t20-miss-links-oben">
-                                    <div class="direction-label">↖ Links-Oben</div>
-                                    <div class="direction-value">-</div>
-                                    <div class="direction-detail"></div>
+                            <div class="t20-heatmap-section">
+                                <h4>🎯 Richtungsanalyse</h4>
+                                <div class="t20-direction-grid-8">
+                                    <div class="direction-card" id="t20-miss-links-oben">
+                                        <div class="direction-label">↖ Links-Oben</div>
+                                        <div class="direction-value">-</div>
+                                        <div class="direction-detail"></div>
+                                    </div>
+                                    <div class="direction-card" id="t20-miss-oben">
+                                        <div class="direction-label">↑ Oben (Bull)</div>
+                                        <div class="direction-value">-</div>
+                                        <div class="direction-detail"></div>
+                                    </div>
+                                    <div class="direction-card" id="t20-miss-rechts-oben">
+                                        <div class="direction-label">↗ Rechts-Oben</div>
+                                        <div class="direction-value">-</div>
+                                        <div class="direction-detail"></div>
+                                    </div>
+                                    <div class="direction-card" id="t20-miss-links-mitte">
+                                        <div class="direction-label">← Links (5)</div>
+                                        <div class="direction-value">-</div>
+                                        <div class="direction-detail"></div>
+                                    </div>
+                                    <div class="direction-card center" id="t20-miss-center">
+                                        <div class="direction-label">T20</div>
+                                        <div class="direction-value">-</div>
+                                    </div>
+                                    <div class="direction-card" id="t20-miss-rechts-mitte">
+                                        <div class="direction-label">→ Rechts (1)</div>
+                                        <div class="direction-value">-</div>
+                                        <div class="direction-detail"></div>
+                                    </div>
+                                    <div class="direction-card" id="t20-miss-links-unten">
+                                        <div class="direction-label">↙ Links-Unten</div>
+                                        <div class="direction-value">-</div>
+                                        <div class="direction-detail"></div>
+                                    </div>
+                                    <div class="direction-card" id="t20-miss-unten">
+                                        <div class="direction-label">↓ Unten (Draht)</div>
+                                        <div class="direction-value">-</div>
+                                        <div class="direction-detail"></div>
+                                    </div>
+                                    <div class="direction-card" id="t20-miss-rechts-unten">
+                                        <div class="direction-label">↘ Rechts-Unten</div>
+                                        <div class="direction-value">-</div>
+                                        <div class="direction-detail"></div>
+                                    </div>
                                 </div>
-                                <div class="direction-card" id="t20-miss-oben">
-                                    <div class="direction-label">↑ Oben (Bull)</div>
-                                    <div class="direction-value">-</div>
-                                    <div class="direction-detail"></div>
+                            </div>
+                        </div>
+
+                        <!-- Row 2: Stats + Distance + Trend -->
+                        <div class="t20-details-row">
+                            <div class="t20-stats-compact">
+                                <div class="stat-item">
+                                    <span class="stat-label">Trefferquote</span>
+                                    <span class="stat-value" id="t20-hit-rate">-</span>
                                 </div>
-                                <div class="direction-card" id="t20-miss-rechts-oben">
-                                    <div class="direction-label">↗ Rechts-Oben</div>
-                                    <div class="direction-value">-</div>
-                                    <div class="direction-detail"></div>
+                                <div class="stat-item">
+                                    <span class="stat-label">T20-Bereich</span>
+                                    <span class="stat-value" id="t20-total-attempts">-</span>
                                 </div>
-                                <!-- Zeile 2: links-mitte, T20, rechts-mitte -->
-                                <div class="direction-card" id="t20-miss-links-mitte">
-                                    <div class="direction-label">← Links (5)</div>
-                                    <div class="direction-value">-</div>
-                                    <div class="direction-detail"></div>
-                                </div>
-                                <div class="direction-card center" id="t20-miss-center">
-                                    <div class="direction-label">T20</div>
-                                    <div class="direction-value">-</div>
-                                </div>
-                                <div class="direction-card" id="t20-miss-rechts-mitte">
-                                    <div class="direction-label">→ Rechts (1)</div>
-                                    <div class="direction-value">-</div>
-                                    <div class="direction-detail"></div>
-                                </div>
-                                <!-- Zeile 3: links-unten, unten, rechts-unten -->
-                                <div class="direction-card" id="t20-miss-links-unten">
-                                    <div class="direction-label">↙ Links-Unten</div>
-                                    <div class="direction-value">-</div>
-                                    <div class="direction-detail"></div>
-                                </div>
-                                <div class="direction-card" id="t20-miss-unten">
-                                    <div class="direction-label">↓ Unten (Draht)</div>
-                                    <div class="direction-value">-</div>
-                                    <div class="direction-detail"></div>
-                                </div>
-                                <div class="direction-card" id="t20-miss-rechts-unten">
-                                    <div class="direction-label">↘ Rechts-Unten</div>
-                                    <div class="direction-value">-</div>
-                                    <div class="direction-detail"></div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Ø Fehlwurf</span>
+                                    <span class="stat-value" id="t20-avg-miss-dist">-</span>
                                 </div>
                             </div>
                             <div class="t20-distance-breakdown">
-                                <h4>Fehlwürfe nach Distanz</h4>
                                 <div class="distance-bars" id="t20-distance-bars">
                                     <div class="distance-row">
                                         <span class="dist-label">0-1cm</span>
@@ -801,43 +815,32 @@
                                     </div>
                                 </div>
                             </div>
+                            <div class="t20-fatigue-compact">
+                                <div class="stat-item">
+                                    <span class="stat-label">1. Hälfte</span>
+                                    <span class="stat-value" id="t20-first-half">-</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">2. Hälfte</span>
+                                    <span class="stat-value" id="t20-second-half">-</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Trend</span>
+                                    <span class="stat-value" id="t20-fatigue">-</span>
+                                </div>
+                            </div>
                         </div>
+
+                        <!-- Text Analysis -->
                         <div class="t20-text-analysis" id="t20-text-analysis">
                             Analyse wird geladen...
                         </div>
 
-                        <!-- Erweiterte T20-Analyse -->
-                        <div class="t20-extended-analysis">
-                            <div class="t20-dartboard-section">
-                                <h4>📍 Wurfverteilung</h4>
-                                <canvas id="t20-scatter-canvas" width="260" height="260"></canvas>
-                                <div class="dartboard-legend">
-                                    <span class="legend-item"><span class="dot green"></span> T20</span>
-                                    <span class="legend-item"><span class="dot yellow"></span> ≤1cm</span>
-                                    <span class="legend-item"><span class="dot orange"></span> 1-2cm</span>
-                                    <span class="legend-item"><span class="dot red"></span> 2-3cm</span>
-                                </div>
-                            </div>
-                            <div class="t20-trend-section" id="t20-trend-section">
-                                <h4>📈 T20-Trend (letzte 100 Matches)</h4>
-                                <div class="chart-container chart-container-small">
-                                    <canvas id="chart-t20-trend"></canvas>
-                                </div>
-                                <h4 style="margin-top: 1rem;">⏱️ Zeitverlauf im Match</h4>
-                                <div class="comparison-stats">
-                                    <div class="comparison-row">
-                                        <span class="comp-label">1. Hälfte</span>
-                                        <span class="comp-value" id="t20-first-half">-</span>
-                                    </div>
-                                    <div class="comparison-row">
-                                        <span class="comp-label">2. Hälfte</span>
-                                        <span class="comp-value" id="t20-second-half">-</span>
-                                    </div>
-                                    <div class="comparison-row" id="t20-fatigue-row">
-                                        <span class="comp-label">Trend</span>
-                                        <span class="comp-value" id="t20-fatigue">-</span>
-                                    </div>
-                                </div>
+                        <!-- T20 Trend Chart (Match view only) -->
+                        <div class="t20-trend-chart-section" id="t20-trend-section">
+                            <h4>📈 T20-Trend (letzte 100 Matches)</h4>
+                            <div class="chart-container chart-container-small">
+                                <canvas id="chart-t20-trend"></canvas>
                             </div>
                         </div>
                         </div>
@@ -1191,7 +1194,7 @@
         <p>Lade Daten...</p>
     </div>
 
-    <script src="config.js?v=4"></script>
-    <script src="app.js?v=4"></script>
+    <script src="config.js?v=5"></script>
+    <script src="app.js?v=5"></script>
 </body>
 </html>
