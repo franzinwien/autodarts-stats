@@ -1693,6 +1693,167 @@ tr:hover td {
 }
 
 /* =====================================================
+   LEG FILTER TABS
+   ===================================================== */
+
+.leg-filter-section {
+    margin: 1.5rem 0;
+    padding: 1rem;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+}
+
+.leg-filter-section h3 {
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    color: var(--text-secondary);
+}
+
+.leg-filter-tabs {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.leg-filter-tab {
+    padding: 0.5rem 1rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.leg-filter-tab:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.leg-filter-tab.active {
+    background: var(--accent-green);
+    border-color: var(--accent-green);
+    color: #000;
+}
+
+.leg-filter-tab.won {
+    border-left: 3px solid var(--accent-green);
+}
+
+.leg-filter-tab.lost {
+    border-left: 3px solid var(--accent-red);
+}
+
+.leg-overview-grid.compact {
+    display: none;
+}
+
+/* Match-only & Leg-only sections */
+.match-only-section,
+.leg-only-section {
+    margin: 1rem 0;
+}
+
+.leg-only-section.hidden,
+.match-only-section.hidden {
+    display: none;
+}
+
+/* View indicator badge */
+.view-indicator {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.5rem;
+    background: var(--accent-blue);
+    border-radius: 10px;
+    color: #fff;
+    margin-left: 0.5rem;
+}
+
+/* Compact charts grid */
+.charts-grid-compact {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+.charts-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+/* Compact chart containers */
+.chart-card.compact {
+    padding: 0.75rem;
+}
+
+.chart-card.compact h4 {
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+}
+
+.chart-container-small {
+    height: 180px;
+}
+
+/* Doubles stats inline */
+.doubles-stats-inline {
+    display: flex;
+    gap: 1.5rem;
+    padding: 0.75rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    margin-top: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.doubles-stats-inline span {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.doubles-stats-inline strong {
+    color: var(--text-primary);
+}
+
+/* Compact heatmap */
+.doubles-heatmap.compact {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.25rem;
+    padding: 0.5rem;
+    font-size: 0.75rem;
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.doubles-heatmap.compact .double-cell {
+    padding: 0.4rem 0.25rem;
+}
+
+/* Leg detail compact */
+.leg-detail-compact {
+    margin-top: 1rem;
+}
+
+.leg-detail-compact h4 {
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary);
+}
+
+.table-container.compact {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.table-container.compact table {
+    font-size: 0.85rem;
+}
+
+/* =====================================================
    COLLAPSIBLE SECTIONS
    ===================================================== */
 

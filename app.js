@@ -701,24 +701,12 @@ class AutodartsStats {
             this.currentMp = mp;
             this.currentOppMp = oppMp;
 
-            // Render leg overview with extended stats
-            this.renderLegOverviewExtended();
-            this.renderLegAveragesChart();
-            this.renderMatchScoringChart();
-            this.renderMatchFirst9Chart();
-
-            // Render new features
-            this.renderMomentumAnalysis();
-            this.renderDoublesAnalysis();
+            // Render leg filter tabs
+            this.renderLegFilterTabs();
             this.enableStickyHeader();
 
-            // Render T20 Streuungsanalyse
-            this.renderT20Analysis(myThrows);
-
-            // Select first leg
-            if (this.currentMatchLegs.length > 0) {
-                this.selectLeg(this.currentMatchLegs[0].id);
-            }
+            // Default: Match view
+            this.selectView('match');
 
         } catch (e) {
             console.error('loadMatchDetail error:', e);
@@ -1636,6 +1624,230 @@ class AutodartsStats {
         if (header) {
             header.classList.add('sticky');
         }
+    }
+
+    // ========== LEG FILTER SYSTEM ==========
+    renderLegFilterTabs() {
+        const container = document.getElementById('leg-filter-tabs');
+        if (!container || !this.currentMatchLegs) return;
+
+        // Group throws by turn_id for dart counting
+        const dartsByTurn = {};
+        if (this.currentMyThrows) {
+            this.currentMyThrows.forEach(th => {
+                dartsByTurn[th.turn_id] = (dartsByTurn[th.turn_id] || 0) + 1;
+            });
+        }
+
+        // Build leg tabs
+        const legTabs = this.currentMatchLegs.map((leg, i) => {
+            const myTurns = this.currentMyTurns.filter(t => t.leg_id === leg.id);
+            const totalPoints = myTurns.reduce((s, t) => s + (t.points || 0), 0);
+            let totalDarts = 0;
+            myTurns.forEach(t => { totalDarts += dartsByTurn[t.id] || 3; });
+            const avg = totalDarts > 0 ? (totalPoints / totalDarts) * 3 : 0;
+            const won = leg.winner_player_id === this.currentMp?.id;
+
+            return `<button class="leg-filter-tab ${won ? 'won' : 'lost'}" data-leg="${leg.id}" onclick="window.app.selectView('${leg.id}')">
+                Leg ${leg.leg_number + 1} <small>(${avg.toFixed(0)})</small> ${won ? '✅' : '❌'}
+            </button>`;
+        }).join('');
+
+        container.innerHTML = `
+            <button class="leg-filter-tab active" data-leg="match" onclick="window.app.selectView('match')">
+                📊 Gesamtes Match
+            </button>
+            ${legTabs}
+        `;
+    }
+
+    selectView(viewId) {
+        this.currentView = viewId;
+
+        // Update tab active states
+        document.querySelectorAll('.leg-filter-tab').forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.leg === viewId);
+        });
+
+        const isMatchView = viewId === 'match';
+        const matchOnlySection = document.getElementById('match-only-charts');
+        const legOnlySection = document.getElementById('leg-only-charts');
+
+        // Toggle sections
+        if (matchOnlySection) matchOnlySection.classList.toggle('hidden', !isMatchView);
+        if (legOnlySection) legOnlySection.classList.toggle('hidden', isMatchView);
+
+        // Update view indicators
+        const viewLabel = isMatchView ? 'Match' : `Leg ${this.currentMatchLegs.find(l => l.id === viewId)?.leg_number + 1 || ''}`;
+        document.querySelectorAll('.view-indicator').forEach(el => {
+            el.textContent = viewLabel;
+        });
+
+        if (isMatchView) {
+            // Render match-level charts
+            this.renderMatchView();
+        } else {
+            // Render leg-specific charts
+            this.renderLegView(viewId);
+        }
+    }
+
+    renderMatchView() {
+        // Match-level charts
+        this.renderLegAveragesChart();
+        this.renderMatchFirst9Chart();
+
+        // Shared charts with full match data
+        this.renderMomentumAnalysis();
+        this.renderDoublesAnalysis();
+        this.renderMatchScoringChart();
+        this.renderT20Analysis(this.currentMyThrows);
+    }
+
+    renderLegView(legId) {
+        const leg = this.currentMatchLegs.find(l => l.id === legId);
+        if (!leg) return;
+
+        // Update title
+        document.getElementById('score-chart-title').textContent = `- Leg ${leg.leg_number + 1}`;
+        document.getElementById('leg-detail-title').textContent = `- Leg ${leg.leg_number + 1}`;
+
+        // Get turns for this leg
+        const myTurns = this.currentMyTurns.filter(t => t.leg_id === legId).sort((a,b) => a.turn - b.turn);
+        const oppTurns = this.currentOppTurns.filter(t => t.leg_id === legId).sort((a,b) => a.turn - b.turn);
+
+        // Get throws for this leg
+        const turnIds = new Set(myTurns.map(t => t.id));
+        const legThrows = this.currentMyThrows.filter(t => turnIds.has(t.turn_id));
+
+        // Render leg-specific charts
+        this.renderLegProgressionChart(myTurns, oppTurns, leg);
+        this.renderLegDetailTable(myTurns, oppTurns);
+
+        // Render shared charts with leg-filtered data
+        this.renderMomentumAnalysisForData(myTurns);
+        this.renderDoublesAnalysisForData(myTurns, legThrows);
+        this.renderMatchScoringChartForData(myTurns);
+        this.renderT20Analysis(legThrows);
+    }
+
+    // ========== LEG-FILTERED CHART METHODS ==========
+    renderMomentumAnalysisForData(turns) {
+        if (!turns || turns.length < 3) {
+            document.getElementById('md-best-streak').textContent = '-';
+            document.getElementById('md-worst-streak').textContent = '-';
+            document.getElementById('md-std-dev').textContent = '-';
+            document.getElementById('md-60plus-rate').textContent = '-';
+            document.getElementById('md-100plus-rate').textContent = '-';
+            document.getElementById('md-140plus-rate').textContent = '-';
+            return;
+        }
+
+        const points = turns.map(t => t.points || 0);
+        const total = points.length;
+
+        // Calculate rates
+        const c60plus = points.filter(p => p >= 60).length;
+        const c100plus = points.filter(p => p >= 100).length;
+        const c140plus = points.filter(p => p >= 140).length;
+
+        document.getElementById('md-60plus-rate').textContent = ((c60plus / total) * 100).toFixed(1) + '%';
+        document.getElementById('md-100plus-rate').textContent = ((c100plus / total) * 100).toFixed(1) + '%';
+        document.getElementById('md-140plus-rate').textContent = ((c140plus / total) * 100).toFixed(1) + '%';
+
+        // Calculate standard deviation (consistency)
+        const avg = points.reduce((a, b) => a + b, 0) / total;
+        const variance = points.reduce((s, p) => s + Math.pow(p - avg, 2), 0) / total;
+        const stdDev = Math.sqrt(variance);
+
+        const stdEl = document.getElementById('md-std-dev');
+        stdEl.textContent = '±' + stdDev.toFixed(1);
+        stdEl.className = stdDev < 25 ? 'stat-value consistency-good' : stdDev < 35 ? 'stat-value consistency-medium' : 'stat-value consistency-bad';
+
+        // Find streaks
+        let currentStreak = 0, bestStreak = 0, worstStreak = 0, currentBadStreak = 0;
+        points.forEach(p => {
+            if (p >= 60) { currentStreak++; bestStreak = Math.max(bestStreak, currentStreak); currentBadStreak = 0; }
+            else { currentStreak = 0; currentBadStreak++; worstStreak = Math.max(worstStreak, currentBadStreak); }
+        });
+
+        document.getElementById('md-best-streak').textContent = bestStreak + 'x 60+';
+        document.getElementById('md-worst-streak').textContent = worstStreak + 'x <60';
+
+        this.renderRollingAverageChart(points);
+    }
+
+    renderDoublesAnalysisForData(turns, throws) {
+        if (!throws || throws.length === 0) {
+            document.getElementById('md-checkout-attempts').textContent = '-';
+            document.getElementById('md-checkout-hits').textContent = '-';
+            document.getElementById('md-checkout-rate-calc').textContent = '-';
+            document.getElementById('md-first-dart-co').textContent = '-';
+            return;
+        }
+
+        const checkoutTurns = turns.filter(t => t.score_remaining === 0);
+        const checkoutTurnIds = new Set(checkoutTurns.map(t => t.id));
+        const doubleThrows = throws.filter(t => t.segment_bed === 'Double');
+        const doubleAttempts = {}, doubleHits = {};
+
+        doubleThrows.forEach(t => {
+            const name = 'D' + t.segment_number;
+            doubleAttempts[name] = (doubleAttempts[name] || 0) + 1;
+            if (checkoutTurnIds.has(t.turn_id)) { doubleHits[name] = (doubleHits[name] || 0) + 1; }
+        });
+
+        const totalAttempts = Object.values(doubleAttempts).reduce((a, b) => a + b, 0);
+        const totalHits = checkoutTurns.length;
+
+        document.getElementById('md-checkout-attempts').textContent = totalAttempts || '-';
+        document.getElementById('md-checkout-hits').textContent = totalHits || '-';
+        document.getElementById('md-checkout-rate-calc').textContent = totalAttempts > 0 ? ((totalHits / totalAttempts) * 100).toFixed(1) + '%' : '-';
+
+        const firstDartCO = checkoutTurns.filter(t => {
+            const throwsInTurn = throws.filter(th => th.turn_id === t.id);
+            const doublesInTurn = throwsInTurn.filter(th => th.segment_bed === 'Double');
+            return doublesInTurn.length === 1;
+        }).length;
+        document.getElementById('md-first-dart-co').textContent = firstDartCO || '0';
+
+        this.renderMatchDoublesChart(doubleHits);
+        this.renderDoublesHeatmap(doubleAttempts, doubleHits);
+    }
+
+    renderMatchScoringChartForData(turns) {
+        const ctx = document.getElementById('chart-match-scoring');
+        if (!ctx) return;
+
+        let u40 = 0, s40 = 0, s60 = 0, s100 = 0, s140 = 0, s180 = 0;
+        turns.forEach(t => {
+            if (t.points === null) return;
+            if (t.points === 180) s180++;
+            else if (t.points >= 140) s140++;
+            else if (t.points >= 100) s100++;
+            else if (t.points >= 60) s60++;
+            else if (t.points >= 40) s40++;
+            else u40++;
+        });
+
+        if (this.matchScoreChart) this.matchScoreChart.destroy();
+        this.matchScoreChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['<40', '40-59', '60-99', '100-139', '140-179', '180'],
+                datasets: [{
+                    data: [u40, s40, s60, s100, s140, s180],
+                    backgroundColor: ['#64748b', '#94a3b8', '#3b82f6', '#8b5cf6', '#f59e0b', '#10b981'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 10 } } } },
+                cutout: '50%'
+            }
+        });
     }
 }
 
