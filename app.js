@@ -910,8 +910,15 @@ class AutodartsStats {
 
         // Extended analysis
         this.renderT20Scatter(throws, analysis);
-        this.renderT20Comparison(analysis);
         this.renderT20Fatigue(throws);
+
+        // T20 trend chart (only in Match view)
+        if (this.currentLegView === 'match') {
+            this.renderT20TrendChart();
+            document.getElementById('t20-trend-section').style.display = '';
+        } else {
+            document.getElementById('t20-trend-section').style.display = 'none';
+        }
     }
 
     renderT20Scatter(throws, analysis) {
@@ -971,7 +978,7 @@ class AutodartsStats {
             ctx.stroke();
         });
 
-        // Draw all throws
+        // Draw all throws (only show T20 hits and throws within 3cm)
         const t20Throws = throws.filter(t => [20, 1, 5].includes(t.segment_number) && t.coord_x != null && t.coord_y != null);
 
         t20Throws.forEach(t => {
@@ -984,13 +991,18 @@ class AutodartsStats {
             const inT20 = pointInPolygon(t.coord_x, t.coord_y, T20_POLYGON);
             const dist = inT20 ? 0 : distanceToPolygon(t.coord_x, t.coord_y, T20_POLYGON) * COORD_TO_MM;
 
-            // Color based on result
+            // Hide throws >3cm from T20
+            if (!inT20 && dist > 30) return;
+
+            // Color based on distance: T20 (green), ≤1cm (yellow), 1-2cm (orange), 2-3cm (red)
             if (inT20) {
-                ctx.fillStyle = '#10b981'; // Green for hits
+                ctx.fillStyle = '#10b981'; // Green for T20 hits
             } else if (dist <= 10) {
-                ctx.fillStyle = '#f59e0b'; // Yellow for close misses (≤1cm)
+                ctx.fillStyle = '#fbbf24'; // Yellow for ≤1cm
+            } else if (dist <= 20) {
+                ctx.fillStyle = '#f97316'; // Orange for 1-2cm
             } else {
-                ctx.fillStyle = '#ef4444'; // Red for far misses
+                ctx.fillStyle = '#ef4444'; // Red for 2-3cm
             }
 
             ctx.beginPath();
@@ -1010,20 +1022,137 @@ class AutodartsStats {
         ctx.fill();
     }
 
-    renderT20Comparison(analysis) {
-        const matchRate = analysis.total > 0 ? (analysis.hits / analysis.total) * 100 : 0;
-        document.getElementById('t20-match-rate').textContent = matchRate.toFixed(1) + '%';
+    async renderT20TrendChart() {
+        const canvas = document.getElementById('chart-t20-trend');
+        if (!canvas) return;
 
-        // Calculate average T20 rate from all matches (using cached data if available)
-        if (this.avgT20Rate !== undefined) {
-            document.getElementById('t20-avg-rate').textContent = this.avgT20Rate.toFixed(1) + '%';
-            const diff = matchRate - this.avgT20Rate;
-            const diffEl = document.getElementById('t20-diff-rate');
-            diffEl.textContent = (diff >= 0 ? '+' : '') + diff.toFixed(1) + '%';
-            diffEl.className = 'comp-value ' + (diff >= 0 ? 'positive' : 'negative');
-        } else {
-            document.getElementById('t20-avg-rate').textContent = '-';
-            document.getElementById('t20-diff-rate').textContent = '-';
+        // Destroy existing chart
+        if (this.charts['t20-trend']) {
+            this.charts['t20-trend'].destroy();
+        }
+
+        // Fetch T20 rates for recent matches
+        try {
+            const playerId = this.getPlayerId();
+            const { data: recentMatches, error } = await supabase
+                .from('matches')
+                .select('id, created_at')
+                .eq('player_id', playerId)
+                .eq('variant', 'X01')
+                .order('created_at', { ascending: false })
+                .limit(100);
+
+            if (error || !recentMatches || recentMatches.length < 5) {
+                canvas.parentElement.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 1rem;">Nicht genug Daten für Trendanalyse</p>';
+                return;
+            }
+
+            // Fetch throws for each match
+            const matchIds = recentMatches.map(m => m.id);
+            const { data: allThrows, error: throwsError } = await supabase
+                .from('throws')
+                .select('match_id, segment_number, multiplier, coord_x, coord_y')
+                .in('match_id', matchIds);
+
+            if (throwsError || !allThrows) {
+                return;
+            }
+
+            // Group throws by match and calculate T20 rates
+            const matchT20Rates = [];
+            for (const match of recentMatches.reverse()) { // oldest first
+                const matchThrows = allThrows.filter(t => t.match_id === match.id);
+                const t20AreaThrows = matchThrows.filter(t =>
+                    [20, 1, 5].includes(t.segment_number) && t.coord_x != null && t.coord_y != null
+                );
+
+                if (t20AreaThrows.length >= 5) {
+                    const t20Hits = t20AreaThrows.filter(t =>
+                        pointInPolygon(t.coord_x, t.coord_y, T20_POLYGON)
+                    ).length;
+                    const rate = (t20Hits / t20AreaThrows.length) * 100;
+                    matchT20Rates.push({
+                        date: new Date(match.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
+                        rate: rate,
+                        isCurrent: match.id === this.currentMatchId
+                    });
+                }
+            }
+
+            if (matchT20Rates.length < 5) {
+                canvas.parentElement.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 1rem;">Nicht genug Daten für Trendanalyse</p>';
+                return;
+            }
+
+            // Calculate moving average
+            const movingAvg = [];
+            const windowSize = 5;
+            for (let i = 0; i < matchT20Rates.length; i++) {
+                if (i < windowSize - 1) {
+                    movingAvg.push(null);
+                } else {
+                    const window = matchT20Rates.slice(i - windowSize + 1, i + 1);
+                    const avg = window.reduce((sum, m) => sum + m.rate, 0) / windowSize;
+                    movingAvg.push(avg);
+                }
+            }
+
+            // Create chart
+            this.charts['t20-trend'] = new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: matchT20Rates.map(m => m.date),
+                    datasets: [
+                        {
+                            label: 'T20 Rate',
+                            data: matchT20Rates.map(m => m.rate),
+                            borderColor: 'rgba(16, 185, 129, 0.5)',
+                            backgroundColor: matchT20Rates.map(m =>
+                                m.isCurrent ? '#10b981' : 'rgba(16, 185, 129, 0.3)'
+                            ),
+                            pointRadius: matchT20Rates.map(m => m.isCurrent ? 8 : 3),
+                            pointBackgroundColor: matchT20Rates.map(m =>
+                                m.isCurrent ? '#10b981' : 'rgba(16, 185, 129, 0.5)'
+                            ),
+                            fill: false,
+                            tension: 0.3
+                        },
+                        {
+                            label: '5-Match Ø',
+                            data: movingAvg,
+                            borderColor: '#3b82f6',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: false,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'bottom',
+                            labels: { color: '#94a3b8', boxWidth: 12, padding: 8 }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: false
+                        },
+                        y: {
+                            min: 0,
+                            max: 100,
+                            ticks: { color: '#64748b', callback: v => v + '%' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        }
+                    }
+                }
+            });
+        } catch (err) {
+            console.error('Error rendering T20 trend chart:', err);
         }
     }
 
@@ -1154,6 +1283,108 @@ class AutodartsStats {
         }
 
         el.innerHTML = insights.length > 0 ? insights.join('<br>') : 'Keine auffälligen Muster erkannt';
+    }
+
+    async renderMatchSummary() {
+        const container = document.getElementById('match-summary-content');
+        if (!container || !this.currentMatchData) return;
+
+        const match = this.currentMatchData;
+        const myStats = match.myStats || {};
+        const turns = this.currentMyTurns;
+        const legs = this.currentMatchLegs;
+
+        // Collect key stats
+        const avg = myStats.average ? parseFloat(myStats.average).toFixed(1) : '-';
+        const first9 = myStats.first9_average ? parseFloat(myStats.first9_average).toFixed(1) : '-';
+        const checkout = myStats.checkout_percentage ? parseFloat(myStats.checkout_percentage).toFixed(1) + '%' : '-';
+        const legsWon = legs.filter(l => l.winner_id === myStats.player_id).length;
+        const legsLost = legs.length - legsWon;
+        const isWin = legsWon > legsLost;
+
+        // Calculate 100+ and 140+ rates
+        const points = turns.map(t => t.points || 0);
+        const total = points.length;
+        const c100plus = points.filter(p => p >= 100).length;
+        const c140plus = points.filter(p => p >= 140).length;
+        const c180 = points.filter(p => p === 180).length;
+
+        // Calculate consistency (std dev)
+        const avgPoints = total > 0 ? points.reduce((a, b) => a + b, 0) / total : 0;
+        const variance = total > 0 ? points.reduce((s, p) => s + Math.pow(p - avgPoints, 2), 0) / total : 0;
+        const stdDev = Math.sqrt(variance);
+
+        // Build summary text
+        let summary = [];
+        let kpis = [];
+
+        // Result summary
+        if (isWin) {
+            summary.push(`<span class="highlight-good">Sieg ${legsWon}:${legsLost}</span> gegen ${match.opponent || 'Gegner'}.`);
+        } else {
+            summary.push(`<span class="highlight-bad">Niederlage ${legsWon}:${legsLost}</span> gegen ${match.opponent || 'Gegner'}.`);
+        }
+
+        // Average assessment
+        const avgNum = parseFloat(myStats.average) || 0;
+        if (avgNum >= 80) {
+            summary.push(`Starkes Match mit <span class="highlight-good">${avg}</span> Punkten Average.`);
+        } else if (avgNum >= 60) {
+            summary.push(`Solides Match mit <span class="highlight-neutral">${avg}</span> Punkten Average.`);
+        } else if (avgNum > 0) {
+            summary.push(`Ausbaufähig mit <span class="highlight-bad">${avg}</span> Punkten Average.`);
+        }
+
+        // First 9 vs overall comparison
+        const first9Num = parseFloat(myStats.first9_average) || 0;
+        if (first9Num > avgNum + 5) {
+            summary.push(`First 9 Average (${first9}) deutlich stärker - <span class="highlight-bad">Leistungsabfall im Verlauf</span>.`);
+        } else if (first9Num < avgNum - 5) {
+            summary.push(`<span class="highlight-good">Warmgespielt:</span> Von ${first9} auf ${avg} Average gesteigert.`);
+        }
+
+        // Checkout assessment
+        const checkoutNum = parseFloat(myStats.checkout_percentage) || 0;
+        if (checkoutNum >= 40) {
+            summary.push(`<span class="highlight-good">Exzellente Checkout-Quote von ${checkout}</span>.`);
+        } else if (checkoutNum < 25 && checkoutNum > 0) {
+            summary.push(`<span class="highlight-bad">Checkout-Quote ${checkout}</span> - Potential zur Verbesserung.`);
+        }
+
+        // Consistency assessment
+        if (stdDev < 25) {
+            summary.push(`<span class="highlight-good">Konstantes Scoring</span> (σ=${stdDev.toFixed(1)}).`);
+        } else if (stdDev > 35) {
+            summary.push(`<span class="highlight-bad">Schwankendes Scoring</span> (σ=${stdDev.toFixed(1)}).`);
+        }
+
+        // 180s
+        if (c180 > 0) {
+            summary.push(`🎯 ${c180}x 180!`);
+        }
+
+        // Build KPI grid
+        kpis = [
+            { label: 'Average', value: avg, class: avgNum >= 70 ? 'good' : avgNum >= 50 ? 'neutral' : 'bad' },
+            { label: 'First 9', value: first9, class: first9Num >= 80 ? 'good' : first9Num >= 60 ? 'neutral' : 'bad' },
+            { label: 'Checkout', value: checkout, class: checkoutNum >= 40 ? 'good' : checkoutNum >= 25 ? 'neutral' : 'bad' },
+            { label: '100+ Rate', value: total > 0 ? ((c100plus / total) * 100).toFixed(1) + '%' : '-', class: (c100plus / total) >= 0.3 ? 'good' : 'neutral' },
+            { label: '140+ Rate', value: total > 0 ? ((c140plus / total) * 100).toFixed(1) + '%' : '-', class: (c140plus / total) >= 0.1 ? 'good' : 'neutral' },
+            { label: 'Konsistenz', value: '±' + stdDev.toFixed(1), class: stdDev < 25 ? 'good' : stdDev < 35 ? 'neutral' : 'bad' }
+        ];
+
+        // Render
+        let html = '<p>' + summary.join(' ') + '</p>';
+        html += '<div class="summary-kpi-grid">';
+        kpis.forEach(kpi => {
+            html += `<div class="summary-kpi">
+                <span class="summary-kpi-label">${kpi.label}</span>
+                <span class="summary-kpi-value ${kpi.class}">${kpi.value}</span>
+            </div>`;
+        });
+        html += '</div>';
+
+        container.innerHTML = html;
     }
 
     renderLegProgressionChart(myTurns, oppTurns, leg) {
@@ -1693,6 +1924,10 @@ class AutodartsStats {
     }
 
     renderMatchView() {
+        // Show match summary section
+        document.getElementById('match-summary-section').style.display = '';
+        this.renderMatchSummary();
+
         // Match-level charts
         this.renderLegAveragesChart();
         this.renderMatchFirst9Chart();
@@ -1707,6 +1942,9 @@ class AutodartsStats {
     renderLegView(legId) {
         const leg = this.currentMatchLegs.find(l => l.id === legId);
         if (!leg) return;
+
+        // Hide match summary in leg view
+        document.getElementById('match-summary-section').style.display = 'none';
 
         // Update title
         document.getElementById('score-chart-title').textContent = `- Leg ${leg.leg_number + 1}`;

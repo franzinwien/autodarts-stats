@@ -1425,8 +1425,8 @@ tr:hover td {
 
 .t20-analysis-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 1.5rem;
+    grid-template-columns: 150px 1fr 150px;
+    gap: 1rem;
 }
 
 .t20-stats {
@@ -1450,16 +1450,16 @@ tr:hover td {
 .t20-direction-grid-8 {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    gap: 0.4rem;
+    gap: 0.5rem;
 }
 
 .direction-card {
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    padding: 0.4rem;
+    padding: 0.75rem 0.5rem;
     text-align: center;
-    min-height: 60px;
+    min-height: 80px;
 }
 
 .direction-card.center {
@@ -1468,9 +1468,9 @@ tr:hover td {
 }
 
 .direction-label {
-    font-size: 0.6rem;
+    font-size: 0.7rem;
     color: var(--text-muted);
-    margin-bottom: 0.15rem;
+    margin-bottom: 0.25rem;
 }
 
 .direction-card.center .direction-label {
@@ -1478,14 +1478,14 @@ tr:hover td {
 }
 
 .direction-value {
-    font-size: 0.95rem;
+    font-size: 1.1rem;
     font-weight: 700;
     color: var(--text-primary);
 }
 
 .direction-card.center .direction-value {
     color: #000;
-    font-size: 1.4rem;
+    font-size: 1.6rem;
 }
 
 .direction-detail {
@@ -1576,7 +1576,7 @@ tr:hover td {
 .t20-extended-analysis {
     grid-column: 1 / -1;
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: 280px 1fr;
     gap: 1.5rem;
     margin-top: 1.5rem;
     padding-top: 1.5rem;
@@ -1596,8 +1596,10 @@ tr:hover td {
 
 #t20-scatter-canvas {
     background: var(--bg-tertiary);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     border: 1px solid var(--border-color);
+    max-width: 260px;
+    height: auto;
 }
 
 .dartboard-legend {
@@ -1622,8 +1624,21 @@ tr:hover td {
 }
 
 .legend-item .dot.green { background: #10b981; }
-.legend-item .dot.yellow { background: #f59e0b; }
+.legend-item .dot.yellow { background: #fbbf24; }
+.legend-item .dot.orange { background: #f97316; }
 .legend-item .dot.red { background: #ef4444; }
+
+/* T20 Trend Section */
+.t20-trend-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.t20-trend-section h4 {
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
 
 .t20-comparison-section {
     display: flex;
@@ -1691,6 +1706,84 @@ tr:hover td {
         order: 1;
     }
 }
+
+/* =====================================================
+   MATCH SUMMARY SECTION
+   ===================================================== */
+
+.match-summary-section {
+    margin: 1.5rem 0;
+}
+
+.summary-card {
+    background: linear-gradient(135deg, var(--bg-secondary), var(--bg-tertiary));
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--accent-green);
+    padding: 1.25rem;
+}
+
+.summary-card h4 {
+    margin: 0 0 0.75rem 0;
+    font-size: 1rem;
+    color: var(--text-primary);
+}
+
+.summary-content {
+    font-size: 0.9rem;
+    line-height: 1.7;
+    color: var(--text-secondary);
+}
+
+.summary-content p {
+    margin: 0.5rem 0;
+}
+
+.summary-content .highlight-good {
+    color: var(--accent-green);
+    font-weight: 600;
+}
+
+.summary-content .highlight-bad {
+    color: var(--accent-red);
+    font-weight: 600;
+}
+
+.summary-content .highlight-neutral {
+    color: var(--accent-blue);
+    font-weight: 600;
+}
+
+.summary-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.summary-kpi {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    padding: 0.75rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.summary-kpi-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.summary-kpi-value {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.summary-kpi-value.good { color: var(--accent-green); }
+.summary-kpi-value.bad { color: var(--accent-red); }
+.summary-kpi-value.neutral { color: var(--accent-blue); }
 
 /* =====================================================
    LEG FILTER TABS

@@ -16,7 +16,7 @@
     <!-- Supabase JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
     <!-- Login Screen -->
@@ -559,6 +559,16 @@
                         </div>
                     </div>
 
+                    <!-- Match Summary (shown only in Match view) -->
+                    <div class="match-summary-section" id="match-summary-section">
+                        <div class="summary-card">
+                            <h4>📝 Match-Zusammenfassung</h4>
+                            <div class="summary-content" id="match-summary-content">
+                                Analyse wird geladen...
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Leg Filter/Selector -->
                     <div class="leg-filter-section">
                         <h3>🎯 Ansicht wählen</h3>
@@ -800,30 +810,20 @@
                         <div class="t20-extended-analysis">
                             <div class="t20-dartboard-section">
                                 <h4>📍 Wurfverteilung</h4>
-                                <canvas id="t20-scatter-canvas" width="300" height="300"></canvas>
+                                <canvas id="t20-scatter-canvas" width="260" height="260"></canvas>
                                 <div class="dartboard-legend">
-                                    <span class="legend-item"><span class="dot green"></span> T20 Treffer</span>
-                                    <span class="legend-item"><span class="dot yellow"></span> ≤1cm daneben</span>
-                                    <span class="legend-item"><span class="dot red"></span> >1cm daneben</span>
+                                    <span class="legend-item"><span class="dot green"></span> T20</span>
+                                    <span class="legend-item"><span class="dot yellow"></span> ≤1cm</span>
+                                    <span class="legend-item"><span class="dot orange"></span> 1-2cm</span>
+                                    <span class="legend-item"><span class="dot red"></span> 2-3cm</span>
                                 </div>
                             </div>
-                            <div class="t20-comparison-section">
-                                <h4>📊 Match vs. Durchschnitt</h4>
-                                <div class="comparison-stats">
-                                    <div class="comparison-row">
-                                        <span class="comp-label">Dieses Match</span>
-                                        <span class="comp-value" id="t20-match-rate">-</span>
-                                    </div>
-                                    <div class="comparison-row">
-                                        <span class="comp-label">Ø Alle Matches</span>
-                                        <span class="comp-value" id="t20-avg-rate">-</span>
-                                    </div>
-                                    <div class="comparison-row highlight">
-                                        <span class="comp-label">Differenz</span>
-                                        <span class="comp-value" id="t20-diff-rate">-</span>
-                                    </div>
+                            <div class="t20-trend-section" id="t20-trend-section">
+                                <h4>📈 T20-Trend (letzte 100 Matches)</h4>
+                                <div class="chart-container chart-container-small">
+                                    <canvas id="chart-t20-trend"></canvas>
                                 </div>
-                                <h4 style="margin-top: 1rem;">⏱️ Zeitverlauf</h4>
+                                <h4 style="margin-top: 1rem;">⏱️ Zeitverlauf im Match</h4>
                                 <div class="comparison-stats">
                                     <div class="comparison-row">
                                         <span class="comp-label">1. Hälfte</span>
@@ -1191,7 +1191,7 @@
         <p>Lade Daten...</p>
     </div>
 
-    <script src="config.js"></script>
-    <script src="app.js"></script>
+    <script src="config.js?v=3"></script>
+    <script src="app.js?v=3"></script>
 </body>
 </html>
