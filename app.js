@@ -119,7 +119,30 @@ function analyzeT20Misses(throws) {
 class AutodartsStats {
     constructor() { this.user = null; this.currentPlayerId = null; this.allPlayers = []; this.allMatchPlayers = []; this.allMatches = []; this.opponentMap = {}; this.overallAverage = 0; this.matchRankings = []; this.filters = { time: 'all', type: '', variant: 'X01' }; this.init(); }
     
-    async init() { const { data: { session } } = await supabase.auth.getSession(); if (session) await this.handleAuthSuccess(session.user); else { const hp = new URLSearchParams(window.location.hash.substring(1)); if (hp.get('access_token')) { const { data: { session: ns } } = await supabase.auth.getSession(); if (ns) { await this.handleAuthSuccess(ns.user); window.history.replaceState({}, document.title, window.location.pathname); } } } supabase.auth.onAuthStateChange(async (e, s) => { if (e === 'SIGNED_IN' && s) await this.handleAuthSuccess(s.user); else if (e === 'SIGNED_OUT') this.showLoginScreen(); }); this.setupEventListeners(); }
+    async init() {
+        this.isInitialized = false;
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) { await this.handleAuthSuccess(session.user); this.isInitialized = true; }
+        else {
+            const hp = new URLSearchParams(window.location.hash.substring(1));
+            if (hp.get('access_token')) {
+                const { data: { session: ns } } = await supabase.auth.getSession();
+                if (ns) { await this.handleAuthSuccess(ns.user); this.isInitialized = true; window.history.replaceState({}, document.title, window.location.pathname); }
+            }
+        }
+        supabase.auth.onAuthStateChange(async (e, s) => {
+            // Only handle SIGNED_IN on initial login (not TOKEN_REFRESHED which shows as SIGNED_IN too)
+            if (e === 'SIGNED_IN' && s && !this.isInitialized) {
+                await this.handleAuthSuccess(s.user);
+                this.isInitialized = true;
+            } else if (e === 'SIGNED_OUT') {
+                this.isInitialized = false;
+                this.showLoginScreen();
+            }
+            // TOKEN_REFRESHED events are handled automatically by Supabase, no action needed
+        });
+        this.setupEventListeners();
+    }
     
     setupEventListeners() { document.getElementById('send-magic-link')?.addEventListener('click', () => this.sendMagicLink()); document.getElementById('email-input')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') this.sendMagicLink(); }); document.getElementById('logout-btn')?.addEventListener('click', () => this.logout()); document.querySelectorAll('.nav-btn').forEach(btn => btn.addEventListener('click', () => this.navigateTo(btn.dataset.page))); document.getElementById('apply-filters')?.addEventListener('click', () => this.applyFilters()); document.getElementById('heatmap-target')?.addEventListener('change', () => this.loadHeatmapData()); document.getElementById('global-filter-player')?.addEventListener('change', (e) => this.switchPlayer(e.target.value)); document.getElementById('match-detail-prev')?.addEventListener('click', () => this.navigateMatch(-1)); document.getElementById('match-detail-next')?.addEventListener('click', () => this.navigateMatch(1)); document.getElementById('match-detail-select')?.addEventListener('change', (e) => this.loadMatchDetail(e.target.value)); }
     
@@ -678,11 +701,16 @@ class AutodartsStats {
             this.currentMp = mp;
             this.currentOppMp = oppMp;
 
-            // Render leg overview
-            this.renderLegOverview();
+            // Render leg overview with extended stats
+            this.renderLegOverviewExtended();
             this.renderLegAveragesChart();
             this.renderMatchScoringChart();
             this.renderMatchFirst9Chart();
+
+            // Render new features
+            this.renderMomentumAnalysis();
+            this.renderDoublesAnalysis();
+            this.enableStickyHeader();
 
             // Render T20 Streuungsanalyse
             this.renderT20Analysis(myThrows);
@@ -1301,6 +1329,313 @@ class AutodartsStats {
                 }
             }
         });
+    }
+
+    // ========== COLLAPSIBLE SECTIONS ==========
+    toggleSection(headerEl) {
+        const section = headerEl.closest('.section-collapsible');
+        if (section) {
+            section.classList.toggle('collapsed');
+        }
+    }
+
+    // ========== MOMENTUM & ROLLING AVERAGE ==========
+    renderMomentumAnalysis() {
+        if (!this.currentMyTurns || this.currentMyTurns.length < 3) return;
+
+        const points = this.currentMyTurns.map(t => t.points || 0);
+        const total = points.length;
+
+        // Calculate rates
+        const c60plus = points.filter(p => p >= 60).length;
+        const c100plus = points.filter(p => p >= 100).length;
+        const c140plus = points.filter(p => p >= 140).length;
+
+        document.getElementById('md-60plus-rate').textContent = ((c60plus / total) * 100).toFixed(1) + '%';
+        document.getElementById('md-100plus-rate').textContent = ((c100plus / total) * 100).toFixed(1) + '%';
+        document.getElementById('md-140plus-rate').textContent = ((c140plus / total) * 100).toFixed(1) + '%';
+
+        // Calculate standard deviation (consistency)
+        const avg = points.reduce((a, b) => a + b, 0) / total;
+        const variance = points.reduce((s, p) => s + Math.pow(p - avg, 2), 0) / total;
+        const stdDev = Math.sqrt(variance);
+
+        const stdEl = document.getElementById('md-std-dev');
+        stdEl.textContent = '±' + stdDev.toFixed(1);
+        if (stdDev < 25) {
+            stdEl.className = 'stat-value consistency-good';
+        } else if (stdDev < 35) {
+            stdEl.className = 'stat-value consistency-medium';
+        } else {
+            stdEl.className = 'stat-value consistency-bad';
+        }
+
+        // Find best and worst streaks (consecutive 60+ or 100+)
+        let currentStreak = 0, bestStreak = 0, worstStreak = 0, currentBadStreak = 0;
+        points.forEach(p => {
+            if (p >= 60) {
+                currentStreak++;
+                bestStreak = Math.max(bestStreak, currentStreak);
+                currentBadStreak = 0;
+            } else {
+                currentStreak = 0;
+                currentBadStreak++;
+                worstStreak = Math.max(worstStreak, currentBadStreak);
+            }
+        });
+
+        document.getElementById('md-best-streak').textContent = bestStreak + 'x 60+';
+        document.getElementById('md-worst-streak').textContent = worstStreak + 'x <60';
+
+        // Rolling average chart
+        this.renderRollingAverageChart(points);
+    }
+
+    renderRollingAverageChart(points) {
+        const ctx = document.getElementById('chart-rolling-avg');
+        if (!ctx) return;
+
+        const windowSize = 5;
+        const rollingAvg = [];
+        const labels = [];
+
+        for (let i = 0; i < points.length; i++) {
+            const start = Math.max(0, i - windowSize + 1);
+            const window = points.slice(start, i + 1);
+            const avg = window.reduce((a, b) => a + b, 0) / window.length;
+            rollingAvg.push(avg.toFixed(1));
+            labels.push('V' + (i + 1));
+        }
+
+        // Calculate match average line
+        const matchAvg = points.reduce((a, b) => a + b, 0) / points.length;
+
+        if (this.rollingAvgChart) this.rollingAvgChart.destroy();
+        this.rollingAvgChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Rolling Avg (5)',
+                        data: rollingAvg,
+                        borderColor: CONFIG.COLORS.green,
+                        backgroundColor: 'rgba(16,185,129,0.1)',
+                        fill: true,
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Match Avg',
+                        data: new Array(points.length).fill(matchAvg.toFixed(1)),
+                        borderColor: CONFIG.COLORS.yellow,
+                        borderDash: [5, 5],
+                        fill: false,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Einzelwürfe',
+                        data: points,
+                        borderColor: 'rgba(148,163,184,0.3)',
+                        backgroundColor: 'rgba(148,163,184,0.1)',
+                        fill: false,
+                        tension: 0,
+                        pointRadius: 3,
+                        pointBackgroundColor: points.map(p => p >= 100 ? CONFIG.COLORS.green : p >= 60 ? CONFIG.COLORS.blue : CONFIG.COLORS.red)
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { color: '#94a3b8' } }
+                },
+                scales: {
+                    x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8', maxRotation: 0, autoSkip: true, maxTicksLimit: 20 } },
+                    y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' }, suggestedMin: 0, suggestedMax: 180 }
+                }
+            }
+        });
+    }
+
+    // ========== DOUBLES ANALYSIS ==========
+    async renderDoublesAnalysis() {
+        if (!this.currentMyThrows || this.currentMyThrows.length === 0) return;
+
+        // Find checkout turns (score_remaining = 0)
+        const checkoutTurns = this.currentMyTurns.filter(t => t.score_remaining === 0);
+        const checkoutTurnIds = new Set(checkoutTurns.map(t => t.id));
+
+        // Get double throws
+        const doubleThrows = this.currentMyThrows.filter(t => t.segment_bed === 'Double');
+        const doubleAttempts = {};
+        const doubleHits = {};
+
+        // Track attempts and hits by segment
+        doubleThrows.forEach(t => {
+            const name = 'D' + t.segment_number;
+            doubleAttempts[name] = (doubleAttempts[name] || 0) + 1;
+
+            // A hit is when it's in a checkout turn
+            if (checkoutTurnIds.has(t.turn_id)) {
+                doubleHits[name] = (doubleHits[name] || 0) + 1;
+            }
+        });
+
+        // Calculate stats
+        const totalAttempts = Object.values(doubleAttempts).reduce((a, b) => a + b, 0);
+        const totalHits = checkoutTurns.length;
+
+        document.getElementById('md-checkout-attempts').textContent = totalAttempts || '-';
+        document.getElementById('md-checkout-hits').textContent = totalHits || '-';
+        document.getElementById('md-checkout-rate-calc').textContent = totalAttempts > 0
+            ? ((totalHits / totalAttempts) * 100).toFixed(1) + '%'
+            : '-';
+
+        // First dart checkouts (approximate - checkout in turn with only 1-2 doubles attempted)
+        // This is a simplification; true first-dart CO would need dart-by-dart analysis
+        const firstDartCO = checkoutTurns.filter(t => {
+            const throwsInTurn = this.currentMyThrows.filter(th => th.turn_id === t.id);
+            const doublesInTurn = throwsInTurn.filter(th => th.segment_bed === 'Double');
+            return doublesInTurn.length === 1;
+        }).length;
+
+        document.getElementById('md-first-dart-co').textContent = firstDartCO || '0';
+
+        // Render doubles chart
+        this.renderMatchDoublesChart(doubleHits);
+
+        // Render doubles heatmap
+        this.renderDoublesHeatmap(doubleAttempts, doubleHits);
+    }
+
+    renderMatchDoublesChart(doubleHits) {
+        const ctx = document.getElementById('chart-match-doubles');
+        if (!ctx) return;
+
+        const sorted = Object.entries(doubleHits)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 8);
+
+        if (sorted.length === 0) {
+            // No checkouts - show empty state
+            if (this.matchDoublesChart) this.matchDoublesChart.destroy();
+            return;
+        }
+
+        if (this.matchDoublesChart) this.matchDoublesChart.destroy();
+        this.matchDoublesChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: sorted.map(d => d[0]),
+                datasets: [{
+                    data: sorted.map(d => d[1]),
+                    backgroundColor: CONFIG.COLORS.green,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                    y: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                }
+            }
+        });
+    }
+
+    renderDoublesHeatmap(attempts, hits) {
+        const container = document.getElementById('doubles-heatmap');
+        if (!container) return;
+
+        // Standard doubles order (like on a dartboard)
+        const doubles = [
+            'D20', 'D1', 'D18', 'D4', 'D13',
+            'D6', 'D10', 'D15', 'D2', 'D17',
+            'D3', 'D19', 'D7', 'D16', 'D8',
+            'D11', 'D14', 'D9', 'D12', 'D5',
+            'D25' // Bull
+        ];
+
+        const maxAttempts = Math.max(...Object.values(attempts), 1);
+
+        container.innerHTML = doubles.map(d => {
+            const att = attempts[d] || 0;
+            const hit = hits[d] || 0;
+            const intensity = att / maxAttempts;
+            const heatClass = att === 0 ? 'heat-0'
+                : intensity < 0.2 ? 'heat-1'
+                : intensity < 0.4 ? 'heat-2'
+                : intensity < 0.6 ? 'heat-3'
+                : intensity < 0.8 ? 'heat-4'
+                : 'heat-5';
+
+            return `<div class="double-cell ${heatClass}" title="${d}: ${hit}/${att}">
+                <span class="double-name">${d}</span>
+                <span class="double-stats">${hit}/${att}</span>
+            </div>`;
+        }).join('');
+    }
+
+    // ========== EXTENDED LEG STATS ==========
+    renderLegOverviewExtended() {
+        const grid = document.getElementById('leg-overview-grid');
+        if (!grid || !this.currentMatchLegs) return;
+
+        // Group throws by turn_id to count actual darts per turn
+        const dartsByTurn = {};
+        if (this.currentMyThrows) {
+            this.currentMyThrows.forEach(th => {
+                dartsByTurn[th.turn_id] = (dartsByTurn[th.turn_id] || 0) + 1;
+            });
+        }
+
+        grid.innerHTML = this.currentMatchLegs.map((leg, i) => {
+            const myTurns = this.currentMyTurns.filter(t => t.leg_id === leg.id);
+            const points = myTurns.map(t => t.points || 0);
+            const totalPoints = points.reduce((s, p) => s + p, 0);
+
+            // Calculate actual darts thrown
+            let totalDarts = 0;
+            myTurns.forEach(t => {
+                totalDarts += dartsByTurn[t.id] || 3;
+            });
+
+            // 3-Dart-Average
+            const avg = totalDarts > 0 ? (totalPoints / totalDarts) * 3 : 0;
+
+            // Extended stats for this leg
+            const c60plus = points.filter(p => p >= 60).length;
+            const c100plus = points.filter(p => p >= 100).length;
+            const rate60 = points.length > 0 ? ((c60plus / points.length) * 100).toFixed(0) : 0;
+
+            const won = leg.winner_player_id === this.currentMp?.id;
+            const rankInfo = this.getLegRank(leg.id);
+            const rankHtml = rankInfo ? this.getLegRankBadge(rankInfo.rank, rankInfo.total) : '';
+
+            return `<div class="leg-card ${won ? 'won' : 'lost'}" data-leg-id="${leg.id}" onclick="window.app.selectLeg('${leg.id}')">
+                <div class="leg-number">Leg ${leg.leg_number + 1}</div>
+                <div class="leg-avg">${avg.toFixed(1)}</div>
+                <div class="leg-darts">${totalDarts} Darts</div>
+                <div class="leg-extra-stats">
+                    <span>${rate60}% 60+</span>
+                    <span>${c100plus}x 100+</span>
+                </div>
+                <div class="leg-rank">${rankHtml}</div>
+                <div class="leg-result">${won ? '✅' : '❌'}</div>
+            </div>`;
+        }).join('');
+    }
+
+    // ========== STICKY HEADER ==========
+    enableStickyHeader() {
+        const header = document.getElementById('match-detail-header');
+        if (header) {
+            header.classList.add('sticky');
+        }
     }
 }
 
