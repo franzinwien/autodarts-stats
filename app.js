@@ -641,7 +641,8 @@ class AutodartsStats {
             const oppLegsWon = (legs || []).length - myLegsWon;
             document.getElementById('md-legs').textContent = `${myLegsWon}:${oppLegsWon} Legs`;
 
-            // Show match ranking if available
+            // Show match ranking if available - ensure history is loaded first
+            await this.loadMatchHistoryData();
             const matchRank = this.getMatchRank(matchId);
             const matchRankEl = document.getElementById('md-match-rank');
             if (matchRankEl) {
@@ -682,11 +683,6 @@ class AutodartsStats {
             document.getElementById('md-t20-count').textContent = t20Throws.length;
             document.getElementById('md-t20-rate').textContent = totalThrows ? ((t20Throws.length / totalThrows) * 100).toFixed(1) + '%' : '-';
 
-            // Ton+ rate (visits >= 100 points)
-            const tonPlusVisits = (myTurns || []).filter(t => t.points >= 100).length;
-            const totalVisits = (myTurns || []).length;
-            document.getElementById('md-ton-plus').textContent = totalVisits ? ((tonPlusVisits / totalVisits) * 100).toFixed(1) + '%' : '-';
-
             // Highest visit
             const highestVisit = Math.max(...(myTurns || []).map(t => t.points || 0), 0);
             document.getElementById('md-highest').textContent = highestVisit || '-';
@@ -700,6 +696,17 @@ class AutodartsStats {
             this.currentOppTurns = oppTurns;
             this.currentMp = mp;
             this.currentOppMp = oppMp;
+
+            // Store match data for summary generation
+            this.currentMatchData = {
+                myStats: {
+                    average: mp.average,
+                    first9_average: mp.first_9_average,
+                    checkout_percentage: mp.checkout_rate ? mp.checkout_rate * 100 : null,
+                    player_id: mp.id
+                },
+                opponent: opp ? (opp.is_bot ? 'Bot ' + Math.round((opp.cpu_ppr || 40) / 10) : opp.name || 'Gegner') : 'Gegner'
+            };
 
             // Render leg filter tabs
             this.renderLegFilterTabs();
@@ -1298,7 +1305,7 @@ class AutodartsStats {
         const avg = myStats.average ? parseFloat(myStats.average).toFixed(1) : '-';
         const first9 = myStats.first9_average ? parseFloat(myStats.first9_average).toFixed(1) : '-';
         const checkout = myStats.checkout_percentage ? parseFloat(myStats.checkout_percentage).toFixed(1) + '%' : '-';
-        const legsWon = legs.filter(l => l.winner_id === myStats.player_id).length;
+        const legsWon = legs.filter(l => l.winner_player_id === myStats.player_id).length;
         const legsLost = legs.length - legsWon;
         const isWin = legsWon > legsLost;
 
