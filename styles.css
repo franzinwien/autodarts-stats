@@ -404,6 +404,126 @@ body {
     font-weight: 700;
 }
 
+.page-header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.grouping-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.grouping-toggle label {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.grouping-toggle select {
+    padding: 8px 12px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 13px;
+}
+
+/* Detail Panel */
+.detail-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 600px;
+    max-width: 100%;
+    height: 100vh;
+    background: var(--bg-secondary);
+    border-left: 1px solid var(--border-color);
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+}
+
+.detail-panel.visible {
+    transform: translateX(0);
+}
+
+.detail-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.detail-panel-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.detail-panel-content {
+    padding: 24px;
+}
+
+.detail-charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 24px;
+}
+
+.visits-section,
+.doubles-section {
+    margin-top: 24px;
+}
+
+.visits-section h4,
+.doubles-section h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+}
+
+.stat-card.small {
+    padding: 12px;
+}
+
+.stat-card.small .stat-value {
+    font-size: 18px;
+}
+
+.stat-card.small .stat-label {
+    font-size: 11px;
+}
+
+.table-container.compact {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.table-container.compact table {
+    font-size: 13px;
+}
+
+@media (max-width: 768px) {
+    .detail-panel {
+        width: 100%;
+    }
+
+    .detail-charts-row {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* =====================================================
    STATS GRID
    ===================================================== */

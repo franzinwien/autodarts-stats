@@ -110,14 +110,10 @@
 
         <!-- Navigation -->
         <nav class="nav">
-            <button class="nav-btn active" data-page="overview">📊 Übersicht</button>
-            <button class="nav-btn" data-page="scoring">🎯 Scoring</button>
-            <button class="nav-btn" data-page="checkout">✅ Checkout</button>
-            <button class="nav-btn" data-page="matches">🎮 Matches</button>
-            <button class="nav-btn" data-page="matchdetail">📋 Match Detail</button>
+            <button class="nav-btn active" data-page="overview">📊 Dashboard</button>
+            <button class="nav-btn" data-page="legs">🎯 Legs</button>
             <button class="nav-btn" data-page="heatmap">🔥 Heatmap</button>
             <button class="nav-btn" data-page="opponents">👥 Gegner</button>
-            <button class="nav-btn" data-page="advanced">🧪 Analyse</button>
             <button class="nav-btn h2h" data-page="headtohead">🆚 H2H</button>
         </nav>
 
@@ -272,7 +268,117 @@
                 </div>
             </div>
 
-            <!-- Scoring Page -->
+            <!-- Legs Page (NEU - ersetzt Matches + Match Detail) -->
+            <div id="page-legs" class="page">
+                <div class="page-header">
+                    <h2 id="legs-page-title">🎯 Legs</h2>
+                    <div class="page-header-right">
+                        <div class="grouping-toggle">
+                            <label>Gruppierung:</label>
+                            <select id="legs-grouping">
+                                <option value="single">Einzeln</option>
+                                <option value="match">Nach Match</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Legs Table -->
+                <div class="table-container">
+                    <table id="legs-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Datum</th>
+                                <th>Gegner</th>
+                                <th id="legs-col-leg">Leg</th>
+                                <th>Avg</th>
+                                <th>Darts</th>
+                                <th>Checkout</th>
+                                <th>Rang</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="legs-pagination"></div>
+
+                <!-- Leg Detail Panel (slides in) -->
+                <div id="leg-detail-panel" class="detail-panel hidden">
+                    <div class="detail-panel-header">
+                        <h3 id="leg-detail-title">Leg Details</h3>
+                        <button class="btn btn-ghost btn-sm" onclick="window.app.closeLegDetail()">✕ Schließen</button>
+                    </div>
+                    <div class="detail-panel-content">
+                        <!-- Stats Row -->
+                        <div class="stats-grid stats-grid-5">
+                            <div class="stat-card small">
+                                <div class="stat-value" id="ld-average">-</div>
+                                <div class="stat-label">Average</div>
+                            </div>
+                            <div class="stat-card small highlight">
+                                <div class="stat-value" id="ld-first9">-</div>
+                                <div class="stat-label">First 9</div>
+                            </div>
+                            <div class="stat-card small">
+                                <div class="stat-value" id="ld-darts">-</div>
+                                <div class="stat-label">Darts</div>
+                            </div>
+                            <div class="stat-card small">
+                                <div class="stat-value" id="ld-checkout">-</div>
+                                <div class="stat-label">Checkout</div>
+                            </div>
+                            <div class="stat-card small">
+                                <div class="stat-value" id="ld-rank">-</div>
+                                <div class="stat-label">Rang</div>
+                            </div>
+                        </div>
+
+                        <!-- Visits Table -->
+                        <div class="visits-section">
+                            <h4>📋 Aufnahmen</h4>
+                            <div class="table-container compact">
+                                <table id="ld-visits-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Visit</th>
+                                            <th>Punkte</th>
+                                            <th>Rest</th>
+                                            <th>Würfe</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Charts Row -->
+                        <div class="detail-charts-row">
+                            <div class="chart-card compact">
+                                <h4>📈 Score-Verlauf</h4>
+                                <div class="chart-container chart-container-small">
+                                    <canvas id="ld-chart-progression"></canvas>
+                                </div>
+                            </div>
+                            <div class="chart-card compact">
+                                <h4>🎯 Scoring-Verteilung</h4>
+                                <div class="chart-container chart-container-small">
+                                    <canvas id="ld-chart-scoring"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Doubles Section -->
+                        <div class="doubles-section">
+                            <h4>✅ Doppel-Versuche</h4>
+                            <div class="doubles-heatmap compact" id="ld-doubles-heatmap"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scoring Page (DEPRECATED - wird entfernt) -->
             <div id="page-scoring" class="page">
                 <div class="page-header">
                     <h2>🎯 Scoring-Analyse</h2>
