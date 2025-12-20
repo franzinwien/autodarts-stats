@@ -957,6 +957,157 @@ tr:hover td {
     background: rgba(16, 185, 129, 0.15);
 }
 
+/* T20 Analysis Section */
+.t20-analysis-section {
+    margin-top: 32px;
+    padding: 24px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+}
+
+.t20-analysis-section h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 20px;
+}
+
+.t20-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 24px;
+}
+
+@media (max-width: 1000px) {
+    .t20-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.t20-scatter-card,
+.t20-direction-card,
+.t20-distance-card {
+    background: var(--bg-primary);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+}
+
+.t20-scatter-card h4,
+.t20-direction-card h4,
+.t20-distance-card h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text-secondary);
+}
+
+#t20-scatter-canvas {
+    width: 100%;
+    height: auto;
+    max-width: 300px;
+    margin: 0 auto;
+    display: block;
+}
+
+/* Direction Grid (8-way heatmap) */
+.direction-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    max-width: 200px;
+    margin: 0 auto;
+}
+
+.dir-cell {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+}
+
+.dir-cell.center {
+    background: var(--accent-green);
+    color: white;
+}
+
+.dir-cell.hot {
+    background: var(--accent-red);
+    color: white;
+}
+
+.dir-cell.warm {
+    background: var(--accent-yellow);
+    color: var(--bg-primary);
+}
+
+.dir-cell.cool {
+    background: var(--accent-blue);
+    color: white;
+}
+
+.dir-cell.hit {
+    background: var(--accent-green);
+    color: white;
+}
+
+.dir-cell {
+    flex-direction: column;
+    line-height: 1.2;
+}
+
+.dir-pct {
+    font-size: 10px;
+    font-weight: 500;
+    opacity: 0.9;
+}
+
+/* Distance Bars */
+.distance-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.dist-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.dist-label {
+    width: 50px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.dist-bar {
+    flex: 1;
+    height: 20px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.dist-fill {
+    height: 100%;
+    background: var(--accent-green);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.dist-pct {
+    width: 40px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
 /* =====================================================
    CHECKOUT TABLE
    ===================================================== */

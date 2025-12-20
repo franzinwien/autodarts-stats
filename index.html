@@ -769,10 +769,10 @@
                 </div>
             </div>
 
-            <!-- Heatmap Page -->
+            <!-- Heatmap Page (erweitert mit T20-Analyse) -->
             <div id="page-heatmap" class="page">
                 <div class="page-header">
-                    <h2>🔥 Dart Heatmap & Gruppierung</h2>
+                    <h2>🔥 Wurfanalyse</h2>
                     <div class="heatmap-filters">
                         <select id="heatmap-target">
                             <option value="all">Alle Würfe</option>
@@ -783,8 +783,8 @@
                         </select>
                     </div>
                 </div>
-                
-                <div class="stats-grid">
+
+                <div class="stats-grid stats-grid-6">
                     <div class="stat-card">
                         <div class="stat-icon">🎯</div>
                         <div class="stat-content">
@@ -813,8 +813,22 @@
                             <div class="stat-label">Würfe analysiert</div>
                         </div>
                     </div>
+                    <div class="stat-card highlight">
+                        <div class="stat-icon">🎯</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-t20-hitrate">-</div>
+                            <div class="stat-label">T20 Hit Rate</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🎯</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-t19-hitrate">-</div>
+                            <div class="stat-label">T19 Hit Rate</div>
+                        </div>
+                    </div>
                 </div>
-                
+
                 <div class="heatmap-container">
                     <div class="dartboard-wrapper">
                         <canvas id="dartboard-canvas" width="500" height="500"></canvas>
@@ -827,6 +841,50 @@
                             <div class="legend-item"><span class="legend-color high"></span> Viele Treffer</div>
                             <div class="legend-item"><span class="legend-color medium"></span> Mittel</div>
                             <div class="legend-item"><span class="legend-color low"></span> Wenige Treffer</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- T20 Analyse Sektion -->
+                <div class="t20-analysis-section">
+                    <h3>🎯 T20 Präzisions-Analyse</h3>
+                    <div class="t20-grid">
+                        <div class="t20-scatter-card">
+                            <h4>Streuung im T20-Bereich</h4>
+                            <canvas id="t20-scatter-canvas" width="300" height="300"></canvas>
+                        </div>
+                        <div class="t20-direction-card">
+                            <h4>Richtungs-Heatmap</h4>
+                            <div class="direction-grid" id="t20-direction-grid">
+                                <div class="dir-cell" data-dir="nw">↖</div>
+                                <div class="dir-cell" data-dir="n">↑</div>
+                                <div class="dir-cell" data-dir="ne">↗</div>
+                                <div class="dir-cell" data-dir="w">←</div>
+                                <div class="dir-cell center" data-dir="c">●</div>
+                                <div class="dir-cell" data-dir="e">→</div>
+                                <div class="dir-cell" data-dir="sw">↙</div>
+                                <div class="dir-cell" data-dir="s">↓</div>
+                                <div class="dir-cell" data-dir="se">↘</div>
+                            </div>
+                        </div>
+                        <div class="t20-distance-card">
+                            <h4>Distanz-Verteilung</h4>
+                            <div class="distance-bars" id="t20-distance-bars">
+                                <div class="dist-row"><span class="dist-label">0-1cm</span><div class="dist-bar"><div class="dist-fill" id="dist-0-1"></div></div><span class="dist-pct" id="dist-pct-0-1">-</span></div>
+                                <div class="dist-row"><span class="dist-label">1-2cm</span><div class="dist-bar"><div class="dist-fill" id="dist-1-2"></div></div><span class="dist-pct" id="dist-pct-1-2">-</span></div>
+                                <div class="dist-row"><span class="dist-label">2-3cm</span><div class="dist-bar"><div class="dist-fill" id="dist-2-3"></div></div><span class="dist-pct" id="dist-pct-2-3">-</span></div>
+                                <div class="dist-row"><span class="dist-label">>3cm</span><div class="dist-bar"><div class="dist-fill" id="dist-3-plus"></div></div><span class="dist-pct" id="dist-pct-3-plus">-</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- T20 Trend Chart -->
+                <div class="charts-grid">
+                    <div class="chart-card large">
+                        <h3>📈 T20 Rate Trend (letzte 100 Matches)</h3>
+                        <div class="chart-container chart-container-large">
+                            <canvas id="chart-t20-trend"></canvas>
                         </div>
                     </div>
                 </div>

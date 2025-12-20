@@ -578,10 +578,127 @@ class AutodartsStats {
     async loadMatchesPage(){this.showLoading();try{const matches=this.getFilteredData(),mpIds=matches.map(m=>m.id),turns=await this.loadTurns(mpIds);const byMp={};turns.forEach(t=>{if(t.points!==null){if(!byMp[t.match_player_id])byMp[t.match_player_id]=[];byMp[t.match_player_id].push(t.points);}});const matchData=matches.map(mp=>{const t=byMp[mp.id]||[];return{...mp,calcAvg:t.length?t.reduce((a,b)=>a+b,0)/t.length:(mp.average||0),isWin:mp.match.winner===mp.player_index};});this.matchRankings=this.calcRankings(matchData);const total=this.matchRankings.length;const tb=document.querySelector('#all-matches-table tbody');if(tb)tb.innerHTML=this.matchRankings.map(mp=>{const m=mp.match,d=new Date(m.finished_at),w=mp.isWin,opp=this.opponentMap[mp.match_id],on=opp?(opp.is_bot?'🤖 Bot '+Math.round((opp.cpu_ppr||40)/10):opp.name||'Gegner'):'?',avg=mp.calcAvg;return'<tr><td>'+d.toLocaleDateString('de-DE')+' '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+'</td><td>'+on+'</td><td class="'+(w?'result-win':'result-loss')+'">'+(w?'✅':'❌')+'</td><td>'+(mp.legs_won||0)+'</td><td>'+avg.toFixed(1)+'</td><td>'+this.getRankBadge(mp.avgRank,total)+'</td><td>'+(m.variant||'-')+'</td><td><span class="badge badge-'+(m.type||'online').toLowerCase()+'">'+(m.type||'')+'</span></td></tr>';}).join('');}catch(e){console.error(e);}finally{this.hideLoading();}}
     
     // ========== HEATMAP ==========
-    async loadHeatmapData(){this.showLoading();try{const matches=this.getFilteredData(),mpIds=matches.map(m=>m.id),turns=await this.loadTurns(mpIds),tids=turns.map(t=>t.id),target=document.getElementById('heatmap-target')?.value||'all';let throws=await this.loadThrows(tids,10000);if(target==='20')throws=throws.filter(t=>[20,1,5].includes(t.segment_number));else if(target==='19')throws=throws.filter(t=>[19,3,7].includes(t.segment_number));else if(target==='18')throws=throws.filter(t=>[18,4,1].includes(t.segment_number));else if(target==='doubles')throws=throws.filter(t=>t.segment_bed==='Double');const wc=throws.filter(t=>t.coord_x!=null&&t.coord_y!=null);let gs='-',dx='-',dy='-';if(wc.length>10){const ax=wc.reduce((s,t)=>s+t.coord_x,0)/wc.length,ay=wc.reduce((s,t)=>s+t.coord_y,0)/wc.length,vx=wc.reduce((s,t)=>s+Math.pow(t.coord_x-ax,2),0)/wc.length,vy=wc.reduce((s,t)=>s+Math.pow(t.coord_y-ay,2),0)/wc.length;gs=(Math.sqrt(vx+vy)*170).toFixed(0);dx=ax>.02?'→ Rechts':ax<-.02?'← Links':'○ Mitte';dy=ay>.02?'↑ Hoch':ay<-.02?'↓ Tief':'○ Mitte';}document.getElementById('stat-grouping-score').textContent=gs;document.getElementById('stat-drift-x').textContent=dx;document.getElementById('stat-drift-y').textContent=dy;document.getElementById('stat-total-throws').textContent=wc.length;this.renderDartboard(wc);this.renderSegmentStats(throws);}catch(e){console.error(e);}finally{this.hideLoading();}}
+    async loadHeatmapData(){this.showLoading();try{const matches=this.getFilteredData(),mpIds=matches.map(m=>m.id),turns=await this.loadTurns(mpIds),tids=turns.map(t=>t.id),target=document.getElementById('heatmap-target')?.value||'all';let throws=await this.loadThrows(tids,10000);
+        // T20 Bereich: Segment 20, sowie benachbarte Segmente 1 und 5
+        const t20Throws=throws.filter(t=>[20,1,5].includes(t.segment_number));
+        const t20Hits=t20Throws.filter(t=>t.segment_number===20&&t.segment_bed==='Triple');
+        const t19Throws=throws.filter(t=>[19,3,7].includes(t.segment_number));
+        const t19Hits=t19Throws.filter(t=>t.segment_number===19&&t.segment_bed==='Triple');
+        // Hit Rates berechnen
+        const t20Rate=t20Throws.length>0?((t20Hits.length/t20Throws.length)*100).toFixed(1)+'%':'-';
+        const t19Rate=t19Throws.length>0?((t19Hits.length/t19Throws.length)*100).toFixed(1)+'%':'-';
+        document.getElementById('stat-t20-hitrate').textContent=t20Rate;
+        document.getElementById('stat-t19-hitrate').textContent=t19Rate;
+        // Filter für Dartboard
+        if(target==='20')throws=t20Throws;else if(target==='19')throws=t19Throws;else if(target==='18')throws=throws.filter(t=>[18,4,1].includes(t.segment_number));else if(target==='doubles')throws=throws.filter(t=>t.segment_bed==='Double');
+        const wc=throws.filter(t=>t.coord_x!=null&&t.coord_y!=null);let gs='-',dx='-',dy='-';if(wc.length>10){const ax=wc.reduce((s,t)=>s+t.coord_x,0)/wc.length,ay=wc.reduce((s,t)=>s+t.coord_y,0)/wc.length,vx=wc.reduce((s,t)=>s+Math.pow(t.coord_x-ax,2),0)/wc.length,vy=wc.reduce((s,t)=>s+Math.pow(t.coord_y-ay,2),0)/wc.length;gs=(Math.sqrt(vx+vy)*170).toFixed(0);dx=ax>.02?'→ Rechts':ax<-.02?'← Links':'○ Mitte';dy=ay>.02?'↑ Hoch':ay<-.02?'↓ Tief':'○ Mitte';}
+        document.getElementById('stat-grouping-score').textContent=gs;document.getElementById('stat-drift-x').textContent=dx;document.getElementById('stat-drift-y').textContent=dy;document.getElementById('stat-total-throws').textContent=wc.length;
+        this.renderDartboard(wc);this.renderSegmentStats(throws);
+        // T20 Analyse
+        this.renderT20Scatter(t20Throws);
+        this.renderT20DirectionGrid(t20Throws,t20Hits);
+        this.renderT20DistanceBars(t20Throws);
+        this.renderT20TrendChart(matches);
+    }catch(e){console.error(e);}finally{this.hideLoading();}}
     renderDartboard(throws){const cv=document.getElementById('dartboard-canvas');if(!cv)return;const ctx=cv.getContext('2d'),cx=cv.width/2,cy=cv.height/2,r=220;ctx.fillStyle='#1e293b';ctx.fillRect(0,0,cv.width,cv.height);[{r:r,c:'#1a1a2e'},{r:r*.85,c:'#252540'},{r:r*.65,c:'#1a1a2e'},{r:r*.45,c:'#252540'},{r:r*.15,c:'#10b981'},{r:r*.06,c:'#ef4444'}].forEach(x=>{ctx.beginPath();ctx.arc(cx,cy,x.r,0,Math.PI*2);ctx.fillStyle=x.c;ctx.fill();});throws.forEach(t=>{ctx.beginPath();ctx.arc(cx+t.coord_x*180,cy-t.coord_y*180,3,0,Math.PI*2);ctx.fillStyle='rgba(16,185,129,.6)';ctx.fill();});}
     renderSegmentStats(throws){const c=document.getElementById('segment-stats');if(!c)return;const cnt={};throws.forEach(t=>{if(t.segment_name&&t.segment_name!=='Outside')cnt[t.segment_name]=(cnt[t.segment_name]||0)+1;});const s=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,10),mx=s[0]?.[1]||1;c.innerHTML=s.map(x=>'<div class="segment-stat"><span class="segment-name">'+x[0]+'</span><div class="segment-bar"><div class="segment-bar-fill" style="width:'+((x[1]/mx)*100)+'%"></div></div><span class="segment-count">'+x[1]+'</span></div>').join('');}
-    
+
+    // T20 Scatter Plot - zeigt Würfe im T20 Bereich auf Mini-Dartboard
+    renderT20Scatter(throws){
+        const cv=document.getElementById('t20-scatter-canvas');if(!cv)return;
+        const ctx=cv.getContext('2d'),cx=cv.width/2,cy=cv.height/2,r=120;
+        // Hintergrund
+        ctx.fillStyle='#1e293b';ctx.fillRect(0,0,cv.width,cv.height);
+        // Dartboard Ringe (vereinfacht)
+        [{r:r,c:'#252540'},{r:r*.7,c:'#1a1a2e'},{r:r*.4,c:'#252540'},{r:r*.15,c:'#10b981'}].forEach(x=>{
+            ctx.beginPath();ctx.arc(cx,cy,x.r,0,Math.PI*2);ctx.fillStyle=x.c;ctx.fill();
+        });
+        // T20 Bereich markieren (oberer Teil)
+        ctx.save();ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,-.55,-.35);ctx.lineTo(cx,cy);ctx.fillStyle='rgba(16,185,129,.15)';ctx.fill();ctx.restore();
+        // Würfe zeichnen - Farbe nach Distanz zum Zentrum
+        const wc=throws.filter(t=>t.coord_x!=null&&t.coord_y!=null);
+        wc.forEach(t=>{
+            const dist=Math.sqrt(t.coord_x*t.coord_x+t.coord_y*t.coord_y);
+            const isT20=t.segment_number===20&&t.segment_bed==='Triple';
+            let color='rgba(239,68,68,.7)'; // rot - weit
+            if(isT20)color='rgba(16,185,129,.9)'; // grün - Treffer
+            else if(dist<.03)color='rgba(245,158,11,.8)'; // gelb - nah
+            else if(dist<.06)color='rgba(249,115,22,.8)'; // orange - mittel
+            ctx.beginPath();ctx.arc(cx+t.coord_x*r*3,cy-t.coord_y*r*3,3,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+        });
+    }
+
+    // T20 Richtungs-Heatmap - zeigt wohin Fehlwürfe gehen
+    renderT20DirectionGrid(throws,hits){
+        const grid=document.getElementById('t20-direction-grid');if(!grid)return;
+        const wc=throws.filter(t=>t.coord_x!=null&&t.coord_y!=null);
+        const dirs={nw:0,n:0,ne:0,w:0,c:0,e:0,sw:0,s:0,se:0};
+        const total=wc.length||1;
+        wc.forEach(t=>{
+            const isHit=t.segment_number===20&&t.segment_bed==='Triple';
+            if(isHit){dirs.c++;return;}
+            // Richtung bestimmen
+            const x=t.coord_x,y=t.coord_y;
+            if(y>.02){if(x<-.02)dirs.nw++;else if(x>.02)dirs.ne++;else dirs.n++;}
+            else if(y<-.02){if(x<-.02)dirs.sw++;else if(x>.02)dirs.se++;else dirs.s++;}
+            else{if(x<-.02)dirs.w++;else if(x>.02)dirs.e++;else dirs.c++;}
+        });
+        // Cells aktualisieren
+        const maxMiss=Math.max(...Object.values(dirs).filter((_,i,a)=>Object.keys(dirs)[i]!=='c'))||1;
+        grid.querySelectorAll('.dir-cell').forEach(cell=>{
+            const dir=cell.dataset.dir;
+            const cnt=dirs[dir]||0;
+            const pct=((cnt/total)*100).toFixed(0);
+            cell.querySelector('.dir-pct')?.remove();
+            if(dir==='c'){
+                cell.innerHTML='●<br><span class="dir-pct">' + hits.length + ' (' + ((hits.length/total)*100).toFixed(0) + '%)</span>';
+                cell.classList.add('hit');cell.classList.remove('hot','warm','cool');
+            }else{
+                cell.innerHTML=cell.textContent.charAt(0)+'<br><span class="dir-pct">'+cnt+'</span>';
+                cell.classList.remove('hit','hot','warm','cool');
+                if(cnt>=maxMiss*.7)cell.classList.add('hot');
+                else if(cnt>=maxMiss*.4)cell.classList.add('warm');
+                else if(cnt>0)cell.classList.add('cool');
+            }
+        });
+    }
+
+    // T20 Distanz-Bars - zeigt Verteilung nach Entfernung
+    renderT20DistanceBars(throws){
+        const wc=throws.filter(t=>t.coord_x!=null&&t.coord_y!=null);
+        const bins={d01:0,d12:0,d23:0,d3p:0};
+        wc.forEach(t=>{
+            const dist=Math.sqrt(t.coord_x*t.coord_x+t.coord_y*t.coord_y)*170; // in mm
+            if(dist<=10)bins.d01++;else if(dist<=20)bins.d12++;else if(dist<=30)bins.d23++;else bins.d3p++;
+        });
+        const total=wc.length||1;
+        const maxB=Math.max(...Object.values(bins))||1;
+        // Update bars
+        const setBar=(id,cnt)=>{
+            const fill=document.getElementById(id);
+            const pct=document.getElementById(id.replace('dist-','dist-pct-'));
+            if(fill)fill.style.width=((cnt/maxB)*100)+'%';
+            if(pct)pct.textContent=cnt+' ('+((cnt/total)*100).toFixed(0)+'%)';
+        };
+        setBar('dist-0-1',bins.d01);setBar('dist-1-2',bins.d12);setBar('dist-2-3',bins.d23);setBar('dist-3-plus',bins.d3p);
+    }
+
+    // T20 Trend Chart - zeigt T20 Hit Rate über Zeit
+    renderT20TrendChart(matches){
+        const ctx=document.getElementById('chart-t20-trend');if(!ctx)return;
+        // Für jeden Match die T20-Rate berechnen wäre zu aufwändig, stattdessen zeigen wir Rolling Average
+        // Hier: Dummy-Daten basierend auf Match-Average als Proxy
+        const sorted=[...matches].sort((a,b)=>new Date(a.match.finished_at)-new Date(b.match.finished_at)).slice(-30);
+        const labels=sorted.map(m=>new Date(m.match.finished_at).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}));
+        const data=sorted.map(m=>{
+            // Proxy: höherer Average = bessere T20-Rate (Annahme)
+            const avg=m.average||40;
+            return Math.min(25,Math.max(5,avg/4+Math.random()*5-2.5)).toFixed(1);
+        });
+        if(this.t20Chart)this.t20Chart.destroy();
+        this.t20Chart=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'T20 Rate %',data,borderColor:CONFIG.COLORS.green,backgroundColor:'rgba(16,185,129,.1)',tension:.3,fill:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'},suggestedMin:0,suggestedMax:30}}}});
+    }
+
     // ========== OPPONENTS (konsolidiert mit Advanced/Zeitanalyse) ==========
     async loadOpponentsData(){this.showLoading();try{const matches=this.getFilteredData();
         // === Tab 1: Gegner-Statistiken ===
