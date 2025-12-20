@@ -796,6 +796,14 @@ class AutodartsStats {
                 document.getElementById('h2h-legs-p1').textContent = '-';
                 document.getElementById('h2h-legs-p2').textContent = '-';
                 document.getElementById('h2h-streak').textContent = '-';
+                document.getElementById('h2h-best-avg-p1').textContent = '-';
+                document.getElementById('h2h-best-avg-p2').textContent = '-';
+                document.getElementById('h2h-180s-p1').textContent = '-';
+                document.getElementById('h2h-180s-p2').textContent = '-';
+                document.getElementById('h2h-last10').textContent = '-';
+                document.getElementById('h2h-avg-diff').textContent = '-';
+                document.getElementById('h2h-winrate-p1').textContent = '-';
+                document.getElementById('h2h-winrate-p2').textContent = '-';
                 this.hideLoading();
                 return;
             }
@@ -899,6 +907,13 @@ class AutodartsStats {
             document.getElementById('h2h-last10').textContent = last10Franz + ':' + last10Bella;
             const avgDiff = matchCount ? (avgDiffSum / matchCount) : 0;
             document.getElementById('h2h-avg-diff').textContent = (avgDiff >= 0 ? '+' : '') + avgDiff.toFixed(1);
+
+            // Win rate percentage
+            const totalMatches = franzWins + bellaWins;
+            const franzWinRate = totalMatches > 0 ? ((franzWins / totalMatches) * 100).toFixed(1) : '-';
+            const bellaWinRate = totalMatches > 0 ? ((bellaWins / totalMatches) * 100).toFixed(1) : '-';
+            document.getElementById('h2h-winrate-p1').textContent = franzWinRate !== '-' ? franzWinRate + '%' : '-';
+            document.getElementById('h2h-winrate-p2').textContent = bellaWinRate !== '-' ? bellaWinRate + '%' : '-';
 
             // Render charts
             this.renderH2HWinsChart(h2hMatches);
