@@ -822,39 +822,52 @@ class AutodartsStats {
             // Build H2H data
             let franzWins = 0, bellaWins = 0, franzLegs = 0, bellaLegs = 0;
             let franzAvgSum = 0, bellaAvgSum = 0, matchCount = 0;
+            let franz180s = 0, bella180s = 0;
+            let franzBestAvg = 0, bellaBestAvg = 0;
+            let avgDiffSum = 0;
             const h2hMatches = [];
             let currentStreak = 0, streakPlayer = null;
-            
+
             matches.sort((a, b) => new Date(a.finished_at) - new Date(b.finished_at)).forEach(match => {
                 const franzMp = allPlayers.find(p => p.match_id === match.id && p.user_id === FRANZ_ID);
                 const bellaMp = allPlayers.find(p => p.match_id === match.id && p.user_id === BELLACIAO_ID);
                 if (!franzMp || !bellaMp) return;
-                
+
                 // Check that this is a direct 1v1 match (exactly 2 players)
                 const playersInMatch = allPlayers.filter(p => p.match_id === match.id);
                 if (playersInMatch.length !== 2) return;
-                
+
                 const franzTurns = turnsByMp[franzMp.id] || [];
                 const bellaTurns = turnsByMp[bellaMp.id] || [];
                 const franzAvg = franzTurns.length ? franzTurns.reduce((a,b)=>a+b,0) / franzTurns.length : 0;
                 const bellaAvg = bellaTurns.length ? bellaTurns.reduce((a,b)=>a+b,0) / bellaTurns.length : 0;
-                
+
+                // Count 180s
+                franz180s += franzTurns.filter(p => p === 180).length;
+                bella180s += bellaTurns.filter(p => p === 180).length;
+
+                // Track best averages
+                if (franzAvg > franzBestAvg) franzBestAvg = franzAvg;
+                if (bellaAvg > bellaBestAvg) bellaBestAvg = bellaAvg;
+
                 const franzWon = match.winner === franzMp.player_index;
                 if (franzWon) franzWins++; else bellaWins++;
-                
+
                 franzLegs += franzMp.legs_won || 0;
                 bellaLegs += bellaMp.legs_won || 0;
-                
+
                 if (franzAvg > 0) { franzAvgSum += franzAvg; matchCount++; }
                 if (bellaAvg > 0) { bellaAvgSum += bellaAvg; }
-                
+                if (franzAvg > 0 && bellaAvg > 0) { avgDiffSum += franzAvg - bellaAvg; }
+
                 // Streak tracking
                 const winner = franzWon ? 'franz' : 'bella';
                 if (winner === streakPlayer) currentStreak++;
                 else { currentStreak = 1; streakPlayer = winner; }
-                
+
                 h2hMatches.push({
                     date: new Date(match.finished_at),
+                    matchId: match.id,
                     franzAvg, bellaAvg,
                     franzWon,
                     legs: (franzMp.legs_won || 0) + '-' + (bellaMp.legs_won || 0),
@@ -862,7 +875,12 @@ class AutodartsStats {
                     bellaMpId: bellaMp.id
                 });
             });
-            
+
+            // Last 10 matches
+            const last10 = h2hMatches.slice(-10);
+            const last10Franz = last10.filter(m => m.franzWon).length;
+            const last10Bella = last10.length - last10Franz;
+
             // Update stats
             document.getElementById('h2h-wins1').textContent = franzWins;
             document.getElementById('h2h-wins2').textContent = bellaWins;
@@ -872,13 +890,22 @@ class AutodartsStats {
             document.getElementById('h2h-legs-p1').textContent = franzLegs;
             document.getElementById('h2h-legs-p2').textContent = bellaLegs;
             document.getElementById('h2h-streak').textContent = currentStreak + 'x ' + (streakPlayer === 'franz' ? '🟢' : '🔴');
-            
+
+            // New stats
+            document.getElementById('h2h-best-avg-p1').textContent = franzBestAvg > 0 ? franzBestAvg.toFixed(1) : '-';
+            document.getElementById('h2h-best-avg-p2').textContent = bellaBestAvg > 0 ? bellaBestAvg.toFixed(1) : '-';
+            document.getElementById('h2h-180s-p1').textContent = franz180s;
+            document.getElementById('h2h-180s-p2').textContent = bella180s;
+            document.getElementById('h2h-last10').textContent = last10Franz + ':' + last10Bella;
+            const avgDiff = matchCount ? (avgDiffSum / matchCount) : 0;
+            document.getElementById('h2h-avg-diff').textContent = (avgDiff >= 0 ? '+' : '') + avgDiff.toFixed(1);
+
             // Render charts
             this.renderH2HWinsChart(h2hMatches);
             this.renderH2HAvgChart(h2hMatches);
-            this.renderH2HRadar(franzAvgSum/matchCount, bellaAvgSum/matchCount, franzWins, bellaWins, franzLegs, bellaLegs);
+            this.renderH2HFormChart(h2hMatches);
             this.renderH2HPie(franzWins, bellaWins);
-            this.renderH2HTable(h2hMatches.reverse(), turnsByMp);
+            this.renderH2HTable(h2hMatches.slice().reverse(), turnsByMp);
             
         } catch (e) { console.error('H2H error:', e); }
         finally { this.hideLoading(); }
@@ -927,24 +954,43 @@ class AutodartsStats {
         });
     }
     
-    renderH2HRadar(fAvg, bAvg, fWins, bWins, fLegs, bLegs) {
-        const ctx = document.getElementById('chart-h2h-radar');
+    renderH2HFormChart(matches) {
+        const ctx = document.getElementById('chart-h2h-form');
         if (!ctx) return;
-        
-        const total = fWins + bWins || 1;
-        const totalLegs = fLegs + bLegs || 1;
-        
-        if (this.h2hRadarChart) this.h2hRadarChart.destroy();
-        this.h2hRadarChart = new Chart(ctx, {
-            type: 'radar',
+
+        // Rolling 5-match win rate for last 20 matches
+        const recent = matches.slice(-20);
+        const windowSize = 5;
+        const franzForm = [];
+        const bellaForm = [];
+        const labels = [];
+
+        for (let i = windowSize - 1; i < recent.length; i++) {
+            const window = recent.slice(i - windowSize + 1, i + 1);
+            const fWins = window.filter(m => m.franzWon).length;
+            franzForm.push((fWins / windowSize) * 100);
+            bellaForm.push(((windowSize - fWins) / windowSize) * 100);
+            labels.push(recent[i].date.toLocaleDateString('de-DE', {day:'2-digit', month:'2-digit'}));
+        }
+
+        if (this.h2hFormChart) this.h2hFormChart.destroy();
+        this.h2hFormChart = new Chart(ctx, {
+            type: 'line',
             data: {
-                labels: ['Average', 'Win Rate', 'Legs'],
+                labels,
                 datasets: [
-                    { label: 'franzinwien', data: [fAvg, (fWins/total)*100, (fLegs/totalLegs)*100], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.2)' },
-                    { label: 'bellaciao', data: [bAvg, (bWins/total)*100, (bLegs/totalLegs)*100], borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.2)' }
+                    { label: 'franzinwien Form %', data: franzForm, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 },
+                    { label: 'bellaciao Form %', data: bellaForm, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.4 }
                 ]
             },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { color: '#94a3b8' } } }, scales: { r: { grid: { color: 'rgba(255,255,255,0.1)' }, pointLabels: { color: '#94a3b8' }, ticks: { display: false } } } }
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'top', labels: { color: '#94a3b8' } } },
+                scales: {
+                    x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8', font: { size: 9 } } },
+                    y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' }, min: 0, max: 100, title: { display: true, text: 'Win % (5er Fenster)', color: '#94a3b8' } }
+                }
+            }
         });
     }
     
@@ -966,24 +1012,26 @@ class AutodartsStats {
     renderH2HTable(matches, turnsByMp) {
         const tb = document.querySelector('#h2h-matches-table tbody');
         if (!tb) return;
-        
+
         // Calculate rankings within H2H matches for Franz
         const franzMatches = matches.map(m => ({ ...m, calcAvg: m.franzAvg }));
         franzMatches.sort((a, b) => b.calcAvg - a.calcAvg);
         franzMatches.forEach((m, i) => m.rank = i + 1);
         const rankMap = {};
         franzMatches.forEach(m => rankMap[m.franzMpId] = m.rank);
-        
+
         const total = matches.length;
         tb.innerHTML = matches.map(m => {
             const rank = rankMap[m.franzMpId] || '-';
-            return '<tr>' +
+            const avgDiff = (m.franzAvg - m.bellaAvg).toFixed(1);
+            const avgDiffClass = avgDiff >= 0 ? 'result-win' : 'result-loss';
+            return '<tr style="cursor:pointer" onclick="window.app.goToMatchDetail(\'' + m.matchId + '\')">' +
                 '<td>' + m.date.toLocaleDateString('de-DE') + '</td>' +
                 '<td class="' + (m.franzWon ? 'result-win' : 'result-loss') + '">' + (m.franzWon ? '✅ Sieg' : '❌ Niederlage') + '</td>' +
                 '<td>' + m.franzAvg.toFixed(1) + '</td>' +
                 '<td>' + m.bellaAvg.toFixed(1) + '</td>' +
+                '<td class="' + avgDiffClass + '">' + (avgDiff >= 0 ? '+' : '') + avgDiff + '</td>' +
                 '<td>' + m.legs + '</td>' +
-                '<td>' + (m.franzWon ? '🟢 Franz' : '🔴 Bella') + '</td>' +
                 '<td>' + this.getRankBadge(rank, total) + '</td>' +
                 '</tr>';
         }).join('');
