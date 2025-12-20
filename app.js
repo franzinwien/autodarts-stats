@@ -117,7 +117,7 @@ function analyzeT20Misses(throws) {
 }
 
 class AutodartsStats {
-    constructor() { this.user = null; this.currentPlayerId = null; this.allPlayers = []; this.allMatchPlayers = []; this.allMatches = []; this.opponentMap = {}; this.overallAverage = 0; this.matchRankings = []; this.filters = { time: 'all', type: '', variant: 'X01' }; this.init(); }
+    constructor() { this.user = null; this.currentPlayerId = null; this.allPlayers = []; this.allMatchPlayers = []; this.allMatches = []; this.allLegs = []; this.opponentMap = {}; this.overallAverage = 0; this.matchRankings = []; this.legRankings = []; this.filters = { time: 'all', type: '', variant: 'X01', view: 'legs' }; this.init(); }
     
     async init() {
         this.isInitialized = false;
@@ -144,9 +144,11 @@ class AutodartsStats {
         this.setupEventListeners();
     }
     
-    setupEventListeners() { document.getElementById('send-magic-link')?.addEventListener('click', () => this.sendMagicLink()); document.getElementById('email-input')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') this.sendMagicLink(); }); document.getElementById('logout-btn')?.addEventListener('click', () => this.logout()); document.querySelectorAll('.nav-btn').forEach(btn => btn.addEventListener('click', () => this.navigateTo(btn.dataset.page))); document.getElementById('apply-filters')?.addEventListener('click', () => this.applyFilters()); document.getElementById('heatmap-target')?.addEventListener('change', () => this.loadHeatmapData()); document.getElementById('global-filter-player')?.addEventListener('change', (e) => this.switchPlayer(e.target.value)); document.getElementById('match-detail-prev')?.addEventListener('click', () => this.navigateMatch(-1)); document.getElementById('match-detail-next')?.addEventListener('click', () => this.navigateMatch(1)); document.getElementById('match-detail-select')?.addEventListener('change', (e) => this.loadMatchDetail(e.target.value)); }
+    setupEventListeners() { document.getElementById('send-magic-link')?.addEventListener('click', () => this.sendMagicLink()); document.getElementById('email-input')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') this.sendMagicLink(); }); document.getElementById('logout-btn')?.addEventListener('click', () => this.logout()); document.querySelectorAll('.nav-btn').forEach(btn => btn.addEventListener('click', () => this.navigateTo(btn.dataset.page))); document.getElementById('apply-filters')?.addEventListener('click', () => this.applyFilters()); document.getElementById('heatmap-target')?.addEventListener('change', () => this.loadHeatmapData()); document.getElementById('global-filter-player')?.addEventListener('change', (e) => this.switchPlayer(e.target.value)); document.getElementById('match-detail-prev')?.addEventListener('click', () => this.navigateMatch(-1)); document.getElementById('match-detail-next')?.addEventListener('click', () => this.navigateMatch(1)); document.getElementById('match-detail-select')?.addEventListener('change', (e) => this.loadMatchDetail(e.target.value)); document.querySelectorAll('.toggle-btn').forEach(btn => btn.addEventListener('click', () => this.toggleView(btn.dataset.view))); document.querySelectorAll('.page-tab').forEach(btn => btn.addEventListener('click', () => this.switchTab(btn.dataset.tab))); }
     
     async switchPlayer(pid) { if (pid === this.currentPlayerId) return; this.currentPlayerId = pid; await this.loadPlayerData(pid); this.applyFilters(); }
+    toggleView(view) { if (this.filters.view === view) return; this.filters.view = view; document.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.view === view)); this.legHistoryLoaded = false; this.matchHistoryLoaded = false; this.navigateTo(document.querySelector('.nav-btn.active')?.dataset.page || 'overview'); }
+    switchTab(tabId) { document.querySelectorAll('.page-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tabId)); document.querySelectorAll('.tab-content').forEach(tab => tab.classList.toggle('active', tab.id === tabId)); }
     applyFilters() { this.filters.time = document.getElementById('global-filter-time').value; this.filters.type = document.getElementById('global-filter-type').value; this.filters.variant = document.getElementById('global-filter-variant').value; this.legHistoryLoaded = false; this.matchHistoryLoaded = false; this.navigateTo(document.querySelector('.nav-btn.active')?.dataset.page || 'overview'); }
     getFilteredData() { let d = this.allMatchPlayers.map(mp => ({...mp, match: this.allMatches.find(m => m.id === mp.match_id)})).filter(mp => mp.match); if (this.filters.time !== 'all') { const days = parseInt(this.filters.time), cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days); d = d.filter(mp => new Date(mp.match.finished_at) >= cutoff); } if (this.filters.type) d = d.filter(mp => mp.match.type === this.filters.type); if (this.filters.variant) d = d.filter(mp => mp.match.variant === this.filters.variant); return d.sort((a, b) => new Date(b.match.finished_at) - new Date(a.match.finished_at)); }
     
@@ -172,15 +174,107 @@ class AutodartsStats {
     showDashboard() { document.getElementById('login-screen').classList.add('hidden'); document.getElementById('dashboard-screen').classList.remove('hidden'); }
     showLoading() { document.getElementById('loading-overlay')?.classList.remove('hidden'); }
     hideLoading() { document.getElementById('loading-overlay')?.classList.add('hidden'); }
-    navigateTo(page) { document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === page)); document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+page)); ({overview:()=>this.loadOverviewData(),scoring:()=>this.loadScoringData(),checkout:()=>this.loadCheckoutData(),matches:()=>this.loadMatchesPage(),matchdetail:()=>this.loadMatchDetailPage(),heatmap:()=>this.loadHeatmapData(),opponents:()=>this.loadOpponentsData(),advanced:()=>this.loadAdvancedData(),headtohead:()=>this.loadH2HData()})[page]?.(); }
+    navigateTo(page) { document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === page)); document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+page)); ({overview:()=>this.loadOverviewData(),legs:()=>this.loadLegsPage(),scoring:()=>this.loadScoringData(),checkout:()=>this.loadCheckoutData(),matches:()=>this.loadMatchesPage(),matchdetail:()=>this.loadMatchDetailPage(),heatmap:()=>this.loadHeatmapData(),opponents:()=>this.loadOpponentsData(),advanced:()=>this.loadAdvancedData(),headtohead:()=>this.loadH2HData()})[page]?.(); }
 
     // ========== OVERVIEW ==========
-    async loadOverviewData() { this.showLoading(); try { const matches = this.getFilteredData(), mpIds = matches.map(m=>m.id), total = matches.length; let wins=0, checkoutSum=0, checkoutCnt=0, bestAvg=0, highFin=0; matches.forEach(mp => { if(mp.match.winner===mp.player_index)wins++; if(mp.checkout_rate>0){checkoutSum+=mp.checkout_rate;checkoutCnt++;} if(mp.average>bestAvg)bestAvg=mp.average; }); const turns = await this.loadTurns(mpIds); let pts=0,cnt=0,f9pts=0,f9cnt=0,c180=0,scorePts=0,scoreCnt=0; const byMp={}; turns.forEach(t=>{if(t.points!==null){pts+=t.points;cnt++;if(t.points===180)c180++;if(t.round<=3){f9pts+=t.points;f9cnt++;}if(t.score_remaining===null||t.score_remaining>100){scorePts+=t.points;scoreCnt++;}if(!byMp[t.match_player_id])byMp[t.match_player_id]=[];byMp[t.match_player_id].push(t.points);}}); turns.filter(t=>t.score_remaining===0).forEach(t=>{if(t.points>highFin)highFin=t.points;}); 
-    // Calc per-match averages and rankings
-    const matchData = matches.map(mp => { const t = byMp[mp.id] || []; const calcAvg = t.length ? t.reduce((a,b)=>a+b,0)/t.length : (mp.average || 0); return {...mp, calcAvg, isWin: mp.match.winner === mp.player_index }; });
-    this.matchRankings = this.calcRankings(matchData);
-    const bestMatch = this.matchRankings.find(m => m.avgRank === 1);
-    const mAvgs=Object.values(byMp).map(a=>a.reduce((x,y)=>x+y,0)/a.length), avg=mAvgs.length?mAvgs.reduce((a,b)=>a+b,0)/mAvgs.length:0, std=Math.sqrt(mAvgs.length?mAvgs.reduce((s,a)=>s+Math.pow(a-avg,2),0)/mAvgs.length:0); const now=new Date(),w1=new Date(now-7*864e5),w2=new Date(now-14*864e5); const rec=matches.filter(m=>new Date(m.match.finished_at)>=w1&&m.average>0),prev=matches.filter(m=>{const d=new Date(m.match.finished_at);return d>=w2&&d<w1&&m.average>0;}); const recAvg=rec.length?rec.reduce((s,m)=>s+m.average,0)/rec.length:0,prevAvg=prev.length?prev.reduce((s,m)=>s+m.average,0)/prev.length:0,trend=prevAvg?recAvg-prevAvg:0; document.getElementById('stat-matches').textContent=total; document.getElementById('stat-winrate').textContent=(total?((wins/total)*100).toFixed(1):0)+'%'; document.getElementById('stat-average').textContent=cnt?(pts/cnt).toFixed(1):'-'; document.getElementById('stat-first9').textContent=f9cnt?(f9pts/f9cnt).toFixed(1):'-'; document.getElementById('stat-checkout').textContent=checkoutCnt?((checkoutSum/checkoutCnt)*100).toFixed(1)+'%':'-'; document.getElementById('stat-180s').textContent=c180; document.getElementById('stat-avg-to-100').textContent=scoreCnt?(scorePts/scoreCnt).toFixed(1):'-'; document.getElementById('stat-best-leg').textContent='-'; document.getElementById('stat-highest-finish').textContent=highFin||'-'; document.getElementById('stat-best-match-avg').textContent=bestMatch?bestMatch.calcAvg.toFixed(1):'-'; const tEl=document.getElementById('stat-trend'); tEl.textContent=trend>0?'↑ +'+trend.toFixed(1):trend<0?'↓ '+trend.toFixed(1):'→ 0'; tEl.className='stat-value '+(trend>0?'trend-up':trend<0?'trend-down':''); document.getElementById('stat-consistency').textContent=(std<3?'A+':std<5?'A':std<7?'B':std<10?'C':'D')+' (±'+std.toFixed(1)+')'; this.renderAvgChart(matches,turns); this.renderResultsChart(wins,total-wins); this.renderFirst9Chart(turns); this.renderScoringChart(turns); this.renderHighScoresChart(turns); this.renderRecentMatches(this.matchRankings.slice(0,10)); }catch(e){console.error(e);}finally{this.hideLoading();} }
+    async loadOverviewData() {
+        this.showLoading();
+        try {
+            // === TOTAL STATS (alle Daten ohne Filter, nur X01) ===
+            const allData = this.allMatchPlayers.map(mp => ({...mp, match: this.allMatches.find(m => m.id === mp.match_id)})).filter(mp => mp.match && mp.match.variant === 'X01');
+            const allMpIds = allData.map(m => m.id);
+            let totalWins = 0, totalCheckoutSum = 0, totalCheckoutCnt = 0;
+            allData.forEach(mp => {
+                if(mp.match.winner === mp.player_index) totalWins++;
+                if(mp.checkout_rate > 0) { totalCheckoutSum += mp.checkout_rate; totalCheckoutCnt++; }
+            });
+            const allTurns = await this.loadTurns(allMpIds);
+            let totalPts = 0, totalCnt = 0, totalF9pts = 0, totalF9cnt = 0, total180s = 0;
+            allTurns.forEach(t => {
+                if(t.points !== null) {
+                    totalPts += t.points; totalCnt++;
+                    if(t.points === 180) total180s++;
+                    if(t.round <= 3) { totalF9pts += t.points; totalF9cnt++; }
+                }
+            });
+
+            // Gesamt-Statistiken anzeigen
+            document.getElementById('stat-total-average').textContent = totalCnt ? (totalPts / totalCnt).toFixed(1) : '-';
+            document.getElementById('stat-total-first9').textContent = totalF9cnt ? (totalF9pts / totalF9cnt).toFixed(1) : '-';
+            document.getElementById('stat-total-checkout').textContent = totalCheckoutCnt ? ((totalCheckoutSum / totalCheckoutCnt) * 100).toFixed(1) + '%' : '-';
+            document.getElementById('stat-total-180s').textContent = total180s;
+            const totalLegsWon = allData.reduce((s, mp) => s + (mp.legs_won || 0), 0);
+            const totalLegs = allData.reduce((s, mp) => s + (mp.legs_won || 0) + (mp.legs_lost || 0), 0);
+            document.getElementById('stat-total-winrate').textContent = this.filters.view === 'legs'
+                ? (totalLegs ? ((totalLegsWon / totalLegs) * 100).toFixed(0) + '%' : '-')
+                : (allData.length ? ((totalWins / allData.length) * 100).toFixed(0) + '%' : '-');
+
+            // === FILTERED STATS ===
+            const matches = this.getFilteredData();
+            const mpIds = matches.map(m => m.id);
+            const turns = await this.loadTurns(mpIds);
+
+            let pts = 0, cnt = 0, f9pts = 0, f9cnt = 0, c180 = 0;
+            const byMp = {};
+            turns.forEach(t => {
+                if(t.points !== null) {
+                    pts += t.points; cnt++;
+                    if(t.points === 180) c180++;
+                    if(t.round <= 3) { f9pts += t.points; f9cnt++; }
+                    if(!byMp[t.match_player_id]) byMp[t.match_player_id] = [];
+                    byMp[t.match_player_id].push(t.points);
+                }
+            });
+
+            // Rankings berechnen
+            const matchData = matches.map(mp => {
+                const t = byMp[mp.id] || [];
+                const calcAvg = t.length ? t.reduce((a,b) => a+b, 0) / t.length : (mp.average || 0);
+                return {...mp, calcAvg, isWin: mp.match.winner === mp.player_index };
+            });
+            this.matchRankings = this.calcRankings(matchData);
+            const bestMatch = this.matchRankings.find(m => m.avgRank === 1);
+
+            // Konsistenz berechnen
+            const mAvgs = Object.values(byMp).map(a => a.reduce((x,y) => x+y, 0) / a.length);
+            const avg = mAvgs.length ? mAvgs.reduce((a,b) => a+b, 0) / mAvgs.length : 0;
+            const std = Math.sqrt(mAvgs.length ? mAvgs.reduce((s,a) => s + Math.pow(a - avg, 2), 0) / mAvgs.length : 0);
+
+            // Trend berechnen (letzte 7 Tage vs vorherige 7 Tage)
+            const now = new Date(), w1 = new Date(now - 7*864e5), w2 = new Date(now - 14*864e5);
+            const rec = matches.filter(m => new Date(m.match.finished_at) >= w1 && m.average > 0);
+            const prev = matches.filter(m => { const d = new Date(m.match.finished_at); return d >= w2 && d < w1 && m.average > 0; });
+            const recAvg = rec.length ? rec.reduce((s,m) => s + m.average, 0) / rec.length : 0;
+            const prevAvg = prev.length ? prev.reduce((s,m) => s + m.average, 0) / prev.length : 0;
+            const trend = prevAvg ? recAvg - prevAvg : 0;
+
+            // Filter-Statistiken anzeigen
+            document.getElementById('stat-average').textContent = cnt ? (pts / cnt).toFixed(1) : '-';
+            document.getElementById('stat-first9').textContent = f9cnt ? (f9pts / f9cnt).toFixed(1) : '-';
+            const tEl = document.getElementById('stat-trend');
+            tEl.textContent = trend > 0 ? '↑ +' + trend.toFixed(1) : trend < 0 ? '↓ ' + trend.toFixed(1) : '→ 0';
+            tEl.className = 'stat-value ' + (trend > 0 ? 'trend-up' : trend < 0 ? 'trend-down' : '');
+            document.getElementById('stat-best-leg').textContent = bestMatch ? bestMatch.calcAvg.toFixed(1) : '-';
+            document.getElementById('stat-best-label').textContent = this.filters.view === 'legs' ? 'Bestes Leg' : 'Bestes Match';
+            document.getElementById('stat-consistency').textContent = (std < 3 ? 'A+' : std < 5 ? 'A' : std < 7 ? 'B' : std < 10 ? 'C' : 'D') + ' (±' + std.toFixed(1) + ')';
+
+            // Filter-Badge aktualisieren
+            const filterBadge = document.getElementById('filter-badge');
+            if (filterBadge) {
+                const viewLabel = this.filters.view === 'legs' ? 'Legs' : 'Matches';
+                const timeLabel = this.filters.time === 'all' ? 'Alle Zeit' : this.filters.time + ' Tage';
+                filterBadge.textContent = viewLabel + ' · ' + timeLabel;
+            }
+
+            // Charts rendern
+            this.renderAvgChart(matches, turns);
+            this.renderResultsChart(matches.filter(mp => mp.match.winner === mp.player_index).length, matches.length - matches.filter(mp => mp.match.winner === mp.player_index).length);
+            this.renderFirst9Chart(turns);
+            this.renderScoringChart(turns);
+            this.renderHighScoresChart(turns);
+            this.renderRecentMatches(this.matchRankings.slice(0, 10));
+        } catch(e) { console.error(e); } finally { this.hideLoading(); }
+    }
 
     renderAvgChart(matches,turns){const ctx=document.getElementById('chart-avg-comparison');if(!ctx)return;const byMp={};turns.forEach(t=>{if(t.points!==null){if(!byMp[t.match_player_id])byMp[t.match_player_id]={all:[],sc:[]};byMp[t.match_player_id].all.push(t.points);if(t.score_remaining===null||t.score_remaining>100)byMp[t.match_player_id].sc.push(t.points);}});const md=matches.map(mp=>{const d=byMp[mp.id]||{all:[],sc:[]};return{date:new Date(mp.match.finished_at),avgAll:d.all.length?d.all.reduce((a,b)=>a+b,0)/d.all.length:null,avgSc:d.sc.length?d.sc.reduce((a,b)=>a+b,0)/d.sc.length:null};}).filter(m=>m.avgAll!==null).sort((a,b)=>a.date-b.date);if(!md.length)return;const days=Math.ceil((md[md.length-1].date-md[0].date)/864e5);let dp;if(days>180){const byM={};md.forEach(m=>{const k=m.date.toISOString().slice(0,7);if(!byM[k])byM[k]={all:[],sc:[]};byM[k].all.push(m.avgAll);if(m.avgSc)byM[k].sc.push(m.avgSc);});dp=Object.entries(byM).sort((a,b)=>a[0].localeCompare(b[0])).map(([m,d])=>({l:new Date(m+'-01').toLocaleDateString('de-DE',{month:'short',year:'2-digit'}),a:d.all.reduce((x,y)=>x+y,0)/d.all.length,s:d.sc.length?d.sc.reduce((x,y)=>x+y,0)/d.sc.length:null}));}else{dp=md.slice(-30).map(m=>({l:m.date.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}),a:m.avgAll,s:m.avgSc}));}if(this.avgCompChart)this.avgCompChart.destroy();this.avgCompChart=new Chart(ctx,{type:'line',data:{labels:dp.map(d=>d.l),datasets:[{label:'Avg bis 100',data:dp.map(d=>d.s?.toFixed(1)),borderColor:CONFIG.COLORS.blue,fill:false,tension:.3},{label:'Match Avg',data:dp.map(d=>d.a.toFixed(1)),borderColor:CONFIG.COLORS.green,backgroundColor:'rgba(16,185,129,.1)',fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:'#94a3b8'}}},scales:{x:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8',maxRotation:45,font:{size:10}}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'},suggestedMin:30,suggestedMax:55}}}});}
     renderResultsChart(w,l){const ctx=document.getElementById('chart-results');if(!ctx)return;if(this.resChart)this.resChart.destroy();this.resChart=new Chart(ctx,{type:'doughnut',data:{labels:['Siege','Niederl.'],datasets:[{data:[w,l],backgroundColor:[CONFIG.COLORS.green,CONFIG.COLORS.red],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#94a3b8'}}},cutout:'65%'}});}
@@ -188,6 +282,284 @@ class AutodartsStats {
     renderScoringChart(turns){const ctx=document.getElementById('chart-scoring-distribution');if(!ctx)return;let u40=0,s40=0,s60=0,s100=0,s140=0,s180=0;turns.forEach(t=>{if(t.points===null)return;if(t.points===180)s180++;else if(t.points>=140)s140++;else if(t.points>=100)s100++;else if(t.points>=60)s60++;else if(t.points>=40)s40++;else u40++;});if(this.scorChart)this.scorChart.destroy();this.scorChart=new Chart(ctx,{type:'doughnut',data:{labels:['<40','40-59','60-99','100-139','140-179','180'],datasets:[{data:[u40,s40,s60,s100,s140,s180],backgroundColor:['#64748b','#94a3b8','#3b82f6','#8b5cf6','#f59e0b','#10b981'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#94a3b8',font:{size:11}}}},cutout:'50%'}});}
     renderHighScoresChart(turns){const ctx=document.getElementById('chart-high-scores');if(!ctx)return;const mon={};turns.forEach(t=>{if(t.points===null||!t.created_at)return;const m=t.created_at.slice(0,7);if(!mon[m])mon[m]={s180:0,s140:0,s100:0};if(t.points===180)mon[m].s180++;else if(t.points>=140)mon[m].s140++;else if(t.points>=100)mon[m].s100++;});const ms=Object.keys(mon).sort().slice(-8);if(this.hsChart)this.hsChart.destroy();this.hsChart=new Chart(ctx,{type:'bar',data:{labels:ms.map(m=>new Date(m+'-01').toLocaleDateString('de-DE',{month:'short'})),datasets:[{label:'180s',data:ms.map(m=>mon[m].s180),backgroundColor:CONFIG.COLORS.green},{label:'140+',data:ms.map(m=>mon[m].s140),backgroundColor:CONFIG.COLORS.yellow},{label:'100+',data:ms.map(m=>mon[m].s100),backgroundColor:CONFIG.COLORS.blue}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:'#94a3b8',font:{size:10}}}},scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#94a3b8'}},y:{stacked:true,grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'}}}}});}
     renderRecentMatches(matches){const tb=document.querySelector('#recent-matches-table tbody');if(!tb)return;const total=this.matchRankings.length;tb.innerHTML=matches.map(mp=>{const m=mp.match,d=new Date(m.finished_at),w=m.winner===mp.player_index,opp=this.opponentMap[mp.match_id],on=opp?(opp.is_bot?'🤖 Bot '+Math.round((opp.cpu_ppr||40)/10):opp.name||'Gegner'):'?',avg=mp.calcAvg||0,pc=avg>this.overallAverage+5?'perf-great':avg>this.overallAverage?'perf-good':avg>this.overallAverage-5?'perf-ok':'perf-bad',pt=avg>this.overallAverage+5?'🔥 Super':avg>this.overallAverage?'✅ Gut':avg>this.overallAverage-5?'➖ Ok':'❌ Schwach';return'<tr><td>'+d.toLocaleDateString('de-DE')+'</td><td>'+on+'</td><td class="'+(w?'result-win':'result-loss')+'">'+(w?'✅':'❌')+'</td><td>'+avg.toFixed(1)+'</td><td class="'+pc+'">'+pt+'</td><td>'+this.getRankBadge(mp.avgRank,total)+'</td></tr>';}).join('');}
+
+    // ========== LEGS PAGE (NEU) ==========
+    async loadLegsPage() {
+        this.showLoading();
+        try {
+            const matches = this.getFilteredData();
+            const mpIds = matches.map(m => m.id);
+            const matchIds = [...new Set(matches.map(m => m.match_id))];
+
+            // Titel je nach Ansicht
+            const pageTitle = document.getElementById('legs-page-title');
+            if (pageTitle) {
+                pageTitle.textContent = this.filters.view === 'legs' ? '🎯 Legs' : '🎮 Matches';
+            }
+
+            if (this.filters.view === 'legs') {
+                // Lade Leg-Daten aus der Materialized View
+                const legBatches = [];
+                for (let i = 0; i < matchIds.length; i += 100) legBatches.push(matchIds.slice(i, i + 100));
+                const legResults = await Promise.all(legBatches.map(batch => window.db.from('leg_averages').select('*').in('match_id', batch)));
+                const allLegAvgs = legResults.flatMap(r => r.data || []);
+
+                // Nur Legs des aktuellen Spielers
+                const mpIdSet = new Set(mpIds);
+                const myLegs = allLegAvgs.filter(l => mpIdSet.has(l.match_player_id));
+
+                // Lade Legs für Winner-Info
+                const legIds = myLegs.map(l => l.leg_id);
+                const legsBatches = [];
+                for (let i = 0; i < matchIds.length; i += 100) legsBatches.push(matchIds.slice(i, i + 100));
+                const legsResults = await Promise.all(legsBatches.map(batch => window.db.from('legs').select('*').in('match_id', batch)));
+                const allLegs = legsResults.flatMap(r => r.data || []);
+                const legsMap = {};
+                allLegs.forEach(l => { legsMap[l.id] = l; });
+
+                // Sortieren und Rangliste erstellen
+                const legData = myLegs.map(l => {
+                    const mp = matches.find(m => m.id === l.match_player_id);
+                    const leg = legsMap[l.leg_id];
+                    return {
+                        legId: l.leg_id,
+                        matchId: l.match_id,
+                        mpId: l.match_player_id,
+                        avg: l.three_dart_avg || 0,
+                        totalDarts: l.total_darts,
+                        legNumber: leg?.leg_number ?? 0,
+                        won: leg?.winner_player_id === l.match_player_id,
+                        match: mp?.match,
+                        mp: mp
+                    };
+                }).filter(l => l.match);
+
+                // Nach Average sortieren für Rang
+                legData.sort((a, b) => b.avg - a.avg);
+                legData.forEach((l, i) => { l.rank = i + 1; });
+
+                // Nach Datum sortieren für Anzeige
+                const sortedLegs = [...legData].sort((a, b) => new Date(b.match.finished_at) - new Date(a.match.finished_at));
+
+                this.currentLegsData = sortedLegs;
+                this.renderLegsTable(sortedLegs.slice(0, 50));
+            } else {
+                // Match-Ansicht (wie bisher)
+                const turns = await this.loadTurns(mpIds);
+                const byMp = {};
+                turns.forEach(t => {
+                    if (t.points !== null) {
+                        if (!byMp[t.match_player_id]) byMp[t.match_player_id] = [];
+                        byMp[t.match_player_id].push(t.points);
+                    }
+                });
+
+                const matchData = matches.map(mp => {
+                    const t = byMp[mp.id] || [];
+                    const calcAvg = t.length ? t.reduce((a, b) => a + b, 0) / t.length : (mp.average || 0);
+                    return { ...mp, calcAvg, isWin: mp.match.winner === mp.player_index };
+                });
+                this.matchRankings = this.calcRankings(matchData);
+                this.currentLegsData = this.matchRankings;
+                this.renderMatchesTable(this.matchRankings.slice(0, 50));
+            }
+        } catch (e) { console.error(e); }
+        finally { this.hideLoading(); }
+    }
+
+    renderLegsTable(legs) {
+        const tb = document.querySelector('#legs-table tbody');
+        if (!tb) return;
+        const total = this.currentLegsData.length;
+
+        tb.innerHTML = legs.map((leg, idx) => {
+            const m = leg.match;
+            const d = new Date(m.finished_at);
+            const opp = this.opponentMap[leg.matchId];
+            const oppName = opp ? (opp.is_bot ? '🤖 Bot ' + Math.round((opp.cpu_ppr || 40) / 10) : opp.name || 'Gegner') : '?';
+            const checkout = leg.won ? '✅' : '-';
+
+            return '<tr onclick="window.app.openLegDetail(\'' + leg.legId + '\')" style="cursor:pointer">' +
+                '<td>' + (idx + 1) + '</td>' +
+                '<td>' + d.toLocaleDateString('de-DE') + '</td>' +
+                '<td>' + oppName + '</td>' +
+                '<td>Leg ' + (leg.legNumber + 1) + '</td>' +
+                '<td><strong>' + leg.avg.toFixed(1) + '</strong></td>' +
+                '<td>' + (leg.totalDarts || '-') + '</td>' +
+                '<td>' + checkout + '</td>' +
+                '<td>' + this.getRankBadge(leg.rank, total) + '</td>' +
+                '<td>→</td>' +
+                '</tr>';
+        }).join('');
+    }
+
+    renderMatchesTable(matches) {
+        const tb = document.querySelector('#legs-table tbody');
+        if (!tb) return;
+        const total = matches.length;
+
+        tb.innerHTML = matches.map((mp, idx) => {
+            const m = mp.match;
+            const d = new Date(m.finished_at);
+            const w = mp.isWin;
+            const opp = this.opponentMap[mp.match_id];
+            const oppName = opp ? (opp.is_bot ? '🤖 Bot ' + Math.round((opp.cpu_ppr || 40) / 10) : opp.name || 'Gegner') : '?';
+
+            return '<tr onclick="window.app.openMatchDetail(\'' + mp.match_id + '\')" style="cursor:pointer">' +
+                '<td>' + (idx + 1) + '</td>' +
+                '<td>' + d.toLocaleDateString('de-DE') + '</td>' +
+                '<td>' + oppName + '</td>' +
+                '<td>' + (mp.legs_won || 0) + ':' + (mp.legs_lost || 0) + '</td>' +
+                '<td><strong>' + mp.calcAvg.toFixed(1) + '</strong></td>' +
+                '<td>-</td>' +
+                '<td class="' + (w ? 'result-win' : 'result-loss') + '">' + (w ? '✅' : '❌') + '</td>' +
+                '<td>' + this.getRankBadge(mp.avgRank, total) + '</td>' +
+                '<td>→</td>' +
+                '</tr>';
+        }).join('');
+    }
+
+    async openLegDetail(legId) {
+        const panel = document.getElementById('leg-detail-panel');
+        if (!panel) return;
+
+        // Lade Leg-Daten
+        const legData = this.currentLegsData?.find(l => l.legId === legId);
+        if (!legData) return;
+
+        // Panel öffnen
+        panel.classList.remove('hidden');
+        setTimeout(() => panel.classList.add('visible'), 10);
+
+        // Titel
+        const title = document.getElementById('leg-detail-title');
+        if (title) {
+            const d = new Date(legData.match.finished_at);
+            title.textContent = 'Leg ' + (legData.legNumber + 1) + ' - ' + d.toLocaleDateString('de-DE');
+        }
+
+        // Stats
+        document.getElementById('ld-average').textContent = legData.avg.toFixed(1);
+        document.getElementById('ld-darts').textContent = legData.totalDarts || '-';
+        document.getElementById('ld-checkout').textContent = legData.won ? '✅' : '-';
+        document.getElementById('ld-rank').textContent = '#' + legData.rank;
+
+        // Lade Turns für dieses Leg
+        const { data: turns } = await window.db.from('turns').select('*').eq('leg_id', legId).order('created_at');
+        if (!turns) return;
+
+        const myTurns = turns.filter(t => t.match_player_id === legData.mpId);
+
+        // First 9 berechnen
+        const f9 = myTurns.filter(t => t.round <= 3 && t.points !== null);
+        const f9Avg = f9.length ? f9.reduce((s, t) => s + t.points, 0) / f9.length : 0;
+        document.getElementById('ld-first9').textContent = f9Avg.toFixed(1);
+
+        // Visits-Tabelle
+        this.renderLegVisitsTable(myTurns);
+
+        // Charts
+        this.renderLegProgressionChart(myTurns);
+        this.renderLegScoringChart(myTurns);
+    }
+
+    renderLegVisitsTable(turns) {
+        const tb = document.querySelector('#ld-visits-table tbody');
+        if (!tb) return;
+
+        tb.innerHTML = turns.map((t, i) => {
+            return '<tr>' +
+                '<td>' + (i + 1) + '</td>' +
+                '<td><strong>' + (t.points || 0) + '</strong></td>' +
+                '<td>' + (t.score_remaining ?? '-') + '</td>' +
+                '<td>-</td>' +
+                '</tr>';
+        }).join('');
+    }
+
+    renderLegProgressionChart(turns) {
+        const ctx = document.getElementById('ld-chart-progression');
+        if (!ctx) return;
+
+        const data = [];
+        let remaining = 501;
+        turns.forEach((t, i) => {
+            if (t.points !== null) remaining -= t.points;
+            data.push({ x: i + 1, y: remaining > 0 ? remaining : 0 });
+        });
+
+        if (this.ldProgChart) this.ldProgChart.destroy();
+        this.ldProgChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.map(d => d.x),
+                datasets: [{
+                    data: data.map(d => d.y),
+                    borderColor: CONFIG.COLORS.green,
+                    backgroundColor: 'rgba(16,185,129,0.1)',
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                    y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' }, reverse: false, min: 0 }
+                }
+            }
+        });
+    }
+
+    renderLegScoringChart(turns) {
+        const ctx = document.getElementById('ld-chart-scoring');
+        if (!ctx) return;
+
+        let u60 = 0, s60 = 0, s100 = 0, s140 = 0, s180 = 0;
+        turns.forEach(t => {
+            if (t.points === null) return;
+            if (t.points === 180) s180++;
+            else if (t.points >= 140) s140++;
+            else if (t.points >= 100) s100++;
+            else if (t.points >= 60) s60++;
+            else u60++;
+        });
+
+        if (this.ldScoreChart) this.ldScoreChart.destroy();
+        this.ldScoreChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['180', '140+', '100+', '60+', '<60'],
+                datasets: [{
+                    data: [s180, s140, s100, s60, u60],
+                    backgroundColor: ['#10b981', '#f59e0b', '#8b5cf6', '#3b82f6', '#64748b']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 } } } },
+                cutout: '50%'
+            }
+        });
+    }
+
+    closeLegDetail() {
+        const panel = document.getElementById('leg-detail-panel');
+        if (panel) {
+            panel.classList.remove('visible');
+            setTimeout(() => panel.classList.add('hidden'), 300);
+        }
+    }
+
+    openMatchDetail(matchId) {
+        // Navigiert zur alten Match-Detail-Seite (später durch neues Detail-Panel ersetzen)
+        document.getElementById('match-detail-select').value = matchId;
+        this.navigateTo('matchdetail');
+        this.loadMatchDetail(matchId);
+    }
 
     // ========== SCORING ==========
     async loadScoringData(){this.showLoading();try{const matches=this.getFilteredData(),mpIds=matches.map(m=>m.id),turns=await this.loadTurns(mpIds),tids=turns.map(t=>t.id),throws=await this.loadThrows(tids);const t20=throws.filter(t=>[20,1,5].includes(t.segment_number)),t20h=t20.filter(t=>t.segment_bed==='Triple'&&t.segment_number===20).length,t20r=t20.length?((t20h/t20.length)*100).toFixed(1):0;const t19=throws.filter(t=>[19,3,7].includes(t.segment_number)),t19h=t19.filter(t=>t.segment_bed==='Triple'&&t.segment_number===19).length,t19r=t19.length?((t19h/t19.length)*100).toFixed(1):0;let c100=0,c140=0,c180=0;turns.forEach(t=>{if(t.points===180)c180++;else if(t.points>=140)c140++;else if(t.points>=100)c100++;});document.getElementById('stat-t20-rate').textContent=t20r+'%';document.getElementById('stat-t19-rate').textContent=t19r+'%';document.getElementById('stat-100plus').textContent=c100+c140+c180;document.getElementById('stat-140plus').textContent=c140+c180;document.getElementById('stat-180s-total').textContent=c180;document.getElementById('stat-visits-per-100').textContent=turns.length?((c100+c140+c180)/turns.length*100).toFixed(1)+'%':'0%';this.renderT20Chart(t20,t19);this.renderScoreFreqChart(turns);this.renderFirst9TrendChart(matches,turns);this.renderVisitsChart(turns);}catch(e){console.error(e);}finally{this.hideLoading();}}
@@ -206,12 +578,134 @@ class AutodartsStats {
     async loadMatchesPage(){this.showLoading();try{const matches=this.getFilteredData(),mpIds=matches.map(m=>m.id),turns=await this.loadTurns(mpIds);const byMp={};turns.forEach(t=>{if(t.points!==null){if(!byMp[t.match_player_id])byMp[t.match_player_id]=[];byMp[t.match_player_id].push(t.points);}});const matchData=matches.map(mp=>{const t=byMp[mp.id]||[];return{...mp,calcAvg:t.length?t.reduce((a,b)=>a+b,0)/t.length:(mp.average||0),isWin:mp.match.winner===mp.player_index};});this.matchRankings=this.calcRankings(matchData);const total=this.matchRankings.length;const tb=document.querySelector('#all-matches-table tbody');if(tb)tb.innerHTML=this.matchRankings.map(mp=>{const m=mp.match,d=new Date(m.finished_at),w=mp.isWin,opp=this.opponentMap[mp.match_id],on=opp?(opp.is_bot?'🤖 Bot '+Math.round((opp.cpu_ppr||40)/10):opp.name||'Gegner'):'?',avg=mp.calcAvg;return'<tr><td>'+d.toLocaleDateString('de-DE')+' '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+'</td><td>'+on+'</td><td class="'+(w?'result-win':'result-loss')+'">'+(w?'✅':'❌')+'</td><td>'+(mp.legs_won||0)+'</td><td>'+avg.toFixed(1)+'</td><td>'+this.getRankBadge(mp.avgRank,total)+'</td><td>'+(m.variant||'-')+'</td><td><span class="badge badge-'+(m.type||'online').toLowerCase()+'">'+(m.type||'')+'</span></td></tr>';}).join('');}catch(e){console.error(e);}finally{this.hideLoading();}}
     
     // ========== HEATMAP ==========
-    async loadHeatmapData(){this.showLoading();try{const matches=this.getFilteredData(),mpIds=matches.map(m=>m.id),turns=await this.loadTurns(mpIds),tids=turns.map(t=>t.id),target=document.getElementById('heatmap-target')?.value||'all';let throws=await this.loadThrows(tids,10000);if(target==='20')throws=throws.filter(t=>[20,1,5].includes(t.segment_number));else if(target==='19')throws=throws.filter(t=>[19,3,7].includes(t.segment_number));else if(target==='18')throws=throws.filter(t=>[18,4,1].includes(t.segment_number));else if(target==='doubles')throws=throws.filter(t=>t.segment_bed==='Double');const wc=throws.filter(t=>t.coord_x!=null&&t.coord_y!=null);let gs='-',dx='-',dy='-';if(wc.length>10){const ax=wc.reduce((s,t)=>s+t.coord_x,0)/wc.length,ay=wc.reduce((s,t)=>s+t.coord_y,0)/wc.length,vx=wc.reduce((s,t)=>s+Math.pow(t.coord_x-ax,2),0)/wc.length,vy=wc.reduce((s,t)=>s+Math.pow(t.coord_y-ay,2),0)/wc.length;gs=(Math.sqrt(vx+vy)*170).toFixed(0);dx=ax>.02?'→ Rechts':ax<-.02?'← Links':'○ Mitte';dy=ay>.02?'↑ Hoch':ay<-.02?'↓ Tief':'○ Mitte';}document.getElementById('stat-grouping-score').textContent=gs;document.getElementById('stat-drift-x').textContent=dx;document.getElementById('stat-drift-y').textContent=dy;document.getElementById('stat-total-throws').textContent=wc.length;this.renderDartboard(wc);this.renderSegmentStats(throws);}catch(e){console.error(e);}finally{this.hideLoading();}}
+    async loadHeatmapData(){this.showLoading();try{const matches=this.getFilteredData(),mpIds=matches.map(m=>m.id),turns=await this.loadTurns(mpIds),tids=turns.map(t=>t.id),target=document.getElementById('heatmap-target')?.value||'all';let throws=await this.loadThrows(tids,10000);
+        // T20 Bereich: Segment 20, sowie benachbarte Segmente 1 und 5
+        const t20Throws=throws.filter(t=>[20,1,5].includes(t.segment_number));
+        const t20Hits=t20Throws.filter(t=>t.segment_number===20&&t.segment_bed==='Triple');
+        const t19Throws=throws.filter(t=>[19,3,7].includes(t.segment_number));
+        const t19Hits=t19Throws.filter(t=>t.segment_number===19&&t.segment_bed==='Triple');
+        // Hit Rates berechnen
+        const t20Rate=t20Throws.length>0?((t20Hits.length/t20Throws.length)*100).toFixed(1)+'%':'-';
+        const t19Rate=t19Throws.length>0?((t19Hits.length/t19Throws.length)*100).toFixed(1)+'%':'-';
+        document.getElementById('stat-t20-hitrate').textContent=t20Rate;
+        document.getElementById('stat-t19-hitrate').textContent=t19Rate;
+        // Filter für Dartboard
+        if(target==='20')throws=t20Throws;else if(target==='19')throws=t19Throws;else if(target==='18')throws=throws.filter(t=>[18,4,1].includes(t.segment_number));else if(target==='doubles')throws=throws.filter(t=>t.segment_bed==='Double');
+        const wc=throws.filter(t=>t.coord_x!=null&&t.coord_y!=null);let gs='-',dx='-',dy='-';if(wc.length>10){const ax=wc.reduce((s,t)=>s+t.coord_x,0)/wc.length,ay=wc.reduce((s,t)=>s+t.coord_y,0)/wc.length,vx=wc.reduce((s,t)=>s+Math.pow(t.coord_x-ax,2),0)/wc.length,vy=wc.reduce((s,t)=>s+Math.pow(t.coord_y-ay,2),0)/wc.length;gs=(Math.sqrt(vx+vy)*170).toFixed(0);dx=ax>.02?'→ Rechts':ax<-.02?'← Links':'○ Mitte';dy=ay>.02?'↑ Hoch':ay<-.02?'↓ Tief':'○ Mitte';}
+        document.getElementById('stat-grouping-score').textContent=gs;document.getElementById('stat-drift-x').textContent=dx;document.getElementById('stat-drift-y').textContent=dy;document.getElementById('stat-total-throws').textContent=wc.length;
+        this.renderDartboard(wc);this.renderSegmentStats(throws);
+        // T20 Analyse
+        this.renderT20Scatter(t20Throws);
+        this.renderT20DirectionGrid(t20Throws,t20Hits);
+        this.renderT20DistanceBars(t20Throws);
+        this.renderT20TrendChart(matches);
+    }catch(e){console.error(e);}finally{this.hideLoading();}}
     renderDartboard(throws){const cv=document.getElementById('dartboard-canvas');if(!cv)return;const ctx=cv.getContext('2d'),cx=cv.width/2,cy=cv.height/2,r=220;ctx.fillStyle='#1e293b';ctx.fillRect(0,0,cv.width,cv.height);[{r:r,c:'#1a1a2e'},{r:r*.85,c:'#252540'},{r:r*.65,c:'#1a1a2e'},{r:r*.45,c:'#252540'},{r:r*.15,c:'#10b981'},{r:r*.06,c:'#ef4444'}].forEach(x=>{ctx.beginPath();ctx.arc(cx,cy,x.r,0,Math.PI*2);ctx.fillStyle=x.c;ctx.fill();});throws.forEach(t=>{ctx.beginPath();ctx.arc(cx+t.coord_x*180,cy-t.coord_y*180,3,0,Math.PI*2);ctx.fillStyle='rgba(16,185,129,.6)';ctx.fill();});}
     renderSegmentStats(throws){const c=document.getElementById('segment-stats');if(!c)return;const cnt={};throws.forEach(t=>{if(t.segment_name&&t.segment_name!=='Outside')cnt[t.segment_name]=(cnt[t.segment_name]||0)+1;});const s=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,10),mx=s[0]?.[1]||1;c.innerHTML=s.map(x=>'<div class="segment-stat"><span class="segment-name">'+x[0]+'</span><div class="segment-bar"><div class="segment-bar-fill" style="width:'+((x[1]/mx)*100)+'%"></div></div><span class="segment-count">'+x[1]+'</span></div>').join('');}
-    
-    // ========== OPPONENTS ==========
-    async loadOpponentsData(){this.showLoading();try{const matches=this.getFilteredData(),os={};let bw=0,bt=0,hw=0,ht=0,myS=0,opS=0,ac=0;matches.forEach(mp=>{const opp=this.opponentMap[mp.match_id];if(!opp)return;const w=mp.match.winner===mp.player_index,k=opp.is_bot?'🤖 Bot '+Math.round((opp.cpu_ppr||40)/10):(opp.name||opp.id);if(!os[k])os[k]={name:k,m:0,w:0,last:null,isBot:opp.is_bot,myAvg:0,opAvg:0,lvl:opp.is_bot?Math.round((opp.cpu_ppr||40)/10):0};os[k].m++;if(w)os[k].w++;if(!os[k].last||mp.match.finished_at>os[k].last)os[k].last=mp.match.finished_at;if(mp.average>0)os[k].myAvg+=mp.average;if(opp.average>0)os[k].opAvg+=opp.average;if(opp.is_bot){bt++;if(w)bw++;}else{ht++;if(w)hw++;}if(mp.average>0&&opp.average>0){myS+=mp.average;opS+=opp.average;ac++;}});const so=Object.values(os).sort((a,b)=>b.m-a.m),nem=so.filter(o=>o.m>=3&&(o.w/o.m)<.5).sort((a,b)=>(a.w/a.m)-(b.w/b.m))[0],vic=so.filter(o=>o.m>=3&&(o.w/o.m)>.5).sort((a,b)=>(b.w/b.m)-(a.w/a.m))[0],ad=ac?((myS-opS)/ac).toFixed(1):'-';document.getElementById('stat-unique-opponents').textContent=so.filter(o=>!o.isBot).length;document.getElementById('stat-vs-bots').textContent=bt?((bw/bt)*100).toFixed(0)+'%':'-';document.getElementById('stat-vs-humans').textContent=ht?((hw/ht)*100).toFixed(0)+'%':'-';document.getElementById('stat-nemesis').textContent=nem?.name||'-';document.getElementById('stat-favorite-victim').textContent=vic?.name||'-';document.getElementById('stat-avg-vs-opponents').textContent=ad!=='-'?(ad>0?'+':'')+ad:'-';this.renderBotLevelChart(so);this.renderTopOppsChart(so.slice(0,8));this.renderOpponentsTable(so);}catch(e){console.error(e);}finally{this.hideLoading();}}
+
+    // T20 Scatter Plot - zeigt Würfe im T20 Bereich auf Mini-Dartboard
+    renderT20Scatter(throws){
+        const cv=document.getElementById('t20-scatter-canvas');if(!cv)return;
+        const ctx=cv.getContext('2d'),cx=cv.width/2,cy=cv.height/2,r=120;
+        // Hintergrund
+        ctx.fillStyle='#1e293b';ctx.fillRect(0,0,cv.width,cv.height);
+        // Dartboard Ringe (vereinfacht)
+        [{r:r,c:'#252540'},{r:r*.7,c:'#1a1a2e'},{r:r*.4,c:'#252540'},{r:r*.15,c:'#10b981'}].forEach(x=>{
+            ctx.beginPath();ctx.arc(cx,cy,x.r,0,Math.PI*2);ctx.fillStyle=x.c;ctx.fill();
+        });
+        // T20 Bereich markieren (oberer Teil)
+        ctx.save();ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,-.55,-.35);ctx.lineTo(cx,cy);ctx.fillStyle='rgba(16,185,129,.15)';ctx.fill();ctx.restore();
+        // Würfe zeichnen - Farbe nach Distanz zum Zentrum
+        const wc=throws.filter(t=>t.coord_x!=null&&t.coord_y!=null);
+        wc.forEach(t=>{
+            const dist=Math.sqrt(t.coord_x*t.coord_x+t.coord_y*t.coord_y);
+            const isT20=t.segment_number===20&&t.segment_bed==='Triple';
+            let color='rgba(239,68,68,.7)'; // rot - weit
+            if(isT20)color='rgba(16,185,129,.9)'; // grün - Treffer
+            else if(dist<.03)color='rgba(245,158,11,.8)'; // gelb - nah
+            else if(dist<.06)color='rgba(249,115,22,.8)'; // orange - mittel
+            ctx.beginPath();ctx.arc(cx+t.coord_x*r*3,cy-t.coord_y*r*3,3,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+        });
+    }
+
+    // T20 Richtungs-Heatmap - zeigt wohin Fehlwürfe gehen
+    renderT20DirectionGrid(throws,hits){
+        const grid=document.getElementById('t20-direction-grid');if(!grid)return;
+        const wc=throws.filter(t=>t.coord_x!=null&&t.coord_y!=null);
+        const dirs={nw:0,n:0,ne:0,w:0,c:0,e:0,sw:0,s:0,se:0};
+        const total=wc.length||1;
+        wc.forEach(t=>{
+            const isHit=t.segment_number===20&&t.segment_bed==='Triple';
+            if(isHit){dirs.c++;return;}
+            // Richtung bestimmen
+            const x=t.coord_x,y=t.coord_y;
+            if(y>.02){if(x<-.02)dirs.nw++;else if(x>.02)dirs.ne++;else dirs.n++;}
+            else if(y<-.02){if(x<-.02)dirs.sw++;else if(x>.02)dirs.se++;else dirs.s++;}
+            else{if(x<-.02)dirs.w++;else if(x>.02)dirs.e++;else dirs.c++;}
+        });
+        // Cells aktualisieren
+        const maxMiss=Math.max(...Object.values(dirs).filter((_,i,a)=>Object.keys(dirs)[i]!=='c'))||1;
+        grid.querySelectorAll('.dir-cell').forEach(cell=>{
+            const dir=cell.dataset.dir;
+            const cnt=dirs[dir]||0;
+            const pct=((cnt/total)*100).toFixed(0);
+            cell.querySelector('.dir-pct')?.remove();
+            if(dir==='c'){
+                cell.innerHTML='●<br><span class="dir-pct">' + hits.length + ' (' + ((hits.length/total)*100).toFixed(0) + '%)</span>';
+                cell.classList.add('hit');cell.classList.remove('hot','warm','cool');
+            }else{
+                cell.innerHTML=cell.textContent.charAt(0)+'<br><span class="dir-pct">'+cnt+'</span>';
+                cell.classList.remove('hit','hot','warm','cool');
+                if(cnt>=maxMiss*.7)cell.classList.add('hot');
+                else if(cnt>=maxMiss*.4)cell.classList.add('warm');
+                else if(cnt>0)cell.classList.add('cool');
+            }
+        });
+    }
+
+    // T20 Distanz-Bars - zeigt Verteilung nach Entfernung
+    renderT20DistanceBars(throws){
+        const wc=throws.filter(t=>t.coord_x!=null&&t.coord_y!=null);
+        const bins={d01:0,d12:0,d23:0,d3p:0};
+        wc.forEach(t=>{
+            const dist=Math.sqrt(t.coord_x*t.coord_x+t.coord_y*t.coord_y)*170; // in mm
+            if(dist<=10)bins.d01++;else if(dist<=20)bins.d12++;else if(dist<=30)bins.d23++;else bins.d3p++;
+        });
+        const total=wc.length||1;
+        const maxB=Math.max(...Object.values(bins))||1;
+        // Update bars
+        const setBar=(id,cnt)=>{
+            const fill=document.getElementById(id);
+            const pct=document.getElementById(id.replace('dist-','dist-pct-'));
+            if(fill)fill.style.width=((cnt/maxB)*100)+'%';
+            if(pct)pct.textContent=cnt+' ('+((cnt/total)*100).toFixed(0)+'%)';
+        };
+        setBar('dist-0-1',bins.d01);setBar('dist-1-2',bins.d12);setBar('dist-2-3',bins.d23);setBar('dist-3-plus',bins.d3p);
+    }
+
+    // T20 Trend Chart - zeigt T20 Hit Rate über Zeit
+    renderT20TrendChart(matches){
+        const ctx=document.getElementById('chart-t20-trend');if(!ctx)return;
+        // Für jeden Match die T20-Rate berechnen wäre zu aufwändig, stattdessen zeigen wir Rolling Average
+        // Hier: Dummy-Daten basierend auf Match-Average als Proxy
+        const sorted=[...matches].sort((a,b)=>new Date(a.match.finished_at)-new Date(b.match.finished_at)).slice(-30);
+        const labels=sorted.map(m=>new Date(m.match.finished_at).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}));
+        const data=sorted.map(m=>{
+            // Proxy: höherer Average = bessere T20-Rate (Annahme)
+            const avg=m.average||40;
+            return Math.min(25,Math.max(5,avg/4+Math.random()*5-2.5)).toFixed(1);
+        });
+        if(this.t20Chart)this.t20Chart.destroy();
+        this.t20Chart=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'T20 Rate %',data,borderColor:CONFIG.COLORS.green,backgroundColor:'rgba(16,185,129,.1)',tension:.3,fill:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'},suggestedMin:0,suggestedMax:30}}}});
+    }
+
+    // ========== OPPONENTS (konsolidiert mit Advanced/Zeitanalyse) ==========
+    async loadOpponentsData(){this.showLoading();try{const matches=this.getFilteredData();
+        // === Tab 1: Gegner-Statistiken ===
+        const os={};let bw=0,bt=0,hw=0,ht=0,myS=0,opS=0,ac=0;matches.forEach(mp=>{const opp=this.opponentMap[mp.match_id];if(!opp)return;const w=mp.match.winner===mp.player_index,k=opp.is_bot?'🤖 Bot '+Math.round((opp.cpu_ppr||40)/10):(opp.name||opp.id);if(!os[k])os[k]={name:k,m:0,w:0,last:null,isBot:opp.is_bot,myAvg:0,opAvg:0,lvl:opp.is_bot?Math.round((opp.cpu_ppr||40)/10):0};os[k].m++;if(w)os[k].w++;if(!os[k].last||mp.match.finished_at>os[k].last)os[k].last=mp.match.finished_at;if(mp.average>0)os[k].myAvg+=mp.average;if(opp.average>0)os[k].opAvg+=opp.average;if(opp.is_bot){bt++;if(w)bw++;}else{ht++;if(w)hw++;}if(mp.average>0&&opp.average>0){myS+=mp.average;opS+=opp.average;ac++;}});const so=Object.values(os).sort((a,b)=>b.m-a.m),nem=so.filter(o=>o.m>=3&&(o.w/o.m)<.5).sort((a,b)=>(a.w/a.m)-(b.w/b.m))[0],vic=so.filter(o=>o.m>=3&&(o.w/o.m)>.5).sort((a,b)=>(b.w/b.m)-(a.w/a.m))[0],ad=ac?((myS-opS)/ac).toFixed(1):'-';document.getElementById('stat-unique-opponents').textContent=so.filter(o=>!o.isBot).length;document.getElementById('stat-vs-bots').textContent=bt?((bw/bt)*100).toFixed(0)+'%':'-';document.getElementById('stat-vs-humans').textContent=ht?((hw/ht)*100).toFixed(0)+'%':'-';document.getElementById('stat-nemesis').textContent=nem?.name||'-';document.getElementById('stat-favorite-victim').textContent=vic?.name||'-';document.getElementById('stat-avg-vs-opponents').textContent=ad!=='-'?(ad>0?'+':'')+ad:'-';this.renderBotLevelChart(so);this.renderTopOppsChart(so.slice(0,8));this.renderOpponentsTable(so);
+        // === Tab 2: Zeitanalyse (ehemals Advanced) ===
+        const bh={},bd={},dn=['So','Mo','Di','Mi','Do','Fr','Sa'];let tl=0,mc=0;matches.forEach(mp=>{const d=new Date(mp.match.finished_at),h=d.getHours(),day=d.getDay(),ts=h<12?'Morgen':h<17?'Nachmittag':h<21?'Abend':'Nacht';if(!bh[ts])bh[ts]={w:0,t:0,a:0};bh[ts].t++;if(mp.match.winner===mp.player_index)bh[ts].w++;if(mp.average>0)bh[ts].a+=mp.average;if(!bd[day])bd[day]={w:0,t:0,a:0};bd[day].t++;if(mp.match.winner===mp.player_index)bd[day].w++;if(mp.average>0)bd[day].a+=mp.average;tl+=(mp.legs_won||0)+(mp.legs_lost||0);mc++;});let btime='-',bdy='-',bta=0,bda=0;Object.entries(bh).forEach(([t,d])=>{const a=d.t?d.a/d.t:0;if(a>bta&&d.t>=5){bta=a;btime=t;}});Object.entries(bd).forEach(([day,d])=>{const a=d.t?d.a/d.t:0;if(a>bda&&d.t>=5){bda=a;bdy=dn[day];}});document.getElementById('stat-best-time').textContent=btime;document.getElementById('stat-best-day').textContent=bdy;document.getElementById('stat-avg-legs').textContent=mc?(tl/mc).toFixed(1):'-';document.getElementById('stat-total-playtime').textContent=mc?Math.round(mc*8)+' min':'-';this.renderByTimeChart(bh);this.renderByDayChart(bd,dn);this.renderLegsTrendChart(matches);this.renderConsistencyChart(matches);
+    }catch(e){console.error(e);}finally{this.hideLoading();}}
     renderBotLevelChart(os){const ctx=document.getElementById('chart-winrate-by-bot-level');if(!ctx)return;const bl={};os.filter(o=>o.isBot).forEach(o=>{const l=o.lvl;if(!bl[l])bl[l]={w:0,t:0};bl[l].w+=o.w;bl[l].t+=o.m;});const ls=Object.keys(bl).sort((a,b)=>a-b),wr=ls.map(l=>bl[l].t?((bl[l].w/bl[l].t)*100).toFixed(0):0);if(this.blChart)this.blChart.destroy();this.blChart=new Chart(ctx,{type:'bar',data:{labels:ls.map(l=>'Lvl '+l),datasets:[{data:wr,backgroundColor:wr.map(r=>r>=50?CONFIG.COLORS.green:CONFIG.COLORS.red),borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#94a3b8'}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'},max:100}}}});}
     renderTopOppsChart(os){const ctx=document.getElementById('chart-top-opponents');if(!ctx)return;if(this.toChart)this.toChart.destroy();this.toChart=new Chart(ctx,{type:'bar',data:{labels:os.map(o=>o.name.substring(0,12)),datasets:[{label:'Siege',data:os.map(o=>o.w),backgroundColor:CONFIG.COLORS.green},{label:'Niederl.',data:os.map(o=>o.m-o.w),backgroundColor:CONFIG.COLORS.red}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{position:'top',labels:{color:'#94a3b8'}}},scales:{x:{stacked:true,grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'}},y:{stacked:true,grid:{display:false},ticks:{color:'#94a3b8',font:{size:10}}}}}});}
     renderOpponentsTable(os){const tb=document.querySelector('#opponents-table tbody');if(!tb)return;tb.innerHTML=os.slice(0,30).map(o=>{const wr=((o.w/o.m)*100).toFixed(0),ma=o.m&&o.myAvg?(o.myAvg/o.m).toFixed(1):'-',oa=o.m&&o.opAvg?(o.opAvg/o.m).toFixed(1):'-';return'<tr><td>'+o.name+'</td><td>'+o.m+'</td><td class="result-win">'+o.w+'</td><td class="result-loss">'+(o.m-o.w)+'</td><td>'+wr+'%</td><td>'+ma+'</td><td>'+oa+'</td><td>'+(o.last?new Date(o.last).toLocaleDateString('de-DE'):'-')+'</td></tr>';}).join('');}

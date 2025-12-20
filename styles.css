@@ -289,6 +289,44 @@ body {
     cursor: pointer;
 }
 
+/* View Toggle (Legs/Matches) */
+.view-toggle {
+    margin-left: auto;
+}
+
+.toggle-buttons {
+    display: flex;
+    background: var(--bg-primary);
+    border-radius: var(--radius-sm);
+    padding: 3px;
+    gap: 2px;
+}
+
+.toggle-btn {
+    padding: 6px 14px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.toggle-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+}
+
+.toggle-btn.active {
+    background: var(--accent-green);
+    color: white;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
 .filter-group select:focus {
     outline: none;
     border-color: var(--accent-green);
@@ -366,9 +404,207 @@ body {
     font-weight: 700;
 }
 
+.page-header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+/* Page Tabs */
+.page-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    padding: 4px;
+    background: var(--bg-primary);
+    border-radius: var(--radius-sm);
+    width: fit-content;
+}
+
+.page-tab {
+    padding: 10px 20px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.page-tab:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+}
+
+.page-tab.active {
+    background: var(--accent-green);
+    color: white;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.grouping-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.grouping-toggle label {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.grouping-toggle select {
+    padding: 8px 12px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 13px;
+}
+
+/* Detail Panel */
+.detail-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 600px;
+    max-width: 100%;
+    height: 100vh;
+    background: var(--bg-secondary);
+    border-left: 1px solid var(--border-color);
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+}
+
+.detail-panel.visible {
+    transform: translateX(0);
+}
+
+.detail-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.detail-panel-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.detail-panel-content {
+    padding: 24px;
+}
+
+.detail-charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 24px;
+}
+
+.visits-section,
+.doubles-section {
+    margin-top: 24px;
+}
+
+.visits-section h4,
+.doubles-section h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+}
+
+.stat-card.small {
+    padding: 12px;
+}
+
+.stat-card.small .stat-value {
+    font-size: 18px;
+}
+
+.stat-card.small .stat-label {
+    font-size: 11px;
+}
+
+.table-container.compact {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.table-container.compact table {
+    font-size: 13px;
+}
+
+@media (max-width: 768px) {
+    .detail-panel {
+        width: 100%;
+    }
+
+    .detail-charts-row {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* =====================================================
    STATS GRID
    ===================================================== */
+
+/* Stats Sections */
+.stats-section {
+    margin-bottom: 24px;
+}
+
+.stats-section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.stats-section-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.section-badge {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.section-badge.filter-badge {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--accent-green);
+}
 
 .stats-grid {
     display: grid;
@@ -377,17 +613,27 @@ body {
     margin-bottom: 24px;
 }
 
+.stats-grid-5 {
+    grid-template-columns: repeat(5, 1fr);
+}
+
 .stats-grid-6 {
     grid-template-columns: repeat(6, 1fr);
 }
 
 @media (max-width: 1200px) {
+    .stats-grid-5 {
+        grid-template-columns: repeat(3, 1fr);
+    }
     .stats-grid-6 {
         grid-template-columns: repeat(3, 1fr);
     }
 }
 
 @media (max-width: 768px) {
+    .stats-grid-5 {
+        grid-template-columns: repeat(2, 1fr);
+    }
     .stats-grid-6 {
         grid-template-columns: repeat(2, 1fr);
     }
@@ -709,6 +955,157 @@ tr:hover td {
 
 .legend-color.low {
     background: rgba(16, 185, 129, 0.15);
+}
+
+/* T20 Analysis Section */
+.t20-analysis-section {
+    margin-top: 32px;
+    padding: 24px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+}
+
+.t20-analysis-section h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 20px;
+}
+
+.t20-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 24px;
+}
+
+@media (max-width: 1000px) {
+    .t20-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.t20-scatter-card,
+.t20-direction-card,
+.t20-distance-card {
+    background: var(--bg-primary);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+}
+
+.t20-scatter-card h4,
+.t20-direction-card h4,
+.t20-distance-card h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text-secondary);
+}
+
+#t20-scatter-canvas {
+    width: 100%;
+    height: auto;
+    max-width: 300px;
+    margin: 0 auto;
+    display: block;
+}
+
+/* Direction Grid (8-way heatmap) */
+.direction-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    max-width: 200px;
+    margin: 0 auto;
+}
+
+.dir-cell {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+}
+
+.dir-cell.center {
+    background: var(--accent-green);
+    color: white;
+}
+
+.dir-cell.hot {
+    background: var(--accent-red);
+    color: white;
+}
+
+.dir-cell.warm {
+    background: var(--accent-yellow);
+    color: var(--bg-primary);
+}
+
+.dir-cell.cool {
+    background: var(--accent-blue);
+    color: white;
+}
+
+.dir-cell.hit {
+    background: var(--accent-green);
+    color: white;
+}
+
+.dir-cell {
+    flex-direction: column;
+    line-height: 1.2;
+}
+
+.dir-pct {
+    font-size: 10px;
+    font-weight: 500;
+    opacity: 0.9;
+}
+
+/* Distance Bars */
+.distance-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.dist-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.dist-label {
+    width: 50px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.dist-bar {
+    flex: 1;
+    height: 20px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.dist-fill {
+    height: 100%;
+    background: var(--accent-green);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.dist-pct {
+    width: 40px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
 }
 
 /* =====================================================
