@@ -289,6 +289,44 @@ body {
     cursor: pointer;
 }
 
+/* View Toggle (Legs/Matches) */
+.view-toggle {
+    margin-left: auto;
+}
+
+.toggle-buttons {
+    display: flex;
+    background: var(--bg-primary);
+    border-radius: var(--radius-sm);
+    padding: 3px;
+    gap: 2px;
+}
+
+.toggle-btn {
+    padding: 6px 14px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.toggle-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+}
+
+.toggle-btn.active {
+    background: var(--accent-green);
+    color: white;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
 .filter-group select:focus {
     outline: none;
     border-color: var(--accent-green);
@@ -370,6 +408,41 @@ body {
    STATS GRID
    ===================================================== */
 
+/* Stats Sections */
+.stats-section {
+    margin-bottom: 24px;
+}
+
+.stats-section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.stats-section-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.section-badge {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.section-badge.filter-badge {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--accent-green);
+}
+
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -377,17 +450,27 @@ body {
     margin-bottom: 24px;
 }
 
+.stats-grid-5 {
+    grid-template-columns: repeat(5, 1fr);
+}
+
 .stats-grid-6 {
     grid-template-columns: repeat(6, 1fr);
 }
 
 @media (max-width: 1200px) {
+    .stats-grid-5 {
+        grid-template-columns: repeat(3, 1fr);
+    }
     .stats-grid-6 {
         grid-template-columns: repeat(3, 1fr);
     }
 }
 
 @media (max-width: 768px) {
+    .stats-grid-5 {
+        grid-template-columns: repeat(2, 1fr);
+    }
     .stats-grid-6 {
         grid-template-columns: repeat(2, 1fr);
     }

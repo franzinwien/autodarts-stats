@@ -98,6 +98,13 @@
                     <option value="Cricket">Cricket</option>
                 </select>
             </div>
+            <div class="filter-group view-toggle">
+                <label>Ansicht:</label>
+                <div class="toggle-buttons">
+                    <button type="button" class="toggle-btn active" data-view="legs">🎯 Legs</button>
+                    <button type="button" class="toggle-btn" data-view="matches">🎮 Matches</button>
+                </div>
+            </div>
             <button id="apply-filters" class="btn btn-primary btn-sm">Filter anwenden</button>
         </div>
 
@@ -118,94 +125,90 @@
         <main class="main">
             <!-- Overview Page -->
             <div id="page-overview" class="page active">
-                <!-- KPI Cards Row 1 -->
-                <div class="stats-grid stats-grid-6">
-                    <div class="stat-card">
-                        <div class="stat-icon">🎮</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-matches">-</div>
-                            <div class="stat-label">Matches</div>
-                        </div>
+                <!-- Section: Meine Performance (Gesamt) -->
+                <div class="stats-section">
+                    <div class="stats-section-header">
+                        <h3>📊 Meine Performance <span class="section-badge">Gesamt</span></h3>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">🏆</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-winrate">-</div>
-                            <div class="stat-label">Win Rate</div>
+                    <div class="stats-grid stats-grid-5">
+                        <div class="stat-card">
+                            <div class="stat-icon">📈</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-total-average">-</div>
+                                <div class="stat-label">3-Dart Avg</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">📈</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-average">-</div>
-                            <div class="stat-label">3-Dart Avg</div>
+                        <div class="stat-card highlight">
+                            <div class="stat-icon">⚡</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-total-first9">-</div>
+                                <div class="stat-label">First 9 Avg</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="stat-card highlight">
-                        <div class="stat-icon">⚡</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-first9">-</div>
-                            <div class="stat-label">First 9 Avg</div>
+                        <div class="stat-card">
+                            <div class="stat-icon">✅</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-total-checkout">-</div>
+                                <div class="stat-label">Checkout %</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">✅</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-checkout">-</div>
-                            <div class="stat-label">Checkout %</div>
+                        <div class="stat-card highlight-gold">
+                            <div class="stat-icon">💎</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-total-180s">-</div>
+                                <div class="stat-label">180s</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="stat-card highlight-gold">
-                        <div class="stat-icon">💎</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-180s">-</div>
-                            <div class="stat-label">180s</div>
+                        <div class="stat-card">
+                            <div class="stat-icon">🏆</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-total-winrate">-</div>
+                                <div class="stat-label">Gewonnen</div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- KPI Cards Row 2 - New Stats -->
-                <div class="stats-grid stats-grid-6">
-                    <div class="stat-card">
-                        <div class="stat-icon">🎯</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-avg-to-100">-</div>
-                            <div class="stat-label">Avg bis 100</div>
-                        </div>
+                <!-- Section: Aktuelle Form (gefiltert) -->
+                <div class="stats-section">
+                    <div class="stats-section-header">
+                        <h3>🔥 Aktuelle Form <span class="section-badge filter-badge" id="filter-badge">Filter</span></h3>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">🚀</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-best-leg">-</div>
-                            <div class="stat-label">Best Leg</div>
+                    <div class="stats-grid stats-grid-5">
+                        <div class="stat-card">
+                            <div class="stat-icon">📈</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-average">-</div>
+                                <div class="stat-label">3-Dart Avg</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">🎪</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-highest-finish">-</div>
-                            <div class="stat-label">Highest Finish</div>
+                        <div class="stat-card highlight">
+                            <div class="stat-icon">⚡</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-first9">-</div>
+                                <div class="stat-label">First 9 Avg</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">⭐</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-best-match-avg">-</div>
-                            <div class="stat-label">Best Match Avg</div>
+                        <div class="stat-card">
+                            <div class="stat-icon">📊</div>
+                            <div class="stat-content">
+                                <div class="stat-value trend-up" id="stat-trend">-</div>
+                                <div class="stat-label">Trend (7 Tage)</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">📊</div>
-                        <div class="stat-content">
-                            <div class="stat-value trend-up" id="stat-trend">-</div>
-                            <div class="stat-label">Trend (7 Tage)</div>
+                        <div class="stat-card">
+                            <div class="stat-icon">🚀</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-best-leg">-</div>
+                                <div class="stat-label" id="stat-best-label">Bestes Leg</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">🎚️</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-consistency">-</div>
-                            <div class="stat-label">Konstanz</div>
+                        <div class="stat-card">
+                            <div class="stat-icon">🎚️</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-consistency">-</div>
+                                <div class="stat-label">Konstanz</div>
+                            </div>
                         </div>
                     </div>
                 </div>

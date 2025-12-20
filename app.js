@@ -117,7 +117,7 @@ function analyzeT20Misses(throws) {
 }
 
 class AutodartsStats {
-    constructor() { this.user = null; this.currentPlayerId = null; this.allPlayers = []; this.allMatchPlayers = []; this.allMatches = []; this.opponentMap = {}; this.overallAverage = 0; this.matchRankings = []; this.filters = { time: 'all', type: '', variant: 'X01' }; this.init(); }
+    constructor() { this.user = null; this.currentPlayerId = null; this.allPlayers = []; this.allMatchPlayers = []; this.allMatches = []; this.allLegs = []; this.opponentMap = {}; this.overallAverage = 0; this.matchRankings = []; this.legRankings = []; this.filters = { time: 'all', type: '', variant: 'X01', view: 'legs' }; this.init(); }
     
     async init() {
         this.isInitialized = false;
@@ -144,9 +144,10 @@ class AutodartsStats {
         this.setupEventListeners();
     }
     
-    setupEventListeners() { document.getElementById('send-magic-link')?.addEventListener('click', () => this.sendMagicLink()); document.getElementById('email-input')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') this.sendMagicLink(); }); document.getElementById('logout-btn')?.addEventListener('click', () => this.logout()); document.querySelectorAll('.nav-btn').forEach(btn => btn.addEventListener('click', () => this.navigateTo(btn.dataset.page))); document.getElementById('apply-filters')?.addEventListener('click', () => this.applyFilters()); document.getElementById('heatmap-target')?.addEventListener('change', () => this.loadHeatmapData()); document.getElementById('global-filter-player')?.addEventListener('change', (e) => this.switchPlayer(e.target.value)); document.getElementById('match-detail-prev')?.addEventListener('click', () => this.navigateMatch(-1)); document.getElementById('match-detail-next')?.addEventListener('click', () => this.navigateMatch(1)); document.getElementById('match-detail-select')?.addEventListener('change', (e) => this.loadMatchDetail(e.target.value)); }
+    setupEventListeners() { document.getElementById('send-magic-link')?.addEventListener('click', () => this.sendMagicLink()); document.getElementById('email-input')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') this.sendMagicLink(); }); document.getElementById('logout-btn')?.addEventListener('click', () => this.logout()); document.querySelectorAll('.nav-btn').forEach(btn => btn.addEventListener('click', () => this.navigateTo(btn.dataset.page))); document.getElementById('apply-filters')?.addEventListener('click', () => this.applyFilters()); document.getElementById('heatmap-target')?.addEventListener('change', () => this.loadHeatmapData()); document.getElementById('global-filter-player')?.addEventListener('change', (e) => this.switchPlayer(e.target.value)); document.getElementById('match-detail-prev')?.addEventListener('click', () => this.navigateMatch(-1)); document.getElementById('match-detail-next')?.addEventListener('click', () => this.navigateMatch(1)); document.getElementById('match-detail-select')?.addEventListener('change', (e) => this.loadMatchDetail(e.target.value)); document.querySelectorAll('.toggle-btn').forEach(btn => btn.addEventListener('click', () => this.toggleView(btn.dataset.view))); }
     
     async switchPlayer(pid) { if (pid === this.currentPlayerId) return; this.currentPlayerId = pid; await this.loadPlayerData(pid); this.applyFilters(); }
+    toggleView(view) { if (this.filters.view === view) return; this.filters.view = view; document.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.view === view)); this.legHistoryLoaded = false; this.matchHistoryLoaded = false; this.navigateTo(document.querySelector('.nav-btn.active')?.dataset.page || 'overview'); }
     applyFilters() { this.filters.time = document.getElementById('global-filter-time').value; this.filters.type = document.getElementById('global-filter-type').value; this.filters.variant = document.getElementById('global-filter-variant').value; this.legHistoryLoaded = false; this.matchHistoryLoaded = false; this.navigateTo(document.querySelector('.nav-btn.active')?.dataset.page || 'overview'); }
     getFilteredData() { let d = this.allMatchPlayers.map(mp => ({...mp, match: this.allMatches.find(m => m.id === mp.match_id)})).filter(mp => mp.match); if (this.filters.time !== 'all') { const days = parseInt(this.filters.time), cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days); d = d.filter(mp => new Date(mp.match.finished_at) >= cutoff); } if (this.filters.type) d = d.filter(mp => mp.match.type === this.filters.type); if (this.filters.variant) d = d.filter(mp => mp.match.variant === this.filters.variant); return d.sort((a, b) => new Date(b.match.finished_at) - new Date(a.match.finished_at)); }
     
@@ -175,12 +176,104 @@ class AutodartsStats {
     navigateTo(page) { document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === page)); document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+page)); ({overview:()=>this.loadOverviewData(),scoring:()=>this.loadScoringData(),checkout:()=>this.loadCheckoutData(),matches:()=>this.loadMatchesPage(),matchdetail:()=>this.loadMatchDetailPage(),heatmap:()=>this.loadHeatmapData(),opponents:()=>this.loadOpponentsData(),advanced:()=>this.loadAdvancedData(),headtohead:()=>this.loadH2HData()})[page]?.(); }
 
     // ========== OVERVIEW ==========
-    async loadOverviewData() { this.showLoading(); try { const matches = this.getFilteredData(), mpIds = matches.map(m=>m.id), total = matches.length; let wins=0, checkoutSum=0, checkoutCnt=0, bestAvg=0, highFin=0; matches.forEach(mp => { if(mp.match.winner===mp.player_index)wins++; if(mp.checkout_rate>0){checkoutSum+=mp.checkout_rate;checkoutCnt++;} if(mp.average>bestAvg)bestAvg=mp.average; }); const turns = await this.loadTurns(mpIds); let pts=0,cnt=0,f9pts=0,f9cnt=0,c180=0,scorePts=0,scoreCnt=0; const byMp={}; turns.forEach(t=>{if(t.points!==null){pts+=t.points;cnt++;if(t.points===180)c180++;if(t.round<=3){f9pts+=t.points;f9cnt++;}if(t.score_remaining===null||t.score_remaining>100){scorePts+=t.points;scoreCnt++;}if(!byMp[t.match_player_id])byMp[t.match_player_id]=[];byMp[t.match_player_id].push(t.points);}}); turns.filter(t=>t.score_remaining===0).forEach(t=>{if(t.points>highFin)highFin=t.points;}); 
-    // Calc per-match averages and rankings
-    const matchData = matches.map(mp => { const t = byMp[mp.id] || []; const calcAvg = t.length ? t.reduce((a,b)=>a+b,0)/t.length : (mp.average || 0); return {...mp, calcAvg, isWin: mp.match.winner === mp.player_index }; });
-    this.matchRankings = this.calcRankings(matchData);
-    const bestMatch = this.matchRankings.find(m => m.avgRank === 1);
-    const mAvgs=Object.values(byMp).map(a=>a.reduce((x,y)=>x+y,0)/a.length), avg=mAvgs.length?mAvgs.reduce((a,b)=>a+b,0)/mAvgs.length:0, std=Math.sqrt(mAvgs.length?mAvgs.reduce((s,a)=>s+Math.pow(a-avg,2),0)/mAvgs.length:0); const now=new Date(),w1=new Date(now-7*864e5),w2=new Date(now-14*864e5); const rec=matches.filter(m=>new Date(m.match.finished_at)>=w1&&m.average>0),prev=matches.filter(m=>{const d=new Date(m.match.finished_at);return d>=w2&&d<w1&&m.average>0;}); const recAvg=rec.length?rec.reduce((s,m)=>s+m.average,0)/rec.length:0,prevAvg=prev.length?prev.reduce((s,m)=>s+m.average,0)/prev.length:0,trend=prevAvg?recAvg-prevAvg:0; document.getElementById('stat-matches').textContent=total; document.getElementById('stat-winrate').textContent=(total?((wins/total)*100).toFixed(1):0)+'%'; document.getElementById('stat-average').textContent=cnt?(pts/cnt).toFixed(1):'-'; document.getElementById('stat-first9').textContent=f9cnt?(f9pts/f9cnt).toFixed(1):'-'; document.getElementById('stat-checkout').textContent=checkoutCnt?((checkoutSum/checkoutCnt)*100).toFixed(1)+'%':'-'; document.getElementById('stat-180s').textContent=c180; document.getElementById('stat-avg-to-100').textContent=scoreCnt?(scorePts/scoreCnt).toFixed(1):'-'; document.getElementById('stat-best-leg').textContent='-'; document.getElementById('stat-highest-finish').textContent=highFin||'-'; document.getElementById('stat-best-match-avg').textContent=bestMatch?bestMatch.calcAvg.toFixed(1):'-'; const tEl=document.getElementById('stat-trend'); tEl.textContent=trend>0?'↑ +'+trend.toFixed(1):trend<0?'↓ '+trend.toFixed(1):'→ 0'; tEl.className='stat-value '+(trend>0?'trend-up':trend<0?'trend-down':''); document.getElementById('stat-consistency').textContent=(std<3?'A+':std<5?'A':std<7?'B':std<10?'C':'D')+' (±'+std.toFixed(1)+')'; this.renderAvgChart(matches,turns); this.renderResultsChart(wins,total-wins); this.renderFirst9Chart(turns); this.renderScoringChart(turns); this.renderHighScoresChart(turns); this.renderRecentMatches(this.matchRankings.slice(0,10)); }catch(e){console.error(e);}finally{this.hideLoading();} }
+    async loadOverviewData() {
+        this.showLoading();
+        try {
+            // === TOTAL STATS (alle Daten ohne Filter, nur X01) ===
+            const allData = this.allMatchPlayers.map(mp => ({...mp, match: this.allMatches.find(m => m.id === mp.match_id)})).filter(mp => mp.match && mp.match.variant === 'X01');
+            const allMpIds = allData.map(m => m.id);
+            let totalWins = 0, totalCheckoutSum = 0, totalCheckoutCnt = 0;
+            allData.forEach(mp => {
+                if(mp.match.winner === mp.player_index) totalWins++;
+                if(mp.checkout_rate > 0) { totalCheckoutSum += mp.checkout_rate; totalCheckoutCnt++; }
+            });
+            const allTurns = await this.loadTurns(allMpIds);
+            let totalPts = 0, totalCnt = 0, totalF9pts = 0, totalF9cnt = 0, total180s = 0;
+            allTurns.forEach(t => {
+                if(t.points !== null) {
+                    totalPts += t.points; totalCnt++;
+                    if(t.points === 180) total180s++;
+                    if(t.round <= 3) { totalF9pts += t.points; totalF9cnt++; }
+                }
+            });
+
+            // Gesamt-Statistiken anzeigen
+            document.getElementById('stat-total-average').textContent = totalCnt ? (totalPts / totalCnt).toFixed(1) : '-';
+            document.getElementById('stat-total-first9').textContent = totalF9cnt ? (totalF9pts / totalF9cnt).toFixed(1) : '-';
+            document.getElementById('stat-total-checkout').textContent = totalCheckoutCnt ? ((totalCheckoutSum / totalCheckoutCnt) * 100).toFixed(1) + '%' : '-';
+            document.getElementById('stat-total-180s').textContent = total180s;
+            const totalLegsWon = allData.reduce((s, mp) => s + (mp.legs_won || 0), 0);
+            const totalLegs = allData.reduce((s, mp) => s + (mp.legs_won || 0) + (mp.legs_lost || 0), 0);
+            document.getElementById('stat-total-winrate').textContent = this.filters.view === 'legs'
+                ? (totalLegs ? ((totalLegsWon / totalLegs) * 100).toFixed(0) + '%' : '-')
+                : (allData.length ? ((totalWins / allData.length) * 100).toFixed(0) + '%' : '-');
+
+            // === FILTERED STATS ===
+            const matches = this.getFilteredData();
+            const mpIds = matches.map(m => m.id);
+            const turns = await this.loadTurns(mpIds);
+
+            let pts = 0, cnt = 0, f9pts = 0, f9cnt = 0, c180 = 0;
+            const byMp = {};
+            turns.forEach(t => {
+                if(t.points !== null) {
+                    pts += t.points; cnt++;
+                    if(t.points === 180) c180++;
+                    if(t.round <= 3) { f9pts += t.points; f9cnt++; }
+                    if(!byMp[t.match_player_id]) byMp[t.match_player_id] = [];
+                    byMp[t.match_player_id].push(t.points);
+                }
+            });
+
+            // Rankings berechnen
+            const matchData = matches.map(mp => {
+                const t = byMp[mp.id] || [];
+                const calcAvg = t.length ? t.reduce((a,b) => a+b, 0) / t.length : (mp.average || 0);
+                return {...mp, calcAvg, isWin: mp.match.winner === mp.player_index };
+            });
+            this.matchRankings = this.calcRankings(matchData);
+            const bestMatch = this.matchRankings.find(m => m.avgRank === 1);
+
+            // Konsistenz berechnen
+            const mAvgs = Object.values(byMp).map(a => a.reduce((x,y) => x+y, 0) / a.length);
+            const avg = mAvgs.length ? mAvgs.reduce((a,b) => a+b, 0) / mAvgs.length : 0;
+            const std = Math.sqrt(mAvgs.length ? mAvgs.reduce((s,a) => s + Math.pow(a - avg, 2), 0) / mAvgs.length : 0);
+
+            // Trend berechnen (letzte 7 Tage vs vorherige 7 Tage)
+            const now = new Date(), w1 = new Date(now - 7*864e5), w2 = new Date(now - 14*864e5);
+            const rec = matches.filter(m => new Date(m.match.finished_at) >= w1 && m.average > 0);
+            const prev = matches.filter(m => { const d = new Date(m.match.finished_at); return d >= w2 && d < w1 && m.average > 0; });
+            const recAvg = rec.length ? rec.reduce((s,m) => s + m.average, 0) / rec.length : 0;
+            const prevAvg = prev.length ? prev.reduce((s,m) => s + m.average, 0) / prev.length : 0;
+            const trend = prevAvg ? recAvg - prevAvg : 0;
+
+            // Filter-Statistiken anzeigen
+            document.getElementById('stat-average').textContent = cnt ? (pts / cnt).toFixed(1) : '-';
+            document.getElementById('stat-first9').textContent = f9cnt ? (f9pts / f9cnt).toFixed(1) : '-';
+            const tEl = document.getElementById('stat-trend');
+            tEl.textContent = trend > 0 ? '↑ +' + trend.toFixed(1) : trend < 0 ? '↓ ' + trend.toFixed(1) : '→ 0';
+            tEl.className = 'stat-value ' + (trend > 0 ? 'trend-up' : trend < 0 ? 'trend-down' : '');
+            document.getElementById('stat-best-leg').textContent = bestMatch ? bestMatch.calcAvg.toFixed(1) : '-';
+            document.getElementById('stat-best-label').textContent = this.filters.view === 'legs' ? 'Bestes Leg' : 'Bestes Match';
+            document.getElementById('stat-consistency').textContent = (std < 3 ? 'A+' : std < 5 ? 'A' : std < 7 ? 'B' : std < 10 ? 'C' : 'D') + ' (±' + std.toFixed(1) + ')';
+
+            // Filter-Badge aktualisieren
+            const filterBadge = document.getElementById('filter-badge');
+            if (filterBadge) {
+                const viewLabel = this.filters.view === 'legs' ? 'Legs' : 'Matches';
+                const timeLabel = this.filters.time === 'all' ? 'Alle Zeit' : this.filters.time + ' Tage';
+                filterBadge.textContent = viewLabel + ' · ' + timeLabel;
+            }
+
+            // Charts rendern
+            this.renderAvgChart(matches, turns);
+            this.renderResultsChart(matches.filter(mp => mp.match.winner === mp.player_index).length, matches.length - matches.filter(mp => mp.match.winner === mp.player_index).length);
+            this.renderFirst9Chart(turns);
+            this.renderScoringChart(turns);
+            this.renderHighScoresChart(turns);
+            this.renderRecentMatches(this.matchRankings.slice(0, 10));
+        } catch(e) { console.error(e); } finally { this.hideLoading(); }
+    }
 
     renderAvgChart(matches,turns){const ctx=document.getElementById('chart-avg-comparison');if(!ctx)return;const byMp={};turns.forEach(t=>{if(t.points!==null){if(!byMp[t.match_player_id])byMp[t.match_player_id]={all:[],sc:[]};byMp[t.match_player_id].all.push(t.points);if(t.score_remaining===null||t.score_remaining>100)byMp[t.match_player_id].sc.push(t.points);}});const md=matches.map(mp=>{const d=byMp[mp.id]||{all:[],sc:[]};return{date:new Date(mp.match.finished_at),avgAll:d.all.length?d.all.reduce((a,b)=>a+b,0)/d.all.length:null,avgSc:d.sc.length?d.sc.reduce((a,b)=>a+b,0)/d.sc.length:null};}).filter(m=>m.avgAll!==null).sort((a,b)=>a.date-b.date);if(!md.length)return;const days=Math.ceil((md[md.length-1].date-md[0].date)/864e5);let dp;if(days>180){const byM={};md.forEach(m=>{const k=m.date.toISOString().slice(0,7);if(!byM[k])byM[k]={all:[],sc:[]};byM[k].all.push(m.avgAll);if(m.avgSc)byM[k].sc.push(m.avgSc);});dp=Object.entries(byM).sort((a,b)=>a[0].localeCompare(b[0])).map(([m,d])=>({l:new Date(m+'-01').toLocaleDateString('de-DE',{month:'short',year:'2-digit'}),a:d.all.reduce((x,y)=>x+y,0)/d.all.length,s:d.sc.length?d.sc.reduce((x,y)=>x+y,0)/d.sc.length:null}));}else{dp=md.slice(-30).map(m=>({l:m.date.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}),a:m.avgAll,s:m.avgSc}));}if(this.avgCompChart)this.avgCompChart.destroy();this.avgCompChart=new Chart(ctx,{type:'line',data:{labels:dp.map(d=>d.l),datasets:[{label:'Avg bis 100',data:dp.map(d=>d.s?.toFixed(1)),borderColor:CONFIG.COLORS.blue,fill:false,tension:.3},{label:'Match Avg',data:dp.map(d=>d.a.toFixed(1)),borderColor:CONFIG.COLORS.green,backgroundColor:'rgba(16,185,129,.1)',fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:'#94a3b8'}}},scales:{x:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8',maxRotation:45,font:{size:10}}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'},suggestedMin:30,suggestedMax:55}}}});}
     renderResultsChart(w,l){const ctx=document.getElementById('chart-results');if(!ctx)return;if(this.resChart)this.resChart.destroy();this.resChart=new Chart(ctx,{type:'doughnut',data:{labels:['Siege','Niederl.'],datasets:[{data:[w,l],backgroundColor:[CONFIG.COLORS.green,CONFIG.COLORS.red],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#94a3b8'}}},cutout:'65%'}});}
