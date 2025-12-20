@@ -1097,6 +1097,52 @@
                     </div>
                 </div>
 
+                <!-- Neue Stats Row -->
+                <div class="stats-grid stats-grid-6">
+                    <div class="stat-card">
+                        <div class="stat-icon">⭐</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="h2h-best-avg-p1">-</div>
+                            <div class="stat-label">Best Avg Franz</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⭐</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="h2h-best-avg-p2">-</div>
+                            <div class="stat-label">Best Avg Bella</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💎</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="h2h-180s-p1">-</div>
+                            <div class="stat-label">180s Franz</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💎</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="h2h-180s-p2">-</div>
+                            <div class="stat-label">180s Bella</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📈</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="h2h-last10">-</div>
+                            <div class="stat-label">Letzte 10</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🎯</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="h2h-avg-diff">-</div>
+                            <div class="stat-label">Ø Avg-Differenz</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="charts-grid">
                     <div class="chart-card">
                         <h3>📈 Siege-Verlauf</h3>
@@ -1114,9 +1160,9 @@
 
                 <div class="charts-grid">
                     <div class="chart-card">
-                        <h3>🎯 Statistik-Vergleich</h3>
+                        <h3>📊 Form-Trend (letzte 20 Matches)</h3>
                         <div class="chart-container">
-                            <canvas id="chart-h2h-radar"></canvas>
+                            <canvas id="chart-h2h-form"></canvas>
                         </div>
                     </div>
                     <div class="chart-card">
@@ -1128,7 +1174,7 @@
                 </div>
 
                 <div class="table-container">
-                    <h3>📋 Match-Historie</h3>
+                    <h3>📋 Match-Historie (klicken für Details)</h3>
                     <table id="h2h-matches-table">
                         <thead>
                             <tr>
@@ -1136,8 +1182,8 @@
                                 <th>Ergebnis</th>
                                 <th>Avg Franz</th>
                                 <th>Avg Bella</th>
+                                <th>+/-</th>
                                 <th>Legs</th>
-                                <th>Sieger</th>
                                 <th>🏆 Rang</th>
                             </tr>
                         </thead>
