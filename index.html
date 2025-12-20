@@ -1052,94 +1052,57 @@
                     </div>
                 </div>
 
-                <div class="stats-grid stats-grid-6">
-                    <div class="stat-card">
-                        <div class="stat-icon">🎮</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="h2h-total-matches">-</div>
-                            <div class="stat-label">Matches</div>
-                        </div>
+                <!-- Side-by-side comparison layout -->
+                <div class="h2h-comparison">
+                    <div class="h2h-comparison-header">
+                        <div class="h2h-col-left">franzinwien</div>
+                        <div class="h2h-col-center">Statistik</div>
+                        <div class="h2h-col-right">bellaciao</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">📊</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="h2h-avg-p1">-</div>
-                            <div class="stat-label">Avg franzinwien</div>
-                        </div>
+                    <div class="h2h-comparison-row">
+                        <div class="h2h-value left" id="h2h-avg-p1">-</div>
+                        <div class="h2h-stat-label">📊 Ø Average</div>
+                        <div class="h2h-value right" id="h2h-avg-p2">-</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">📊</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="h2h-avg-p2">-</div>
-                            <div class="stat-label">Avg bellaciao</div>
-                        </div>
+                    <div class="h2h-comparison-row">
+                        <div class="h2h-value left" id="h2h-best-avg-p1">-</div>
+                        <div class="h2h-stat-label">⭐ Best Average</div>
+                        <div class="h2h-value right" id="h2h-best-avg-p2">-</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">🦵</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="h2h-legs-p1">-</div>
-                            <div class="stat-label">Legs franzinwien</div>
-                        </div>
+                    <div class="h2h-comparison-row">
+                        <div class="h2h-value left" id="h2h-legs-p1">-</div>
+                        <div class="h2h-stat-label">🦵 Legs gewonnen</div>
+                        <div class="h2h-value right" id="h2h-legs-p2">-</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">🦵</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="h2h-legs-p2">-</div>
-                            <div class="stat-label">Legs bellaciao</div>
-                        </div>
+                    <div class="h2h-comparison-row">
+                        <div class="h2h-value left" id="h2h-180s-p1">-</div>
+                        <div class="h2h-stat-label">💎 180s</div>
+                        <div class="h2h-value right" id="h2h-180s-p2">-</div>
                     </div>
-                    <div class="stat-card highlight">
-                        <div class="stat-icon">🔥</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="h2h-streak">-</div>
-                            <div class="stat-label">Aktuelle Serie</div>
-                        </div>
+                    <div class="h2h-comparison-row highlight-row">
+                        <div class="h2h-value left" id="h2h-winrate-p1">-</div>
+                        <div class="h2h-stat-label">🏆 Win Rate</div>
+                        <div class="h2h-value right" id="h2h-winrate-p2">-</div>
                     </div>
                 </div>
 
-                <!-- Neue Stats Row -->
-                <div class="stats-grid stats-grid-6">
-                    <div class="stat-card">
-                        <div class="stat-icon">⭐</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="h2h-best-avg-p1">-</div>
-                            <div class="stat-label">Best Avg Franz</div>
-                        </div>
+                <!-- Summary stats row -->
+                <div class="h2h-summary-stats">
+                    <div class="h2h-summary-card">
+                        <div class="h2h-summary-value" id="h2h-total-matches">-</div>
+                        <div class="h2h-summary-label">🎮 Matches</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">⭐</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="h2h-best-avg-p2">-</div>
-                            <div class="stat-label">Best Avg Bella</div>
-                        </div>
+                    <div class="h2h-summary-card">
+                        <div class="h2h-summary-value" id="h2h-last10">-</div>
+                        <div class="h2h-summary-label">📈 Letzte 10</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">💎</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="h2h-180s-p1">-</div>
-                            <div class="stat-label">180s Franz</div>
-                        </div>
+                    <div class="h2h-summary-card highlight">
+                        <div class="h2h-summary-value" id="h2h-streak">-</div>
+                        <div class="h2h-summary-label">🔥 Aktuelle Serie</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">💎</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="h2h-180s-p2">-</div>
-                            <div class="stat-label">180s Bella</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">📈</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="h2h-last10">-</div>
-                            <div class="stat-label">Letzte 10</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">🎯</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="h2h-avg-diff">-</div>
-                            <div class="stat-label">Ø Avg-Differenz</div>
-                        </div>
+                    <div class="h2h-summary-card">
+                        <div class="h2h-summary-value" id="h2h-avg-diff">-</div>
+                        <div class="h2h-summary-label">🎯 Ø Avg-Differenz</div>
                     </div>
                 </div>
 
