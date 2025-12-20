@@ -281,7 +281,15 @@ class AutodartsStats {
     renderFirst9Chart(turns){const ctx=document.getElementById('chart-first9-comparison');if(!ctx)return;let f9=0,f9c=0,r=0,rc=0;turns.forEach(t=>{if(t.points!==null){if(t.round<=3){f9+=t.points;f9c++;}else{r+=t.points;rc++;}}});if(this.f9Chart)this.f9Chart.destroy();this.f9Chart=new Chart(ctx,{type:'bar',data:{labels:['First 9','Rest'],datasets:[{data:[f9c?(f9/f9c).toFixed(1):0,rc?(r/rc).toFixed(1):0],backgroundColor:[CONFIG.COLORS.green,CONFIG.COLORS.blue],borderRadius:8}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#94a3b8'}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'},suggestedMin:30,suggestedMax:50}}}});}
     renderScoringChart(turns){const ctx=document.getElementById('chart-scoring-distribution');if(!ctx)return;let u40=0,s40=0,s60=0,s100=0,s140=0,s180=0;turns.forEach(t=>{if(t.points===null)return;if(t.points===180)s180++;else if(t.points>=140)s140++;else if(t.points>=100)s100++;else if(t.points>=60)s60++;else if(t.points>=40)s40++;else u40++;});if(this.scorChart)this.scorChart.destroy();this.scorChart=new Chart(ctx,{type:'doughnut',data:{labels:['<40','40-59','60-99','100-139','140-179','180'],datasets:[{data:[u40,s40,s60,s100,s140,s180],backgroundColor:['#64748b','#94a3b8','#3b82f6','#8b5cf6','#f59e0b','#10b981'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#94a3b8',font:{size:11}}}},cutout:'50%'}});}
     renderHighScoresChart(turns){const ctx=document.getElementById('chart-high-scores');if(!ctx)return;const mon={};turns.forEach(t=>{if(t.points===null||!t.created_at)return;const m=t.created_at.slice(0,7);if(!mon[m])mon[m]={s180:0,s140:0,s100:0};if(t.points===180)mon[m].s180++;else if(t.points>=140)mon[m].s140++;else if(t.points>=100)mon[m].s100++;});const ms=Object.keys(mon).sort().slice(-8);if(this.hsChart)this.hsChart.destroy();this.hsChart=new Chart(ctx,{type:'bar',data:{labels:ms.map(m=>new Date(m+'-01').toLocaleDateString('de-DE',{month:'short'})),datasets:[{label:'180s',data:ms.map(m=>mon[m].s180),backgroundColor:CONFIG.COLORS.green},{label:'140+',data:ms.map(m=>mon[m].s140),backgroundColor:CONFIG.COLORS.yellow},{label:'100+',data:ms.map(m=>mon[m].s100),backgroundColor:CONFIG.COLORS.blue}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:'#94a3b8',font:{size:10}}}},scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#94a3b8'}},y:{stacked:true,grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'}}}}});}
-    renderRecentMatches(matches){const tb=document.querySelector('#recent-matches-table tbody');if(!tb)return;const total=this.matchRankings.length;tb.innerHTML=matches.map(mp=>{const m=mp.match,d=new Date(m.finished_at),w=m.winner===mp.player_index,opp=this.opponentMap[mp.match_id],on=opp?(opp.is_bot?'🤖 Bot '+Math.round((opp.cpu_ppr||40)/10):opp.name||'Gegner'):'?',avg=mp.calcAvg||0,pc=avg>this.overallAverage+5?'perf-great':avg>this.overallAverage?'perf-good':avg>this.overallAverage-5?'perf-ok':'perf-bad',pt=avg>this.overallAverage+5?'🔥 Super':avg>this.overallAverage?'✅ Gut':avg>this.overallAverage-5?'➖ Ok':'❌ Schwach';return'<tr><td>'+d.toLocaleDateString('de-DE')+'</td><td>'+on+'</td><td class="'+(w?'result-win':'result-loss')+'">'+(w?'✅':'❌')+'</td><td>'+avg.toFixed(1)+'</td><td class="'+pc+'">'+pt+'</td><td>'+this.getRankBadge(mp.avgRank,total)+'</td></tr>';}).join('');}
+    renderRecentMatches(matches){const tb=document.querySelector('#recent-matches-table tbody');if(!tb)return;const total=this.matchRankings.length;tb.innerHTML=matches.map(mp=>{const m=mp.match,d=new Date(m.finished_at),w=m.winner===mp.player_index,opp=this.opponentMap[mp.match_id],on=opp?(opp.is_bot?'🤖 Bot '+Math.round((opp.cpu_ppr||40)/10):opp.name||'Gegner'):'?',avg=mp.calcAvg||0,pc=avg>this.overallAverage+5?'perf-great':avg>this.overallAverage?'perf-good':avg>this.overallAverage-5?'perf-ok':'perf-bad',pt=avg>this.overallAverage+5?'🔥 Super':avg>this.overallAverage?'✅ Gut':avg>this.overallAverage-5?'➖ Ok':'❌ Schwach';return'<tr style="cursor:pointer" onclick="window.app.goToMatchDetail(\''+mp.match_id+'\')"><td>'+d.toLocaleDateString('de-DE')+'</td><td>'+on+'</td><td class="'+(w?'result-win':'result-loss')+'">'+(w?'✅':'❌')+'</td><td>'+avg.toFixed(1)+'</td><td class="'+pc+'">'+pt+'</td><td>'+this.getRankBadge(mp.avgRank,total)+'</td></tr>';}).join('');}
+
+    goToMatchDetail(matchId) {
+        this.navigateTo('matchdetail');
+        setTimeout(() => {
+            document.getElementById('match-detail-select').value = matchId;
+            this.loadMatchDetail(matchId);
+        }, 100);
+    }
 
     // ========== LEGS PAGE (NEU) ==========
     async loadLegsPage() {
@@ -1187,29 +1195,22 @@ class AutodartsStats {
                 ? first9Turns.reduce((s, t) => s + t.points, 0) / first9Turns.length
                 : 0;
 
-            // Calculate AVG bis 170 (turns where remaining score was <= 170)
-            const turnsUnder170 = (myTurns || []).filter(t => t.score_remaining !== null && t.score_remaining <= 170 && t.points !== null);
-            const avg170 = turnsUnder170.length > 0
-                ? turnsUnder170.reduce((s, t) => s + t.points, 0) / turnsUnder170.length
-                : 0;
-
-            // Calculate Checkout % (legs won / checkout attempts)
-            // A checkout attempt is when score_remaining was reachable (<=170) and the leg ended
+            // Calculate Checkout % correctly:
+            // Checkout % = Successful checkouts / Checkout attempts
+            // A checkout attempt = turn where score_remaining <= 170 (player was in checkout range)
             const myLegsWonCount = (legs || []).filter(l => l.winner_player_id === mp.id).length;
-            const checkoutAttempts = (myTurns || []).filter(t => {
-                // Last turn in each leg where remaining was checkable
-                const isLastTurnInLeg = t.score_remaining !== null && t.score_remaining <= t.points;
-                return isLastTurnInLeg || (t.score_remaining !== null && t.score_remaining <= 170 && t.score_remaining > 0);
-            }).length;
-            // Simplified: use legs won vs total legs as proxy
-            const totalLegsPlayed = (legs || []).length;
-            const checkoutRate = totalLegsPlayed > 0 ? (myLegsWonCount / totalLegsPlayed) * 100 : 0;
+            const checkoutAttempts = (myTurns || []).filter(t =>
+                t.score_remaining !== null &&
+                t.score_remaining > 0 &&
+                t.score_remaining <= 170
+            ).length;
+            // Successful checkouts = legs won by this player
+            const checkoutRate = checkoutAttempts > 0 ? (myLegsWonCount / checkoutAttempts) * 100 : 0;
 
             // Update stats
             document.getElementById('md-average').textContent = matchAverage.toFixed(2) || '-';
             document.getElementById('md-first9').textContent = first9Avg > 0 ? first9Avg.toFixed(1) : '-';
-            document.getElementById('md-avg170').textContent = avg170 > 0 ? avg170.toFixed(1) : '-';
-            document.getElementById('md-checkout').textContent = myLegsWonCount > 0 ? checkoutRate.toFixed(1) + '%' : '-';
+            document.getElementById('md-checkout').textContent = checkoutAttempts > 0 ? checkoutRate.toFixed(1) + '%' : '-';
 
             // Count 180s from turns for THIS match only (not mp.total_180s which is overall)
             const match180s = (myTurns || []).filter(t => t.points === 180).length;
@@ -2471,10 +2472,6 @@ class AutodartsStats {
     }
 
     renderMatchView() {
-        // Show match summary section
-        document.getElementById('match-summary-section').style.display = '';
-        this.renderMatchSummary();
-
         // Match-level charts
         this.renderLegAveragesChart();
         this.renderMatchFirst9Chart();
@@ -2489,9 +2486,6 @@ class AutodartsStats {
     renderLegView(legId) {
         const leg = this.currentMatchLegs.find(l => l.id === legId);
         if (!leg) return;
-
-        // Hide match summary in leg view
-        document.getElementById('match-summary-section').style.display = 'none';
 
         // Update title
         document.getElementById('score-chart-title').textContent = `- Leg ${leg.leg_number + 1}`;
