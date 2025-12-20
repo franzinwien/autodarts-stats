@@ -1,5 +1,30 @@
 # Dashboard Redesign Konzept
 
+## ✅ IMPLEMENTIERT
+
+Die folgenden Änderungen wurden umgesetzt:
+
+### Navigation (von 9 auf 5 Seiten)
+- **Dashboard** - Übersicht mit "Gesamt" vs "Filter" Stats
+- **Legs** - Zentrale Seite für Legs/Matches mit Detail-Panel
+- **Heatmap** - Wurfanalyse (T20-Analyse noch ausstehend)
+- **Gegner** - Konsolidiert Opponents + Advanced mit Tabs
+- **Head-to-Head** - Unverändert
+
+### Neue Features
+- **Legs/Matches Toggle** im globalen Filter
+- **Stats-Sections** mit klarer Trennung "Gesamt" vs "Filter"
+- **Slide-in Detail-Panel** für Leg-Analyse
+- **Tab-Navigation** auf der Gegner-Seite
+
+### Entfernte Seiten
+- Scoring (→ in Heatmap/Legs)
+- Checkout (→ in Legs-Detail)
+- Matches (→ in Legs)
+- Advanced (→ Tab in Gegner)
+
+---
+
 ## Status Quo - Analyse
 
 ### Aktuelle Struktur (9 Seiten)
