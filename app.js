@@ -321,11 +321,18 @@ class AutodartsStats {
                 const legData = myLegs.map(l => {
                     const mp = matches.find(m => m.id === l.match_player_id);
                     const leg = legsMap[l.leg_id];
+                    // three_dart_avg in DB ist 3x zu hoch, also durch 3 teilen
+                    // Alternativ: aus total_darts berechnen wenn verfügbar
+                    let avg = l.three_dart_avg || 0;
+                    if (avg > 100 && l.total_darts > 0) {
+                        // Wenn Wert unrealistisch hoch, selbst berechnen: 501 / darts * 3
+                        avg = (501 / l.total_darts) * 3;
+                    }
                     return {
                         legId: l.leg_id,
                         matchId: l.match_id,
                         mpId: l.match_player_id,
-                        avg: l.three_dart_avg || 0,
+                        avg: avg,
                         totalDarts: l.total_darts,
                         legNumber: leg?.leg_number ?? 0,
                         won: leg?.winner_player_id === l.match_player_id,
@@ -613,18 +620,24 @@ class AutodartsStats {
         [{r:r,c:'#252540'},{r:r*.7,c:'#1a1a2e'},{r:r*.4,c:'#252540'},{r:r*.15,c:'#10b981'}].forEach(x=>{
             ctx.beginPath();ctx.arc(cx,cy,x.r,0,Math.PI*2);ctx.fillStyle=x.c;ctx.fill();
         });
-        // T20 Bereich markieren (oberer Teil)
-        ctx.save();ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,-.55,-.35);ctx.lineTo(cx,cy);ctx.fillStyle='rgba(16,185,129,.15)';ctx.fill();ctx.restore();
-        // Würfe zeichnen - Farbe nach Distanz zum Zentrum
+        // T20 Bereich markieren (oberer Teil) - bei -90° (oben)
+        ctx.save();ctx.beginPath();ctx.moveTo(cx,cy);
+        ctx.arc(cx,cy,r,-Math.PI/2-.16,-Math.PI/2+.16);
+        ctx.lineTo(cx,cy);ctx.fillStyle='rgba(16,185,129,.2)';ctx.fill();ctx.restore();
+        // Würfe zeichnen - Farbe nach Segment
         const wc=throws.filter(t=>t.coord_x!=null&&t.coord_y!=null);
+        if(wc.length===0){
+            ctx.fillStyle='#64748b';ctx.font='12px sans-serif';ctx.textAlign='center';
+            ctx.fillText('Keine Koordinaten',cx,cy);
+            return;
+        }
         wc.forEach(t=>{
-            const dist=Math.sqrt(t.coord_x*t.coord_x+t.coord_y*t.coord_y);
             const isT20=t.segment_number===20&&t.segment_bed==='Triple';
-            let color='rgba(239,68,68,.7)'; // rot - weit
-            if(isT20)color='rgba(16,185,129,.9)'; // grün - Treffer
-            else if(dist<.03)color='rgba(245,158,11,.8)'; // gelb - nah
-            else if(dist<.06)color='rgba(249,115,22,.8)'; // orange - mittel
-            ctx.beginPath();ctx.arc(cx+t.coord_x*r*3,cy-t.coord_y*r*3,3,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+            const is20=t.segment_number===20;
+            let color='rgba(239,68,68,.6)'; // rot - andere
+            if(isT20)color='rgba(16,185,129,.9)'; // grün - T20 Treffer
+            else if(is20)color='rgba(245,158,11,.7)'; // gelb - 20er aber kein Triple
+            ctx.beginPath();ctx.arc(cx+t.coord_x*r*2.5,cy-t.coord_y*r*2.5,3,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
         });
     }
 
@@ -634,30 +647,39 @@ class AutodartsStats {
         const wc=throws.filter(t=>t.coord_x!=null&&t.coord_y!=null);
         const dirs={nw:0,n:0,ne:0,w:0,c:0,e:0,sw:0,s:0,se:0};
         const total=wc.length||1;
+        const hitCount=hits.length;
+
+        // Für T20: oben ist gut (center), links=5, rechts=1, unten=Draht
         wc.forEach(t=>{
             const isHit=t.segment_number===20&&t.segment_bed==='Triple';
             if(isHit){dirs.c++;return;}
-            // Richtung bestimmen
-            const x=t.coord_x,y=t.coord_y;
-            if(y>.02){if(x<-.02)dirs.nw++;else if(x>.02)dirs.ne++;else dirs.n++;}
-            else if(y<-.02){if(x<-.02)dirs.sw++;else if(x>.02)dirs.se++;else dirs.s++;}
-            else{if(x<-.02)dirs.w++;else if(x>.02)dirs.e++;else dirs.c++;}
+            // Richtung basierend auf Segment bestimmen
+            const seg=t.segment_number;
+            const bed=t.segment_bed;
+            if(seg===5){dirs.w++;} // Links von 20
+            else if(seg===1){dirs.e++;} // Rechts von 20
+            else if(seg===20&&bed==='Single'){dirs.s++;} // Unter Triple (Single 20)
+            else if(seg===20&&bed==='Double'){dirs.n++;} // Über Triple (Double 20)
+            else{dirs.c++;} // Sonstige
         });
+
         // Cells aktualisieren
-        const maxMiss=Math.max(...Object.values(dirs).filter((_,i,a)=>Object.keys(dirs)[i]!=='c'))||1;
+        const missValues=Object.entries(dirs).filter(([k])=>k!=='c').map(([,v])=>v);
+        const maxMiss=Math.max(...missValues,1);
+        const arrows={nw:'↖',n:'↑',ne:'↗',w:'←',c:'●',e:'→',sw:'↙',s:'↓',se:'↘'};
+
         grid.querySelectorAll('.dir-cell').forEach(cell=>{
             const dir=cell.dataset.dir;
             const cnt=dirs[dir]||0;
-            const pct=((cnt/total)*100).toFixed(0);
-            cell.querySelector('.dir-pct')?.remove();
+            cell.classList.remove('hit','hot','warm','cool');
+
             if(dir==='c'){
-                cell.innerHTML='●<br><span class="dir-pct">' + hits.length + ' (' + ((hits.length/total)*100).toFixed(0) + '%)</span>';
-                cell.classList.add('hit');cell.classList.remove('hot','warm','cool');
+                cell.innerHTML=arrows[dir]+'<br><span class="dir-pct">' + hitCount + '</span>';
+                cell.classList.add('hit');
             }else{
-                cell.innerHTML=cell.textContent.charAt(0)+'<br><span class="dir-pct">'+cnt+'</span>';
-                cell.classList.remove('hit','hot','warm','cool');
-                if(cnt>=maxMiss*.7)cell.classList.add('hot');
-                else if(cnt>=maxMiss*.4)cell.classList.add('warm');
+                cell.innerHTML=arrows[dir]+'<br><span class="dir-pct">'+cnt+'</span>';
+                if(cnt>=maxMiss*.6)cell.classList.add('hot');
+                else if(cnt>=maxMiss*.3)cell.classList.add('warm');
                 else if(cnt>0)cell.classList.add('cool');
             }
         });
@@ -683,20 +705,20 @@ class AutodartsStats {
         setBar('dist-0-1',bins.d01);setBar('dist-1-2',bins.d12);setBar('dist-2-3',bins.d23);setBar('dist-3-plus',bins.d3p);
     }
 
-    // T20 Trend Chart - zeigt T20 Hit Rate über Zeit
+    // T20 Trend Chart - zeigt 3-Dart Average Trend über Zeit
     renderT20TrendChart(matches){
         const ctx=document.getElementById('chart-t20-trend');if(!ctx)return;
-        // Für jeden Match die T20-Rate berechnen wäre zu aufwändig, stattdessen zeigen wir Rolling Average
-        // Hier: Dummy-Daten basierend auf Match-Average als Proxy
-        const sorted=[...matches].sort((a,b)=>new Date(a.match.finished_at)-new Date(b.match.finished_at)).slice(-30);
+        // Zeige Average-Trend statt T20-Rate (da T20-Rate nicht pro Match verfügbar)
+        const sorted=[...matches].filter(m=>m.match&&m.average>0).sort((a,b)=>new Date(a.match.finished_at)-new Date(b.match.finished_at)).slice(-30);
+        if(sorted.length===0){
+            if(this.t20Chart)this.t20Chart.destroy();
+            this.t20Chart=null;
+            return;
+        }
         const labels=sorted.map(m=>new Date(m.match.finished_at).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}));
-        const data=sorted.map(m=>{
-            // Proxy: höherer Average = bessere T20-Rate (Annahme)
-            const avg=m.average||40;
-            return Math.min(25,Math.max(5,avg/4+Math.random()*5-2.5)).toFixed(1);
-        });
+        const data=sorted.map(m=>m.average.toFixed(1));
         if(this.t20Chart)this.t20Chart.destroy();
-        this.t20Chart=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'T20 Rate %',data,borderColor:CONFIG.COLORS.green,backgroundColor:'rgba(16,185,129,.1)',tension:.3,fill:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'},suggestedMin:0,suggestedMax:30}}}});
+        this.t20Chart=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Ø Average',data,borderColor:CONFIG.COLORS.green,backgroundColor:'rgba(16,185,129,.1)',tension:.3,fill:true,pointRadius:3,pointBackgroundColor:CONFIG.COLORS.green}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},title:{display:true,text:'Average-Trend (letzte 30 Matches)',color:'#94a3b8',font:{size:12}}},scales:{x:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8',font:{size:9},maxRotation:45}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'},suggestedMin:30,suggestedMax:80}}}});
     }
 
     // ========== OPPONENTS (konsolidiert mit Advanced/Zeitanalyse) ==========
@@ -1159,11 +1181,35 @@ class AutodartsStats {
             const totalPoints = (myTurns || []).reduce((s, t) => s + (t.points || 0), 0);
             const matchAverage = dartsThrown > 0 ? (totalPoints / dartsThrown) * 3 : 0;
 
-            // Update stats - Match Average is calculated, others from DB
+            // Calculate First 9 Average (first 3 rounds = 9 darts)
+            const first9Turns = (myTurns || []).filter(t => t.round <= 3 && t.points !== null);
+            const first9Avg = first9Turns.length > 0
+                ? first9Turns.reduce((s, t) => s + t.points, 0) / first9Turns.length
+                : 0;
+
+            // Calculate AVG bis 170 (turns where remaining score was <= 170)
+            const turnsUnder170 = (myTurns || []).filter(t => t.score_remaining !== null && t.score_remaining <= 170 && t.points !== null);
+            const avg170 = turnsUnder170.length > 0
+                ? turnsUnder170.reduce((s, t) => s + t.points, 0) / turnsUnder170.length
+                : 0;
+
+            // Calculate Checkout % (legs won / checkout attempts)
+            // A checkout attempt is when score_remaining was reachable (<=170) and the leg ended
+            const myLegsWonCount = (legs || []).filter(l => l.winner_player_id === mp.id).length;
+            const checkoutAttempts = (myTurns || []).filter(t => {
+                // Last turn in each leg where remaining was checkable
+                const isLastTurnInLeg = t.score_remaining !== null && t.score_remaining <= t.points;
+                return isLastTurnInLeg || (t.score_remaining !== null && t.score_remaining <= 170 && t.score_remaining > 0);
+            }).length;
+            // Simplified: use legs won vs total legs as proxy
+            const totalLegsPlayed = (legs || []).length;
+            const checkoutRate = totalLegsPlayed > 0 ? (myLegsWonCount / totalLegsPlayed) * 100 : 0;
+
+            // Update stats
             document.getElementById('md-average').textContent = matchAverage.toFixed(2) || '-';
-            document.getElementById('md-first9').textContent = mp.first_9_average?.toFixed(1) || '-';
-            document.getElementById('md-avg170').textContent = mp.average_until_170?.toFixed(1) || '-';
-            document.getElementById('md-checkout').textContent = mp.checkout_rate ? (mp.checkout_rate * 100).toFixed(1) + '%' : '-';
+            document.getElementById('md-first9').textContent = first9Avg > 0 ? first9Avg.toFixed(1) : '-';
+            document.getElementById('md-avg170').textContent = avg170 > 0 ? avg170.toFixed(1) : '-';
+            document.getElementById('md-checkout').textContent = myLegsWonCount > 0 ? checkoutRate.toFixed(1) + '%' : '-';
 
             // Count 180s from turns for THIS match only (not mp.total_180s which is overall)
             const match180s = (myTurns || []).filter(t => t.points === 180).length;
@@ -1191,12 +1237,12 @@ class AutodartsStats {
             this.currentMp = mp;
             this.currentOppMp = oppMp;
 
-            // Store match data for summary generation
+            // Store match data for summary generation (use calculated values)
             this.currentMatchData = {
                 myStats: {
-                    average: mp.average,
-                    first9_average: mp.first_9_average,
-                    checkout_percentage: mp.checkout_rate ? mp.checkout_rate * 100 : null,
+                    average: matchAverage,
+                    first9_average: first9Avg,
+                    checkout_percentage: checkoutRate,
                     player_id: mp.id
                 },
                 opponent: opp ? (opp.is_bot ? 'Bot ' + Math.round((opp.cpu_ppr || 40) / 10) : opp.name || 'Gegner') : 'Gegner'
@@ -1795,10 +1841,10 @@ class AutodartsStats {
         const turns = this.currentMyTurns;
         const legs = this.currentMatchLegs;
 
-        // Collect key stats
-        const avg = myStats.average ? parseFloat(myStats.average).toFixed(1) : '-';
-        const first9 = myStats.first9_average ? parseFloat(myStats.first9_average).toFixed(1) : '-';
-        const checkout = myStats.checkout_percentage ? parseFloat(myStats.checkout_percentage).toFixed(1) + '%' : '-';
+        // Collect key stats (use > 0 instead of truthy to handle 0 values)
+        const avg = myStats.average > 0 ? parseFloat(myStats.average).toFixed(1) : '-';
+        const first9 = myStats.first9_average > 0 ? parseFloat(myStats.first9_average).toFixed(1) : '-';
+        const checkout = myStats.checkout_percentage > 0 ? parseFloat(myStats.checkout_percentage).toFixed(1) + '%' : '-';
         const legsWon = legs.filter(l => l.winner_player_id === myStats.player_id).length;
         const legsLost = legs.length - legsWon;
         const isWin = legsWon > legsLost;
