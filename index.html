@@ -1020,154 +1020,159 @@
                 </div>
             </div>
 
-            <!-- Opponents Page -->
+            <!-- Opponents Page (konsolidiert: Gegner + Zeitanalyse) -->
             <div id="page-opponents" class="page">
                 <div class="page-header">
-                    <h2>👥 Gegner-Statistik</h2>
+                    <h2>👥 Gegner & Analyse</h2>
                 </div>
-                
-                <div class="stats-grid stats-grid-6">
-                    <div class="stat-card">
-                        <div class="stat-icon">👥</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-unique-opponents">-</div>
-                            <div class="stat-label">Verschiedene Gegner</div>
+
+                <!-- Tabs -->
+                <div class="page-tabs">
+                    <button class="page-tab active" data-tab="opponents-tab">👥 Gegner</button>
+                    <button class="page-tab" data-tab="time-analysis-tab">🕐 Zeitanalyse</button>
+                </div>
+
+                <!-- Tab: Gegner -->
+                <div id="opponents-tab" class="tab-content active">
+                    <div class="stats-grid stats-grid-6">
+                        <div class="stat-card">
+                            <div class="stat-icon">👥</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-unique-opponents">-</div>
+                                <div class="stat-label">Verschiedene Gegner</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">🤖</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-vs-bots">-</div>
+                                <div class="stat-label">vs. Bots Win %</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">👤</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-vs-humans">-</div>
+                                <div class="stat-label">vs. Menschen Win %</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">😈</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-nemesis">-</div>
+                                <div class="stat-label">Nemesis</div>
+                            </div>
+                        </div>
+                        <div class="stat-card highlight">
+                            <div class="stat-icon">🎯</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-favorite-victim">-</div>
+                                <div class="stat-label">Lieblingsgegner</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">📈</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-avg-vs-opponents">-</div>
+                                <div class="stat-label">Avg vs Gegner-Avg</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">🤖</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-vs-bots">-</div>
-                            <div class="stat-label">vs. Bots Win %</div>
+
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <h3>📊 Win Rate nach Bot-Level</h3>
+                            <div class="chart-container">
+                                <canvas id="chart-winrate-by-bot-level"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-card">
+                            <h3>🏆 Top Gegner (Matches)</h3>
+                            <div class="chart-container">
+                                <canvas id="chart-top-opponents"></canvas>
+                            </div>
                         </div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">👤</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-vs-humans">-</div>
-                            <div class="stat-label">vs. Menschen Win %</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">😈</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-nemesis">-</div>
-                            <div class="stat-label">Nemesis</div>
-                        </div>
-                    </div>
-                    <div class="stat-card highlight">
-                        <div class="stat-icon">🎯</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-favorite-victim">-</div>
-                            <div class="stat-label">Lieblingsgegner</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">📈</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-avg-vs-opponents">-</div>
-                            <div class="stat-label">Avg vs Gegner-Avg</div>
-                        </div>
+
+                    <div class="table-container">
+                        <table id="opponents-table">
+                            <thead>
+                                <tr>
+                                    <th>Gegner</th>
+                                    <th>Matches</th>
+                                    <th>Siege</th>
+                                    <th>Niederlagen</th>
+                                    <th>Win %</th>
+                                    <th>Mein Avg</th>
+                                    <th>Gegner Avg</th>
+                                    <th>Letzte Begegnung</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
                     </div>
                 </div>
 
-                <div class="charts-grid">
-                    <div class="chart-card">
-                        <h3>📊 Win Rate nach Bot-Level</h3>
-                        <div class="chart-container">
-                            <canvas id="chart-winrate-by-bot-level"></canvas>
+                <!-- Tab: Zeitanalyse -->
+                <div id="time-analysis-tab" class="tab-content">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">🕐</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-best-time">-</div>
+                                <div class="stat-label">Beste Tageszeit</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">📅</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-best-day">-</div>
+                                <div class="stat-label">Bester Wochentag</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">🔄</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-avg-legs">-</div>
+                                <div class="stat-label">Ø Legs pro Match</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">⏱️</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-total-playtime">-</div>
+                                <div class="stat-label">Spielzeit gesamt</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="chart-card">
-                        <h3>🏆 Top Gegner (Matches)</h3>
-                        <div class="chart-container">
-                            <canvas id="chart-top-opponents"></canvas>
-                        </div>
-                    </div>
-                </div>
 
-                <div class="table-container">
-                    <table id="opponents-table">
-                        <thead>
-                            <tr>
-                                <th>Gegner</th>
-                                <th>Matches</th>
-                                <th>Siege</th>
-                                <th>Niederlagen</th>
-                                <th>Win %</th>
-                                <th>Mein Avg</th>
-                                <th>Gegner Avg</th>
-                                <th>Letzte Begegnung</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </div>
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <h3>🕐 Performance nach Tageszeit</h3>
+                            <div class="chart-container">
+                                <canvas id="chart-by-time"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-card">
+                            <h3>📅 Performance nach Wochentag</h3>
+                            <div class="chart-container">
+                                <canvas id="chart-by-weekday"></canvas>
+                            </div>
+                        </div>
+                    </div>
 
-            <!-- Advanced Analysis Page -->
-            <div id="page-advanced" class="page">
-                <div class="page-header">
-                    <h2>🧪 Erweiterte Analyse</h2>
-                </div>
-                
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon">🕐</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-best-time">-</div>
-                            <div class="stat-label">Beste Tageszeit</div>
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <h3>📊 Legs pro Match Trend</h3>
+                            <div class="chart-container">
+                                <canvas id="chart-legs-trend"></canvas>
+                            </div>
                         </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">📅</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-best-day">-</div>
-                            <div class="stat-label">Bester Wochentag</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">🔄</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-avg-legs">-</div>
-                            <div class="stat-label">Ø Legs pro Match</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">⏱️</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-total-playtime">-</div>
-                            <div class="stat-label">Spielzeit gesamt</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="charts-grid">
-                    <div class="chart-card">
-                        <h3>🕐 Performance nach Tageszeit</h3>
-                        <div class="chart-container">
-                            <canvas id="chart-by-time"></canvas>
-                        </div>
-                    </div>
-                    <div class="chart-card">
-                        <h3>📅 Performance nach Wochentag</h3>
-                        <div class="chart-container">
-                            <canvas id="chart-by-weekday"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="charts-grid">
-                    <div class="chart-card">
-                        <h3>📊 Legs pro Match Trend</h3>
-                        <div class="chart-container">
-                            <canvas id="chart-legs-trend"></canvas>
-                        </div>
-                    </div>
-                    <div class="chart-card">
-                        <h3>🎯 Konstanz-Entwicklung</h3>
-                        <div class="chart-container">
-                            <canvas id="chart-consistency-trend"></canvas>
+                        <div class="chart-card">
+                            <h3>🎯 Konstanz-Entwicklung</h3>
+                            <div class="chart-container">
+                                <canvas id="chart-consistency-trend"></canvas>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -410,6 +410,49 @@ body {
     gap: 16px;
 }
 
+/* Page Tabs */
+.page-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    padding: 4px;
+    background: var(--bg-primary);
+    border-radius: var(--radius-sm);
+    width: fit-content;
+}
+
+.page-tab {
+    padding: 10px 20px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.page-tab:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+}
+
+.page-tab.active {
+    background: var(--accent-green);
+    color: white;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
 .grouping-toggle {
     display: flex;
     align-items: center;
