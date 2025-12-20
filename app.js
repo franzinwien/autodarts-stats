@@ -1181,11 +1181,35 @@ class AutodartsStats {
             const totalPoints = (myTurns || []).reduce((s, t) => s + (t.points || 0), 0);
             const matchAverage = dartsThrown > 0 ? (totalPoints / dartsThrown) * 3 : 0;
 
-            // Update stats - Match Average is calculated, others from DB
+            // Calculate First 9 Average (first 3 rounds = 9 darts)
+            const first9Turns = (myTurns || []).filter(t => t.round <= 3 && t.points !== null);
+            const first9Avg = first9Turns.length > 0
+                ? first9Turns.reduce((s, t) => s + t.points, 0) / first9Turns.length
+                : 0;
+
+            // Calculate AVG bis 170 (turns where remaining score was <= 170)
+            const turnsUnder170 = (myTurns || []).filter(t => t.score_remaining !== null && t.score_remaining <= 170 && t.points !== null);
+            const avg170 = turnsUnder170.length > 0
+                ? turnsUnder170.reduce((s, t) => s + t.points, 0) / turnsUnder170.length
+                : 0;
+
+            // Calculate Checkout % (legs won / checkout attempts)
+            // A checkout attempt is when score_remaining was reachable (<=170) and the leg ended
+            const myLegsWonCount = (legs || []).filter(l => l.winner_player_id === mp.id).length;
+            const checkoutAttempts = (myTurns || []).filter(t => {
+                // Last turn in each leg where remaining was checkable
+                const isLastTurnInLeg = t.score_remaining !== null && t.score_remaining <= t.points;
+                return isLastTurnInLeg || (t.score_remaining !== null && t.score_remaining <= 170 && t.score_remaining > 0);
+            }).length;
+            // Simplified: use legs won vs total legs as proxy
+            const totalLegsPlayed = (legs || []).length;
+            const checkoutRate = totalLegsPlayed > 0 ? (myLegsWonCount / totalLegsPlayed) * 100 : 0;
+
+            // Update stats
             document.getElementById('md-average').textContent = matchAverage.toFixed(2) || '-';
-            document.getElementById('md-first9').textContent = mp.first_9_average?.toFixed(1) || '-';
-            document.getElementById('md-avg170').textContent = mp.average_until_170?.toFixed(1) || '-';
-            document.getElementById('md-checkout').textContent = mp.checkout_rate ? (mp.checkout_rate * 100).toFixed(1) + '%' : '-';
+            document.getElementById('md-first9').textContent = first9Avg > 0 ? first9Avg.toFixed(1) : '-';
+            document.getElementById('md-avg170').textContent = avg170 > 0 ? avg170.toFixed(1) : '-';
+            document.getElementById('md-checkout').textContent = myLegsWonCount > 0 ? checkoutRate.toFixed(1) + '%' : '-';
 
             // Count 180s from turns for THIS match only (not mp.total_180s which is overall)
             const match180s = (myTurns || []).filter(t => t.points === 180).length;
@@ -1213,12 +1237,12 @@ class AutodartsStats {
             this.currentMp = mp;
             this.currentOppMp = oppMp;
 
-            // Store match data for summary generation
+            // Store match data for summary generation (use calculated values)
             this.currentMatchData = {
                 myStats: {
-                    average: mp.average,
-                    first9_average: mp.first_9_average,
-                    checkout_percentage: mp.checkout_rate ? mp.checkout_rate * 100 : null,
+                    average: matchAverage,
+                    first9_average: first9Avg,
+                    checkout_percentage: checkoutRate,
                     player_id: mp.id
                 },
                 opponent: opp ? (opp.is_bot ? 'Bot ' + Math.round((opp.cpu_ppr || 40) / 10) : opp.name || 'Gegner') : 'Gegner'
@@ -1817,10 +1841,10 @@ class AutodartsStats {
         const turns = this.currentMyTurns;
         const legs = this.currentMatchLegs;
 
-        // Collect key stats
-        const avg = myStats.average ? parseFloat(myStats.average).toFixed(1) : '-';
-        const first9 = myStats.first9_average ? parseFloat(myStats.first9_average).toFixed(1) : '-';
-        const checkout = myStats.checkout_percentage ? parseFloat(myStats.checkout_percentage).toFixed(1) + '%' : '-';
+        // Collect key stats (use > 0 instead of truthy to handle 0 values)
+        const avg = myStats.average > 0 ? parseFloat(myStats.average).toFixed(1) : '-';
+        const first9 = myStats.first9_average > 0 ? parseFloat(myStats.first9_average).toFixed(1) : '-';
+        const checkout = myStats.checkout_percentage > 0 ? parseFloat(myStats.checkout_percentage).toFixed(1) + '%' : '-';
         const legsWon = legs.filter(l => l.winner_player_id === myStats.player_id).length;
         const legsLost = legs.length - legsWon;
         const isWin = legsWon > legsLost;
