@@ -1,517 +1,463 @@
-// AUTODARTS STATS PRO v4.0 - Head-to-Head & Rankings Edition
-const BELLACIAO_ID = '7eb1c7f2-1a04-41cd-aae3-0416a8f4db59';
-const FRANZ_ID = 'b81d2805-46e8-4daf-be6c-899e2d70bdfa';
-
-// T20 Polygon (Convex Hull aus 7586 echten T20-Würfen)
-const T20_POLYGON = [
-    [-0.089152, 0.565903], [0.079155, 0.5653], [0.08823, 0.565993], [0.090225, 0.569936],
-    [0.090479, 0.571558], [0.096431, 0.61163], [0.09477, 0.62118], [0.092786, 0.621972],
-    [0.080128, 0.624283], [0.073509, 0.625], [0.051897, 0.627071], [0.018904, 0.62905],
-    [0.002049, 0.629261], [-0.011489, 0.629035], [-0.025957, 0.628627], [-0.033343, 0.628343],
-    [-0.041776, 0.627821], [-0.059573, 0.626313], [-0.068194, 0.625463], [-0.080342, 0.624259],
-    [-0.095506, 0.621444], [-0.096787, 0.615528], [-0.096603, 0.611639], [-0.095702, 0.604708],
-    [-0.089838, 0.568086]
-];
-const T20_CENTROID = [-0.0006088, 0.5932017]; // Mittelpunkt des T20-Felds
-
-// Skalierungsfaktor: 1 normalisierte Einheit = 173mm (basierend auf Triple-Ring bei 103mm)
-const COORD_TO_MM = 173;
-
-// Prüft ob ein Punkt innerhalb eines Polygons liegt (Ray-casting Algorithmus)
-function pointInPolygon(x, y, polygon) {
-    let inside = false;
-    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-        const xi = polygon[i][0], yi = polygon[i][1];
-        const xj = polygon[j][0], yj = polygon[j][1];
-        if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
-            inside = !inside;
-        }
-    }
-    return inside;
-}
-
-// Berechnet kürzeste Distanz von einem Punkt zu einem Liniensegment
-function distanceToSegment(px, py, x1, y1, x2, y2) {
-    const dx = x2 - x1, dy = y2 - y1;
-    const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)));
-    const nearX = x1 + t * dx, nearY = y1 + t * dy;
-    return Math.sqrt((px - nearX) ** 2 + (py - nearY) ** 2);
-}
-
-// Berechnet kürzeste Distanz von einem Punkt zum Polygon-Rand
-function distanceToPolygon(x, y, polygon) {
-    let minDist = Infinity;
-    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-        const dist = distanceToSegment(x, y, polygon[j][0], polygon[j][1], polygon[i][0], polygon[i][1]);
-        if (dist < minDist) minDist = dist;
-    }
-    return minDist;
-}
-
-// Berechnet Richtung vom T20-Zentrum zum Punkt (8 Richtungen)
-// oben = Richtung Bull, unten = Richtung Draht/außen
-// links = Richtung 5, rechts = Richtung 1
-function getDirectionFromT20(x, y) {
-    const dx = x - T20_CENTROID[0];
-    const dy = y - T20_CENTROID[1];
-    const angle = Math.atan2(dy, dx) * 180 / Math.PI; // -180 bis 180
-
-    // 8 Richtungen: je 45° Segmente
-    // Rechts = 0°, Oben = 90°, Links = 180°/-180°, Unten = -90°
-    if (angle >= -22.5 && angle < 22.5) return 'rechts-mitte';
-    if (angle >= 22.5 && angle < 67.5) return 'rechts-oben';
-    if (angle >= 67.5 && angle < 112.5) return 'oben';
-    if (angle >= 112.5 && angle < 157.5) return 'links-oben';
-    if (angle >= 157.5 || angle < -157.5) return 'links-mitte';
-    if (angle >= -157.5 && angle < -112.5) return 'links-unten';
-    if (angle >= -112.5 && angle < -67.5) return 'unten';
-    return 'rechts-unten'; // -67.5 bis -22.5
-}
-
-// Analysiert T20-Würfe und gruppiert Fehlwürfe nach Richtung und Distanz
-function analyzeT20Misses(throws) {
-    const t20Area = throws.filter(t => [20, 1, 5].includes(t.segment_number) && t.coord_x != null && t.coord_y != null);
-
-    // 8 Richtungen mit Distanz-Kategorien
-    const directions = ['links-oben', 'links-mitte', 'links-unten', 'oben', 'unten', 'rechts-oben', 'rechts-mitte', 'rechts-unten'];
-    const byDirection = {};
-    directions.forEach(d => {
-        byDirection[d] = { close: [], far: [] }; // close: 0-1cm, far: >1cm
-    });
-
-    const results = {
-        total: t20Area.length,
-        hits: 0,
-        misses: [],
-        byDirection,
-        byDistance: { '0-1cm': 0, '1-2cm': 0, '2-3cm': 0, '>3cm': 0 }
-    };
-
-    t20Area.forEach(t => {
-        const inT20 = pointInPolygon(t.coord_x, t.coord_y, T20_POLYGON);
-        if (inT20) {
-            results.hits++;
-        } else {
-            const dist = distanceToPolygon(t.coord_x, t.coord_y, T20_POLYGON);
-            const distMm = dist * COORD_TO_MM; // Umrechnung in mm
-            const direction = getDirectionFromT20(t.coord_x, t.coord_y);
-
-            results.misses.push({ x: t.coord_x, y: t.coord_y, distMm, direction, segment: t.segment_name });
-
-            // Nach Richtung und Nähe gruppieren (1cm = 10mm)
-            if (distMm <= 10) {
-                results.byDirection[direction].close.push(distMm);
-            } else {
-                results.byDirection[direction].far.push(distMm);
-            }
-
-            // Distanz-Kategorien in cm
-            if (distMm <= 10) results.byDistance['0-1cm']++;
-            else if (distMm <= 20) results.byDistance['1-2cm']++;
-            else if (distMm <= 30) results.byDistance['2-3cm']++;
-            else results.byDistance['>3cm']++;
-        }
-    });
-
-    return results;
-}
+// Autodarts Stats - Clean Dashboard App
 
 class AutodartsStats {
-    constructor() { this.user = null; this.currentPlayerId = null; this.allPlayers = []; this.allMatchPlayers = []; this.allMatches = []; this.allLegs = []; this.opponentMap = {}; this.overallAverage = 0; this.matchRankings = []; this.legRankings = []; this.filters = { time: 'all', type: '', variant: 'X01', view: 'legs' }; this.init(); }
-    
+    constructor() {
+        this.user = null;
+        this.allowedUsers = [];
+        this.matches = [];
+        this.matchPlayers = [];
+        this.legs = [];
+        this.turns = [];
+        this.users = [];
+        this.currentPlayer = null;
+        this.filters = {
+            player: '',
+            time: '30',
+            type: '',
+            opponent: ''
+        };
+        this.charts = {};
+        this.currentPage = 1;
+        this.matchesPerPage = 20;
+
+        this.init();
+    }
+
     async init() {
-        this.isInitialized = false;
+        // Check for existing session
         const { data: { session } } = await window.db.auth.getSession();
-        if (session) { await this.handleAuthSuccess(session.user); this.isInitialized = true; }
-        else {
-            const hp = new URLSearchParams(window.location.hash.substring(1));
-            if (hp.get('access_token')) {
-                const { data: { session: ns } } = await window.db.auth.getSession();
-                if (ns) { await this.handleAuthSuccess(ns.user); this.isInitialized = true; window.history.replaceState({}, document.title, window.location.pathname); }
-            }
+
+        if (session) {
+            await this.handleAuth(session);
         }
-        window.db.auth.onAuthStateChange(async (e, s) => {
-            // Only handle SIGNED_IN on initial login (not TOKEN_REFRESHED which shows as SIGNED_IN too)
-            if (e === 'SIGNED_IN' && s && !this.isInitialized) {
-                await this.handleAuthSuccess(s.user);
-                this.isInitialized = true;
-            } else if (e === 'SIGNED_OUT') {
-                this.isInitialized = false;
-                this.showLoginScreen();
+
+        // Listen for auth changes
+        window.db.auth.onAuthStateChange(async (event, session) => {
+            if (event === 'SIGNED_IN' && session) {
+                await this.handleAuth(session);
+            } else if (event === 'SIGNED_OUT') {
+                this.showLogin();
             }
-            // TOKEN_REFRESHED events are handled automatically by Supabase, no action needed
         });
+
         this.setupEventListeners();
     }
-    
-    setupEventListeners() { document.getElementById('send-magic-link')?.addEventListener('click', () => this.sendMagicLink()); document.getElementById('email-input')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') this.sendMagicLink(); }); document.getElementById('logout-btn')?.addEventListener('click', () => this.logout()); document.querySelectorAll('.nav-btn').forEach(btn => btn.addEventListener('click', () => this.navigateTo(btn.dataset.page))); document.getElementById('apply-filters')?.addEventListener('click', () => this.applyFilters()); document.getElementById('global-filter-time')?.addEventListener('change', () => this.applyFilters()); document.getElementById('global-filter-type')?.addEventListener('change', () => this.applyFilters()); document.getElementById('global-filter-variant')?.addEventListener('change', () => this.applyFilters()); document.getElementById('heatmap-target')?.addEventListener('change', () => this.loadHeatmapData()); document.getElementById('global-filter-player')?.addEventListener('change', (e) => this.switchPlayer(e.target.value)); document.getElementById('match-detail-prev')?.addEventListener('click', () => this.navigateMatch(-1)); document.getElementById('match-detail-next')?.addEventListener('click', () => this.navigateMatch(1)); document.getElementById('match-detail-select')?.addEventListener('change', (e) => this.loadMatchDetail(e.target.value)); document.querySelectorAll('.toggle-btn').forEach(btn => btn.addEventListener('click', () => this.toggleView(btn.dataset.view))); document.querySelectorAll('.page-tab').forEach(btn => btn.addEventListener('click', () => this.switchTab(btn.dataset.tab))); }
-    
-    async switchPlayer(pid) { if (pid === this.currentPlayerId) return; this.currentPlayerId = pid; await this.loadPlayerData(pid); this.applyFilters(); }
-    toggleView(view) { if (this.filters.view === view) return; this.filters.view = view; document.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.view === view)); this.legHistoryLoaded = false; this.matchHistoryLoaded = false; this.navigateTo(document.querySelector('.nav-btn.active')?.dataset.page || 'overview'); }
-    switchTab(tabId) { document.querySelectorAll('.page-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tabId)); document.querySelectorAll('.tab-content').forEach(tab => tab.classList.toggle('active', tab.id === tabId)); }
-    applyFilters() { this.filters.time = document.getElementById('global-filter-time').value; this.filters.type = document.getElementById('global-filter-type').value; this.filters.variant = document.getElementById('global-filter-variant').value; this.legHistoryLoaded = false; this.matchHistoryLoaded = false; this.navigateTo(document.querySelector('.nav-btn.active')?.dataset.page || 'overview'); }
-    getFilteredData() { let d = this.allMatchPlayers.map(mp => ({...mp, match: this.allMatches.find(m => m.id === mp.match_id)})).filter(mp => mp.match); if (this.filters.time !== 'all') { const days = parseInt(this.filters.time), cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days); d = d.filter(mp => new Date(mp.match.finished_at) >= cutoff); } if (this.filters.type) d = d.filter(mp => mp.match.type === this.filters.type); if (this.filters.variant) d = d.filter(mp => mp.match.variant === this.filters.variant); return d.sort((a, b) => new Date(b.match.finished_at) - new Date(a.match.finished_at)); }
-    
-    async sendMagicLink() { const email = document.getElementById('email-input').value.trim(), msg = document.getElementById('login-message'); if (!email) { msg.textContent = 'Bitte Email eingeben'; msg.className = 'login-message error'; return; } try { const { error } = await window.db.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } }); if (error) throw error; msg.textContent = 'Magic Link gesendet!'; msg.className = 'login-message success'; } catch (e) { msg.textContent = e.message; msg.className = 'login-message error'; } }
-    
-    async handleAuthSuccess(user) { this.user = user; this.showLoading(); try { const { data: players } = await window.db.from('allowed_users').select('*'); this.allPlayers = players || []; const cu = this.allPlayers.find(p => p.email === user.email); if (!cu) { alert('Zugang nicht erlaubt.'); await this.logout(); return; } this.currentPlayerId = cu.autodarts_user_id; document.getElementById('user-name').textContent = cu.autodarts_username || user.email; const sel = document.getElementById('global-filter-player'); if (sel) sel.innerHTML = this.allPlayers.map(p => '<option value="'+p.autodarts_user_id+'"'+(p.autodarts_user_id===cu.autodarts_user_id?' selected':'')+'>'+(p.autodarts_username||p.email)+'</option>').join(''); document.getElementById('global-filter-variant').value = 'X01'; this.filters.variant = 'X01'; await this.loadPlayerData(this.currentPlayerId); this.showDashboard(); this.navigateTo('overview'); } catch (e) { console.error(e); } finally { this.hideLoading(); } }
-    
-    async loadPlayerData(pid) { const { data: mp } = await window.db.from('match_players').select('*').eq('user_id', pid); this.allMatchPlayers = mp || []; if (!this.allMatchPlayers.length) return; const mids = [...new Set(this.allMatchPlayers.map(m => m.match_id))]; const batches = []; for (let i = 0; i < mids.length; i += 50) batches.push(mids.slice(i, i+50)); const [matchResults, oppResults] = await Promise.all([Promise.all(batches.map(batch => window.db.from('matches').select('*').in('id', batch))), Promise.all(batches.map(batch => window.db.from('match_players').select('*').in('match_id', batch)))]); this.allMatches = matchResults.flatMap(r => r.data || []); this.opponentMap = {}; oppResults.flatMap(r => r.data || []).forEach(p => { if (p.user_id !== pid && !this.opponentMap[p.match_id]) this.opponentMap[p.match_id] = p; }); const avgs = this.allMatchPlayers.filter(m => m.average > 0).map(m => m.average); this.overallAverage = avgs.length ? avgs.reduce((a,b)=>a+b,0)/avgs.length : 0; }
-    
-    async loadTurns(mpIds) { if (!mpIds.length) return []; const batches = []; for (let i = 0; i < mpIds.length; i += 50) batches.push(mpIds.slice(i, i+50)); const results = await Promise.all(batches.map(batch => window.db.from('turns').select('id,points,round,match_player_id,created_at,score_remaining').in('match_player_id', batch))); return results.flatMap(r => r.data || []); }
-    async loadThrows(tids, lim=5000) { if (!tids.length) return []; const limitedTids = tids.slice(0, lim); const batches = []; for (let i = 0; i < limitedTids.length; i += 100) batches.push(limitedTids.slice(i, i+100)); const results = await Promise.all(batches.map(batch => window.db.from('throws').select('*').in('turn_id', batch))); return results.flatMap(r => r.data || []); }
-    
-    // Calculate average from turns for a match_player
-    calcAvgFromTurns(turns, mpId) { const t = turns.filter(x => x.match_player_id === mpId && x.points !== null); return t.length ? t.reduce((s,x) => s + x.points, 0) / t.length : 0; }
-    
-    // Calculate rankings client-side
-    calcRankings(matchesWithAvg) { const sorted = [...matchesWithAvg].sort((a,b) => b.calcAvg - a.calcAvg); sorted.forEach((m, i) => m.avgRank = i + 1); const byScore = [...matchesWithAvg].sort((a,b) => { const scoreA = a.calcAvg * 0.4 + (a.isWin ? 10 : 0); const scoreB = b.calcAvg * 0.4 + (b.isWin ? 10 : 0); return scoreB - scoreA; }); byScore.forEach((m, i) => m.matchRank = i + 1); return matchesWithAvg; }
-    
-    getRankBadge(rank, total) { if (rank === 1) return '<span class="rank-badge rank-gold">🥇 1</span>'; if (rank === 2) return '<span class="rank-badge rank-silver">🥈 2</span>'; if (rank === 3) return '<span class="rank-badge rank-bronze">🥉 3</span>'; if (rank <= 10) return '<span class="rank-badge rank-top10">#' + rank + '</span>'; return '<span class="rank-badge rank-normal">#' + rank + '</span>'; }
-    
-    async logout() { await window.db.auth.signOut(); this.showLoginScreen(); }
-    showLoginScreen() { document.getElementById('login-screen').classList.remove('hidden'); document.getElementById('dashboard-screen').classList.add('hidden'); }
-    showDashboard() { document.getElementById('login-screen').classList.add('hidden'); document.getElementById('dashboard-screen').classList.remove('hidden'); }
-    showLoading() { document.getElementById('loading-overlay')?.classList.remove('hidden'); }
-    hideLoading() { document.getElementById('loading-overlay')?.classList.add('hidden'); }
-    navigateTo(page) { document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === page)); document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+page)); ({overview:()=>this.loadOverviewData(),legs:()=>this.loadLegsPage(),scoring:()=>this.loadScoringData(),checkout:()=>this.loadCheckoutData(),matches:()=>this.loadMatchesPage(),matchdetail:()=>this.loadMatchDetailPage(),heatmap:()=>this.loadHeatmapData(),opponents:()=>this.loadOpponentsData(),advanced:()=>this.loadAdvancedData(),headtohead:()=>this.loadH2HData()})[page]?.(); }
 
-    // ========== OVERVIEW ==========
-    async loadOverviewData() {
-        this.showLoading();
-        try {
-            // === TOTAL STATS (alle Daten ohne Filter, nur X01) ===
-            const allData = this.allMatchPlayers.map(mp => ({...mp, match: this.allMatches.find(m => m.id === mp.match_id)})).filter(mp => mp.match && mp.match.variant === 'X01');
-            const allMpIds = allData.map(m => m.id);
-            let totalWins = 0, totalCheckoutSum = 0, totalCheckoutCnt = 0;
-            allData.forEach(mp => {
-                if(mp.match.winner === mp.player_index) totalWins++;
-                if(mp.checkout_rate > 0) { totalCheckoutSum += mp.checkout_rate; totalCheckoutCnt++; }
-            });
-            const allTurns = await this.loadTurns(allMpIds);
-            let totalPts = 0, totalCnt = 0, totalF9pts = 0, totalF9cnt = 0, total180s = 0;
-            allTurns.forEach(t => {
-                if(t.points !== null) {
-                    totalPts += t.points; totalCnt++;
-                    if(t.points === 180) total180s++;
-                    if(t.round <= 3) { totalF9pts += t.points; totalF9cnt++; }
-                }
-            });
-
-            // Gesamt-Statistiken anzeigen
-            document.getElementById('stat-total-average').textContent = totalCnt ? (totalPts / totalCnt).toFixed(1) : '-';
-            document.getElementById('stat-total-first9').textContent = totalF9cnt ? (totalF9pts / totalF9cnt).toFixed(1) : '-';
-            document.getElementById('stat-total-checkout').textContent = totalCheckoutCnt ? ((totalCheckoutSum / totalCheckoutCnt) * 100).toFixed(1) + '%' : '-';
-            document.getElementById('stat-total-180s').textContent = total180s;
-            const totalLegsWon = allData.reduce((s, mp) => s + (mp.legs_won || 0), 0);
-            const totalLegs = allData.reduce((s, mp) => s + (mp.legs_won || 0) + (mp.legs_lost || 0), 0);
-            document.getElementById('stat-total-winrate').textContent = this.filters.view === 'legs'
-                ? (totalLegs ? ((totalLegsWon / totalLegs) * 100).toFixed(0) + '%' : '-')
-                : (allData.length ? ((totalWins / allData.length) * 100).toFixed(0) + '%' : '-');
-
-            // === FILTERED STATS ===
-            const matches = this.getFilteredData();
-            const mpIds = matches.map(m => m.id);
-            const turns = await this.loadTurns(mpIds);
-
-            let pts = 0, cnt = 0, f9pts = 0, f9cnt = 0, c180 = 0;
-            const byMp = {};
-            turns.forEach(t => {
-                if(t.points !== null) {
-                    pts += t.points; cnt++;
-                    if(t.points === 180) c180++;
-                    if(t.round <= 3) { f9pts += t.points; f9cnt++; }
-                    if(!byMp[t.match_player_id]) byMp[t.match_player_id] = [];
-                    byMp[t.match_player_id].push(t.points);
-                }
-            });
-
-            // Rankings berechnen
-            const matchData = matches.map(mp => {
-                const t = byMp[mp.id] || [];
-                const calcAvg = t.length ? t.reduce((a,b) => a+b, 0) / t.length : (mp.average || 0);
-                return {...mp, calcAvg, isWin: mp.match.winner === mp.player_index };
-            });
-            this.matchRankings = this.calcRankings(matchData);
-            const bestMatch = this.matchRankings.find(m => m.avgRank === 1);
-
-            // Konsistenz berechnen
-            const mAvgs = Object.values(byMp).map(a => a.reduce((x,y) => x+y, 0) / a.length);
-            const avg = mAvgs.length ? mAvgs.reduce((a,b) => a+b, 0) / mAvgs.length : 0;
-            const std = Math.sqrt(mAvgs.length ? mAvgs.reduce((s,a) => s + Math.pow(a - avg, 2), 0) / mAvgs.length : 0);
-
-            // Trend berechnen (letzte 7 Tage vs vorherige 7 Tage)
-            const now = new Date(), w1 = new Date(now - 7*864e5), w2 = new Date(now - 14*864e5);
-            const rec = matches.filter(m => new Date(m.match.finished_at) >= w1 && m.average > 0);
-            const prev = matches.filter(m => { const d = new Date(m.match.finished_at); return d >= w2 && d < w1 && m.average > 0; });
-            const recAvg = rec.length ? rec.reduce((s,m) => s + m.average, 0) / rec.length : 0;
-            const prevAvg = prev.length ? prev.reduce((s,m) => s + m.average, 0) / prev.length : 0;
-            const trend = prevAvg ? recAvg - prevAvg : 0;
-
-            // Filter-Statistiken anzeigen
-            document.getElementById('stat-average').textContent = cnt ? (pts / cnt).toFixed(1) : '-';
-            document.getElementById('stat-first9').textContent = f9cnt ? (f9pts / f9cnt).toFixed(1) : '-';
-            const tEl = document.getElementById('stat-trend');
-            tEl.textContent = trend > 0 ? '↑ +' + trend.toFixed(1) : trend < 0 ? '↓ ' + trend.toFixed(1) : '→ 0';
-            tEl.className = 'stat-value ' + (trend > 0 ? 'trend-up' : trend < 0 ? 'trend-down' : '');
-            document.getElementById('stat-best-leg').textContent = bestMatch ? bestMatch.calcAvg.toFixed(1) : '-';
-            document.getElementById('stat-best-label').textContent = this.filters.view === 'legs' ? 'Bestes Leg' : 'Bestes Match';
-            document.getElementById('stat-consistency').textContent = (std < 3 ? 'A+' : std < 5 ? 'A' : std < 7 ? 'B' : std < 10 ? 'C' : 'D') + ' (±' + std.toFixed(1) + ')';
-
-            // Filter-Badge aktualisieren
-            const filterBadge = document.getElementById('filter-badge');
-            if (filterBadge) {
-                const viewLabel = this.filters.view === 'legs' ? 'Legs' : 'Matches';
-                const timeLabel = this.filters.time === 'all' ? 'Alle Zeit' : this.filters.time + ' Tage';
-                filterBadge.textContent = viewLabel + ' · ' + timeLabel;
-            }
-
-            // Charts rendern
-            this.renderAvgChart(matches, turns);
-            this.renderResultsChart(matches.filter(mp => mp.match.winner === mp.player_index).length, matches.length - matches.filter(mp => mp.match.winner === mp.player_index).length);
-            this.renderFirst9Chart(turns);
-            this.renderScoringChart(turns);
-            this.renderHighScoresChart(turns);
-            this.renderRecentMatches(this.matchRankings.slice(0, 10));
-        } catch(e) { console.error(e); } finally { this.hideLoading(); }
-    }
-
-    renderAvgChart(matches,turns){const ctx=document.getElementById('chart-avg-comparison');if(!ctx)return;const byMp={};turns.forEach(t=>{if(t.points!==null){if(!byMp[t.match_player_id])byMp[t.match_player_id]={all:[],sc:[]};byMp[t.match_player_id].all.push(t.points);if(t.score_remaining===null||t.score_remaining>100)byMp[t.match_player_id].sc.push(t.points);}});const md=matches.map(mp=>{const d=byMp[mp.id]||{all:[],sc:[]};return{date:new Date(mp.match.finished_at),avgAll:d.all.length?d.all.reduce((a,b)=>a+b,0)/d.all.length:null,avgSc:d.sc.length?d.sc.reduce((a,b)=>a+b,0)/d.sc.length:null};}).filter(m=>m.avgAll!==null).sort((a,b)=>a.date-b.date);if(!md.length)return;const days=Math.ceil((md[md.length-1].date-md[0].date)/864e5);let dp;if(days>180){const byM={};md.forEach(m=>{const k=m.date.toISOString().slice(0,7);if(!byM[k])byM[k]={all:[],sc:[]};byM[k].all.push(m.avgAll);if(m.avgSc)byM[k].sc.push(m.avgSc);});dp=Object.entries(byM).sort((a,b)=>a[0].localeCompare(b[0])).map(([m,d])=>({l:new Date(m+'-01').toLocaleDateString('de-DE',{month:'short',year:'2-digit'}),a:d.all.reduce((x,y)=>x+y,0)/d.all.length,s:d.sc.length?d.sc.reduce((x,y)=>x+y,0)/d.sc.length:null}));}else{dp=md.slice(-30).map(m=>({l:m.date.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}),a:m.avgAll,s:m.avgSc}));}if(this.avgCompChart)this.avgCompChart.destroy();this.avgCompChart=new Chart(ctx,{type:'line',data:{labels:dp.map(d=>d.l),datasets:[{label:'Avg bis 100',data:dp.map(d=>d.s?.toFixed(1)),borderColor:CONFIG.COLORS.blue,fill:false,tension:.3},{label:'Match Avg',data:dp.map(d=>d.a.toFixed(1)),borderColor:CONFIG.COLORS.green,backgroundColor:'rgba(16,185,129,.1)',fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:'#94a3b8'}}},scales:{x:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8',maxRotation:45,font:{size:10}}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'},suggestedMin:30,suggestedMax:55}}}});}
-    renderResultsChart(w,l){const ctx=document.getElementById('chart-results');if(!ctx)return;if(this.resChart)this.resChart.destroy();this.resChart=new Chart(ctx,{type:'doughnut',data:{labels:['Siege','Niederl.'],datasets:[{data:[w,l],backgroundColor:[CONFIG.COLORS.green,CONFIG.COLORS.red],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#94a3b8'}}},cutout:'65%'}});}
-    renderFirst9Chart(turns){const ctx=document.getElementById('chart-first9-comparison');if(!ctx)return;let f9=0,f9c=0,r=0,rc=0;turns.forEach(t=>{if(t.points!==null){if(t.round<=3){f9+=t.points;f9c++;}else{r+=t.points;rc++;}}});if(this.f9Chart)this.f9Chart.destroy();this.f9Chart=new Chart(ctx,{type:'bar',data:{labels:['First 9','Rest'],datasets:[{data:[f9c?(f9/f9c).toFixed(1):0,rc?(r/rc).toFixed(1):0],backgroundColor:[CONFIG.COLORS.green,CONFIG.COLORS.blue],borderRadius:8}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#94a3b8'}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'},suggestedMin:30,suggestedMax:50}}}});}
-    renderScoringChart(turns){const ctx=document.getElementById('chart-scoring-distribution');if(!ctx)return;let u40=0,s40=0,s60=0,s100=0,s140=0,s180=0;turns.forEach(t=>{if(t.points===null)return;if(t.points===180)s180++;else if(t.points>=140)s140++;else if(t.points>=100)s100++;else if(t.points>=60)s60++;else if(t.points>=40)s40++;else u40++;});if(this.scorChart)this.scorChart.destroy();this.scorChart=new Chart(ctx,{type:'doughnut',data:{labels:['<40','40-59','60-99','100-139','140-179','180'],datasets:[{data:[u40,s40,s60,s100,s140,s180],backgroundColor:['#64748b','#94a3b8','#3b82f6','#8b5cf6','#f59e0b','#10b981'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#94a3b8',font:{size:11}}}},cutout:'50%'}});}
-    renderHighScoresChart(turns){const ctx=document.getElementById('chart-high-scores');if(!ctx)return;const mon={};turns.forEach(t=>{if(t.points===null||!t.created_at)return;const m=t.created_at.slice(0,7);if(!mon[m])mon[m]={s180:0,s140:0,s100:0};if(t.points===180)mon[m].s180++;else if(t.points>=140)mon[m].s140++;else if(t.points>=100)mon[m].s100++;});const ms=Object.keys(mon).sort().slice(-8);if(this.hsChart)this.hsChart.destroy();this.hsChart=new Chart(ctx,{type:'bar',data:{labels:ms.map(m=>new Date(m+'-01').toLocaleDateString('de-DE',{month:'short'})),datasets:[{label:'180s',data:ms.map(m=>mon[m].s180),backgroundColor:CONFIG.COLORS.green},{label:'140+',data:ms.map(m=>mon[m].s140),backgroundColor:CONFIG.COLORS.yellow},{label:'100+',data:ms.map(m=>mon[m].s100),backgroundColor:CONFIG.COLORS.blue}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:'#94a3b8',font:{size:10}}}},scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#94a3b8'}},y:{stacked:true,grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'}}}}});}
-    renderRecentMatches(matches){const tb=document.querySelector('#recent-matches-table tbody');if(!tb)return;const total=this.matchRankings.length;tb.innerHTML=matches.map(mp=>{const m=mp.match,d=new Date(m.finished_at),w=m.winner===mp.player_index,opp=this.opponentMap[mp.match_id],on=opp?(opp.is_bot?'🤖 Bot '+Math.round((opp.cpu_ppr||40)/10):opp.name||'Gegner'):'?',avg=mp.calcAvg||0,pc=avg>this.overallAverage+5?'perf-great':avg>this.overallAverage?'perf-good':avg>this.overallAverage-5?'perf-ok':'perf-bad',pt=avg>this.overallAverage+5?'🔥 Super':avg>this.overallAverage?'✅ Gut':avg>this.overallAverage-5?'➖ Ok':'❌ Schwach';return'<tr style="cursor:pointer" onclick="window.app.goToMatchDetail(\''+mp.match_id+'\')"><td>'+d.toLocaleDateString('de-DE')+'</td><td>'+on+'</td><td class="'+(w?'result-win':'result-loss')+'">'+(w?'✅':'❌')+'</td><td>'+avg.toFixed(1)+'</td><td class="'+pc+'">'+pt+'</td><td>'+this.getRankBadge(mp.avgRank,total)+'</td></tr>';}).join('');}
-
-    goToMatchDetail(matchId) {
-        this.navigateTo('matchdetail');
-        setTimeout(() => {
-            document.getElementById('match-detail-select').value = matchId;
-            this.loadMatchDetail(matchId);
-        }, 100);
-    }
-
-    // ========== LEGS PAGE (NEU) ==========
-    async loadLegsPage() {
-        this.showLoading();
-        try {
-            const matches = this.getFilteredData();
-            const mpIds = matches.map(m => m.id);
-            const matchIds = [...new Set(matches.map(m => m.match_id))];
-
-            // Titel je nach Ansicht
-            const pageTitle = document.getElementById('legs-page-title');
-            if (pageTitle) {
-                pageTitle.textContent = this.filters.view === 'legs' ? '🎯 Legs' : '🎮 Matches';
-            }
-
-            if (this.filters.view === 'legs') {
-                // Lade Leg-Daten aus der Materialized View
-                const legBatches = [];
-                for (let i = 0; i < matchIds.length; i += 100) legBatches.push(matchIds.slice(i, i + 100));
-                const legResults = await Promise.all(legBatches.map(batch => window.db.from('leg_averages').select('*').in('match_id', batch)));
-                const allLegAvgs = legResults.flatMap(r => r.data || []);
-
-                // Nur Legs des aktuellen Spielers
-                const mpIdSet = new Set(mpIds);
-                const myLegs = allLegAvgs.filter(l => mpIdSet.has(l.match_player_id));
-
-                // Lade Legs für Winner-Info
-                const legIds = myLegs.map(l => l.leg_id);
-                const legsBatches = [];
-                for (let i = 0; i < matchIds.length; i += 100) legsBatches.push(matchIds.slice(i, i + 100));
-                const legsResults = await Promise.all(legsBatches.map(batch => window.db.from('legs').select('*').in('match_id', batch)));
-                const allLegs = legsResults.flatMap(r => r.data || []);
-                const legsMap = {};
-                allLegs.forEach(l => { legsMap[l.id] = l; });
-
-                // Sortieren und Rangliste erstellen
-                const legData = myLegs.map(l => {
-                    const mp = matches.find(m => m.id === l.match_player_id);
-                    const leg = legsMap[l.leg_id];
-                    // three_dart_avg in DB ist 3x zu hoch, also durch 3 teilen
-                    // Alternativ: aus total_darts berechnen wenn verfügbar
-                    let avg = l.three_dart_avg || 0;
-                    if (avg > 100 && l.total_darts > 0) {
-                        // Wenn Wert unrealistisch hoch, selbst berechnen: 501 / darts * 3
-                        avg = (501 / l.total_darts) * 3;
-                    }
-                    return {
-                        legId: l.leg_id,
-                        matchId: l.match_id,
-                        mpId: l.match_player_id,
-                        avg: avg,
-                        totalDarts: l.total_darts,
-                        legNumber: leg?.leg_number ?? 0,
-                        won: leg?.winner_player_id === l.match_player_id,
-                        match: mp?.match,
-                        mp: mp
-                    };
-                }).filter(l => l.match);
-
-                // Nach Average sortieren für Rang
-                legData.sort((a, b) => b.avg - a.avg);
-                legData.forEach((l, i) => { l.rank = i + 1; });
-
-                // Nach Datum sortieren für Anzeige
-                const sortedLegs = [...legData].sort((a, b) => new Date(b.match.finished_at) - new Date(a.match.finished_at));
-
-                this.currentLegsData = sortedLegs;
-                this.renderLegsTable(sortedLegs.slice(0, 50));
-            } else {
-                // Match-Ansicht (wie bisher)
-                const turns = await this.loadTurns(mpIds);
-                const byMp = {};
-                turns.forEach(t => {
-                    if (t.points !== null) {
-                        if (!byMp[t.match_player_id]) byMp[t.match_player_id] = [];
-                        byMp[t.match_player_id].push(t.points);
-                    }
-                });
-
-                const matchData = matches.map(mp => {
-                    const t = byMp[mp.id] || [];
-                    const calcAvg = t.length ? t.reduce((a, b) => a + b, 0) / t.length : (mp.average || 0);
-                    return { ...mp, calcAvg, isWin: mp.match.winner === mp.player_index };
-                });
-                this.matchRankings = this.calcRankings(matchData);
-                this.currentLegsData = this.matchRankings;
-                this.renderMatchesTable(this.matchRankings.slice(0, 50));
-            }
-        } catch (e) { console.error(e); }
-        finally { this.hideLoading(); }
-    }
-
-    renderLegsTable(legs) {
-        const tb = document.querySelector('#legs-table tbody');
-        if (!tb) return;
-        const total = this.currentLegsData.length;
-
-        tb.innerHTML = legs.map((leg, idx) => {
-            const m = leg.match;
-            const d = new Date(m.finished_at);
-            const opp = this.opponentMap[leg.matchId];
-            const oppName = opp ? (opp.is_bot ? '🤖 Bot ' + Math.round((opp.cpu_ppr || 40) / 10) : opp.name || 'Gegner') : '?';
-            const checkout = leg.won ? '✅' : '-';
-
-            return '<tr onclick="window.app.openLegDetail(\'' + leg.legId + '\')" style="cursor:pointer">' +
-                '<td>' + (idx + 1) + '</td>' +
-                '<td>' + d.toLocaleDateString('de-DE') + '</td>' +
-                '<td>' + oppName + '</td>' +
-                '<td>Leg ' + (leg.legNumber + 1) + '</td>' +
-                '<td><strong>' + leg.avg.toFixed(1) + '</strong></td>' +
-                '<td>' + (leg.totalDarts || '-') + '</td>' +
-                '<td>' + checkout + '</td>' +
-                '<td>' + this.getRankBadge(leg.rank, total) + '</td>' +
-                '<td>→</td>' +
-                '</tr>';
-        }).join('');
-    }
-
-    renderMatchesTable(matches) {
-        const tb = document.querySelector('#legs-table tbody');
-        if (!tb) return;
-        const total = matches.length;
-
-        tb.innerHTML = matches.map((mp, idx) => {
-            const m = mp.match;
-            const d = new Date(m.finished_at);
-            const w = mp.isWin;
-            const opp = this.opponentMap[mp.match_id];
-            const oppName = opp ? (opp.is_bot ? '🤖 Bot ' + Math.round((opp.cpu_ppr || 40) / 10) : opp.name || 'Gegner') : '?';
-
-            return '<tr onclick="window.app.openMatchDetail(\'' + mp.match_id + '\')" style="cursor:pointer">' +
-                '<td>' + (idx + 1) + '</td>' +
-                '<td>' + d.toLocaleDateString('de-DE') + '</td>' +
-                '<td>' + oppName + '</td>' +
-                '<td>' + (mp.legs_won || 0) + ':' + (mp.legs_lost || 0) + '</td>' +
-                '<td><strong>' + mp.calcAvg.toFixed(1) + '</strong></td>' +
-                '<td>-</td>' +
-                '<td class="' + (w ? 'result-win' : 'result-loss') + '">' + (w ? '✅' : '❌') + '</td>' +
-                '<td>' + this.getRankBadge(mp.avgRank, total) + '</td>' +
-                '<td>→</td>' +
-                '</tr>';
-        }).join('');
-    }
-
-    async openLegDetail(legId) {
-        const panel = document.getElementById('leg-detail-panel');
-        if (!panel) return;
-
-        // Lade Leg-Daten
-        const legData = this.currentLegsData?.find(l => l.legId === legId);
-        if (!legData) return;
-
-        // Panel öffnen
-        panel.classList.remove('hidden');
-        setTimeout(() => panel.classList.add('visible'), 10);
-
-        // Titel
-        const title = document.getElementById('leg-detail-title');
-        if (title) {
-            const d = new Date(legData.match.finished_at);
-            title.textContent = 'Leg ' + (legData.legNumber + 1) + ' - ' + d.toLocaleDateString('de-DE');
-        }
-
-        // Stats
-        document.getElementById('ld-average').textContent = legData.avg.toFixed(1);
-        document.getElementById('ld-darts').textContent = legData.totalDarts || '-';
-        document.getElementById('ld-checkout').textContent = legData.won ? '✅' : '-';
-        document.getElementById('ld-rank').textContent = '#' + legData.rank;
-
-        // Lade Turns für dieses Leg
-        const { data: turns } = await window.db.from('turns').select('*').eq('leg_id', legId).order('created_at');
-        if (!turns) return;
-
-        const myTurns = turns.filter(t => t.match_player_id === legData.mpId);
-
-        // First 9 berechnen
-        const f9 = myTurns.filter(t => t.round <= 3 && t.points !== null);
-        const f9Avg = f9.length ? f9.reduce((s, t) => s + t.points, 0) / f9.length : 0;
-        document.getElementById('ld-first9').textContent = f9Avg.toFixed(1);
-
-        // Visits-Tabelle
-        this.renderLegVisitsTable(myTurns);
-
-        // Charts
-        this.renderLegProgressionChart(myTurns);
-        this.renderLegScoringChart(myTurns);
-    }
-
-    renderLegVisitsTable(turns) {
-        const tb = document.querySelector('#ld-visits-table tbody');
-        if (!tb) return;
-
-        tb.innerHTML = turns.map((t, i) => {
-            return '<tr>' +
-                '<td>' + (i + 1) + '</td>' +
-                '<td><strong>' + (t.points || 0) + '</strong></td>' +
-                '<td>' + (t.score_remaining ?? '-') + '</td>' +
-                '<td>-</td>' +
-                '</tr>';
-        }).join('');
-    }
-
-    renderLegProgressionChart(turns) {
-        const ctx = document.getElementById('ld-chart-progression');
-        if (!ctx) return;
-
-        const data = [];
-        let remaining = 501;
-        turns.forEach((t, i) => {
-            if (t.points !== null) remaining -= t.points;
-            data.push({ x: i + 1, y: remaining > 0 ? remaining : 0 });
+    setupEventListeners() {
+        // Login
+        document.getElementById('send-magic-link')?.addEventListener('click', () => this.sendMagicLink());
+        document.getElementById('email-input')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.sendMagicLink();
         });
 
-        if (this.ldProgChart) this.ldProgChart.destroy();
-        this.ldProgChart = new Chart(ctx, {
+        // Logout
+        document.getElementById('logout-btn')?.addEventListener('click', () => this.logout());
+
+        // Filters
+        document.getElementById('apply-filters')?.addEventListener('click', () => this.applyFilters());
+
+        // Navigation
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.addEventListener('click', () => this.showPage(tab.dataset.page));
+        });
+
+        // Matches sort
+        document.getElementById('matches-sort')?.addEventListener('change', () => this.renderMatchesTable());
+
+        // H2H player selection
+        document.getElementById('h2h-player1')?.addEventListener('change', () => this.updateH2H());
+        document.getElementById('h2h-player2')?.addEventListener('change', () => this.updateH2H());
+    }
+
+    async sendMagicLink() {
+        const email = document.getElementById('email-input').value.trim();
+        const messageEl = document.getElementById('login-message');
+
+        if (!email) {
+            messageEl.textContent = 'Bitte Email eingeben';
+            messageEl.className = 'login-message error';
+            return;
+        }
+
+        try {
+            const { error } = await window.db.auth.signInWithOtp({
+                email,
+                options: {
+                    emailRedirectTo: window.location.origin + window.location.pathname
+                }
+            });
+
+            if (error) throw error;
+
+            messageEl.textContent = 'Magic Link gesendet! Check deine Emails.';
+            messageEl.className = 'login-message success';
+        } catch (error) {
+            messageEl.textContent = 'Fehler: ' + error.message;
+            messageEl.className = 'login-message error';
+        }
+    }
+
+    async handleAuth(session) {
+        this.showLoading(true);
+
+        try {
+            // Load allowed users
+            const { data: allowedUsers } = await window.db.from('allowed_users').select('*');
+            this.allowedUsers = allowedUsers || [];
+
+            // Check if user is allowed
+            const userEmail = session.user.email;
+            const allowedUser = this.allowedUsers.find(u => u.email.toLowerCase() === userEmail.toLowerCase());
+
+            if (!allowedUser) {
+                alert('Zugang nicht erlaubt');
+                await this.logout();
+                return;
+            }
+
+            this.user = {
+                ...session.user,
+                autodarts_user_id: allowedUser.autodarts_user_id,
+                autodarts_username: allowedUser.autodarts_username
+            };
+
+            // Load data
+            await this.loadData();
+
+            // Setup UI
+            this.setupFilters();
+            this.showDashboard();
+            this.applyFilters();
+
+        } catch (error) {
+            console.error('Auth error:', error);
+            alert('Fehler beim Laden: ' + error.message);
+        } finally {
+            this.showLoading(false);
+        }
+    }
+
+    async loadData() {
+        // Load all data in parallel
+        const [matchesRes, matchPlayersRes, legsRes, turnsRes, usersRes] = await Promise.all([
+            window.db.from('matches').select('*').order('finished_at', { ascending: false }),
+            window.db.from('match_players').select('*'),
+            window.db.from('legs').select('*'),
+            window.db.from('turns').select('*'),
+            window.db.from('users').select('*')
+        ]);
+
+        this.matches = matchesRes.data || [];
+        this.matchPlayers = matchPlayersRes.data || [];
+        this.legs = legsRes.data || [];
+        this.turns = turnsRes.data || [];
+        this.users = usersRes.data || [];
+
+        console.log(`Loaded: ${this.matches.length} matches, ${this.matchPlayers.length} match_players, ${this.legs.length} legs, ${this.turns.length} turns`);
+    }
+
+    setupFilters() {
+        // Player filter
+        const playerSelect = document.getElementById('filter-player');
+        playerSelect.innerHTML = '';
+
+        this.allowedUsers.forEach(u => {
+            const option = document.createElement('option');
+            option.value = u.autodarts_user_id;
+            option.textContent = u.autodarts_username;
+            if (u.autodarts_user_id === this.user.autodarts_user_id) {
+                option.selected = true;
+            }
+            playerSelect.appendChild(option);
+        });
+
+        // Opponent filter - will be populated after filtering
+        this.updateOpponentFilter();
+
+        // H2H player selects
+        const h2hPlayer1 = document.getElementById('h2h-player1');
+        const h2hPlayer2 = document.getElementById('h2h-player2');
+
+        if (h2hPlayer1 && h2hPlayer2) {
+            h2hPlayer1.innerHTML = '';
+            h2hPlayer2.innerHTML = '';
+
+            this.allowedUsers.forEach((u, i) => {
+                const opt1 = document.createElement('option');
+                opt1.value = u.autodarts_user_id;
+                opt1.textContent = u.autodarts_username;
+                if (i === 0) opt1.selected = true;
+                h2hPlayer1.appendChild(opt1);
+
+                const opt2 = document.createElement('option');
+                opt2.value = u.autodarts_user_id;
+                opt2.textContent = u.autodarts_username;
+                if (i === 1) opt2.selected = true;
+                h2hPlayer2.appendChild(opt2);
+            });
+        }
+
+        // Set current player
+        this.currentPlayer = this.user.autodarts_user_id;
+        this.filters.player = this.currentPlayer;
+    }
+
+    updateOpponentFilter() {
+        const opponentSelect = document.getElementById('filter-opponent');
+        opponentSelect.innerHTML = '<option value="">Alle Gegner</option>';
+
+        // Get unique opponents
+        const opponents = new Map();
+        this.matchPlayers.forEach(mp => {
+            if (mp.user_id && mp.user_id !== this.filters.player) {
+                if (!opponents.has(mp.user_id)) {
+                    opponents.set(mp.user_id, mp.name);
+                }
+            }
+        });
+
+        // Add bots
+        this.matchPlayers.forEach(mp => {
+            if (mp.is_bot && mp.name) {
+                const botKey = 'bot_' + mp.name;
+                if (!opponents.has(botKey)) {
+                    opponents.set(botKey, mp.name + ' (Bot)');
+                }
+            }
+        });
+
+        opponents.forEach((name, id) => {
+            const option = document.createElement('option');
+            option.value = id;
+            option.textContent = name;
+            opponentSelect.appendChild(option);
+        });
+    }
+
+    applyFilters() {
+        this.filters.player = document.getElementById('filter-player').value;
+        this.filters.time = document.getElementById('filter-time').value;
+        this.filters.type = document.getElementById('filter-type').value;
+        this.filters.opponent = document.getElementById('filter-opponent').value;
+
+        this.currentPlayer = this.filters.player;
+        this.updateOpponentFilter();
+        this.renderDashboard();
+    }
+
+    getFilteredData() {
+        let playerMatches = this.matchPlayers.filter(mp => mp.user_id === this.filters.player);
+
+        // Join with matches
+        let data = playerMatches.map(mp => {
+            const match = this.matches.find(m => m.id === mp.match_id);
+            return { ...mp, match };
+        }).filter(d => d.match);
+
+        // Time filter
+        if (this.filters.time !== 'all') {
+            const days = parseInt(this.filters.time);
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - days);
+            data = data.filter(d => new Date(d.match.finished_at) >= cutoff);
+        }
+
+        // Type filter
+        if (this.filters.type) {
+            data = data.filter(d => d.match.type === this.filters.type);
+        }
+
+        // Opponent filter
+        if (this.filters.opponent) {
+            data = data.filter(d => {
+                const opponents = this.matchPlayers.filter(
+                    mp => mp.match_id === d.match_id && mp.user_id !== this.filters.player
+                );
+                if (this.filters.opponent.startsWith('bot_')) {
+                    const botName = this.filters.opponent.replace('bot_', '');
+                    return opponents.some(o => o.is_bot && o.name === botName);
+                }
+                return opponents.some(o => o.user_id === this.filters.opponent);
+            });
+        }
+
+        // Sort by date
+        data.sort((a, b) => new Date(b.match.finished_at) - new Date(a.match.finished_at));
+
+        return data;
+    }
+
+    renderDashboard() {
+        const data = this.getFilteredData();
+
+        this.renderStats(data);
+        this.renderHighscores(data);
+        this.renderCharts(data);
+        this.renderRecentMatches(data.slice(0, 5));
+        this.renderMatchesTable();
+
+        // Update user name
+        const userNameEl = document.getElementById('user-name');
+        if (userNameEl) {
+            userNameEl.textContent = this.user.autodarts_username;
+        }
+    }
+
+    renderStats(data) {
+        if (data.length === 0) {
+            document.getElementById('stat-average').textContent = '--';
+            document.getElementById('stat-first9').textContent = '--';
+            document.getElementById('stat-checkout').textContent = '--';
+            document.getElementById('stat-180s').textContent = '--';
+            document.getElementById('stat-winrate').textContent = '--';
+            document.getElementById('stat-matches').textContent = '0';
+            return;
+        }
+
+        // Calculate stats from turns
+        const playerTurns = this.getPlayerTurns(data);
+
+        // Average
+        const validTurns = playerTurns.filter(t => t.points != null);
+        const avgPoints = validTurns.reduce((sum, t) => sum + t.points, 0) / validTurns.length;
+        document.getElementById('stat-average').textContent = avgPoints ? avgPoints.toFixed(1) : '--';
+
+        // First 9 Average (rounds 1-3)
+        const first9Turns = validTurns.filter(t => t.round <= 3);
+        const first9Avg = first9Turns.reduce((sum, t) => sum + t.points, 0) / first9Turns.length;
+        document.getElementById('stat-first9').textContent = first9Avg ? first9Avg.toFixed(1) : '--';
+
+        // 180s
+        const count180s = validTurns.filter(t => t.points === 180).length;
+        document.getElementById('stat-180s').textContent = count180s;
+
+        // Win rate
+        const wins = data.filter(d => d.match.winner === d.player_index).length;
+        const winRate = (wins / data.length * 100).toFixed(0);
+        document.getElementById('stat-winrate').textContent = winRate + '%';
+
+        // Checkout rate (from match_players average if available)
+        const avgCheckout = data.reduce((sum, d) => sum + (d.checkout_rate || 0), 0) / data.length;
+        document.getElementById('stat-checkout').textContent = avgCheckout ? avgCheckout.toFixed(1) + '%' : '--';
+
+        // Match count
+        document.getElementById('stat-matches').textContent = data.length;
+    }
+
+    getPlayerTurns(data) {
+        const matchPlayerIds = data.map(d => d.id);
+        return this.turns.filter(t => matchPlayerIds.includes(t.match_player_id));
+    }
+
+    renderHighscores(data) {
+        const playerTurns = this.getPlayerTurns(data);
+        const validTurns = playerTurns.filter(t => t.points != null);
+
+        // Best leg average - calculate per leg
+        const legTurns = {};
+        validTurns.forEach(t => {
+            if (!legTurns[t.leg_id]) legTurns[t.leg_id] = [];
+            legTurns[t.leg_id].push(t.points);
+        });
+
+        let bestLegAvg = 0;
+        Object.values(legTurns).forEach(turns => {
+            if (turns.length >= 3) {
+                const avg = turns.reduce((a, b) => a + b, 0) / turns.length;
+                if (avg > bestLegAvg) bestLegAvg = avg;
+            }
+        });
+        document.getElementById('hs-best-leg').textContent = bestLegAvg ? bestLegAvg.toFixed(1) : '--';
+
+        // Best match average
+        const matchAvgs = data.map(d => {
+            const mTurns = validTurns.filter(t => t.match_player_id === d.id);
+            if (mTurns.length === 0) return 0;
+            return mTurns.reduce((sum, t) => sum + t.points, 0) / mTurns.length;
+        }).filter(a => a > 0);
+        const bestMatchAvg = Math.max(...matchAvgs, 0);
+        document.getElementById('hs-best-match').textContent = bestMatchAvg ? bestMatchAvg.toFixed(1) : '--';
+
+        // Highest checkout - look at winning legs
+        let highestCheckout = 0;
+        data.forEach(d => {
+            const matchLegs = this.legs.filter(l => l.match_id === d.match_id && l.winner_player_id === d.id);
+            matchLegs.forEach(leg => {
+                const legT = validTurns.filter(t => t.leg_id === leg.id && t.match_player_id === d.id);
+                if (legT.length > 0) {
+                    const lastTurn = legT.sort((a, b) => b.round - a.round)[0];
+                    if (lastTurn && lastTurn.points > highestCheckout && lastTurn.score_remaining === 0) {
+                        highestCheckout = lastTurn.points;
+                    }
+                }
+            });
+        });
+        document.getElementById('hs-highest-checkout').textContent = highestCheckout || '--';
+
+        // Minimum darts per leg
+        let minDarts = Infinity;
+        Object.entries(legTurns).forEach(([legId, turns]) => {
+            const leg = this.legs.find(l => l.id === legId);
+            if (leg) {
+                // Check if this player won the leg
+                const mp = data.find(d => {
+                    const lt = validTurns.filter(t => t.leg_id === legId && t.match_player_id === d.id);
+                    return lt.length > 0;
+                });
+                if (mp && leg.winner_player_id === mp.id) {
+                    const darts = turns.length * 3; // Approximate
+                    if (darts < minDarts && darts > 0) minDarts = darts;
+                }
+            }
+        });
+        document.getElementById('hs-min-darts').textContent = minDarts < Infinity ? minDarts : '--';
+    }
+
+    renderCharts(data) {
+        this.renderTrendChart(data);
+        this.renderResultsChart(data);
+        this.renderScoringChart(data);
+    }
+
+    renderTrendChart(data) {
+        const ctx = document.getElementById('chart-trend');
+        if (!ctx) return;
+
+        // Destroy existing chart
+        if (this.charts.trend) {
+            this.charts.trend.destroy();
+        }
+
+        // Group by date and calculate average
+        const byDate = {};
+        const playerTurns = this.getPlayerTurns(data);
+
+        data.forEach(d => {
+            const date = new Date(d.match.finished_at).toLocaleDateString('de-DE');
+            if (!byDate[date]) byDate[date] = [];
+
+            const mTurns = playerTurns.filter(t => t.match_player_id === d.id && t.points != null);
+            if (mTurns.length > 0) {
+                const avg = mTurns.reduce((sum, t) => sum + t.points, 0) / mTurns.length;
+                byDate[date].push(avg);
+            }
+        });
+
+        const labels = Object.keys(byDate).reverse();
+        const values = labels.map(date => {
+            const avgs = byDate[date];
+            return avgs.reduce((a, b) => a + b, 0) / avgs.length;
+        });
+
+        this.charts.trend = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: data.map(d => d.x),
+                labels,
                 datasets: [{
-                    data: data.map(d => d.y),
-                    borderColor: CONFIG.COLORS.green,
-                    backgroundColor: 'rgba(16,185,129,0.1)',
+                    label: 'Average',
+                    data: values,
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
                     fill: true,
                     tension: 0.3
                 }]
@@ -519,1758 +465,375 @@ class AutodartsStats {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
+                plugins: {
+                    legend: { display: false }
+                },
                 scales: {
-                    x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
-                    y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' }, reverse: false, min: 0 }
+                    x: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    },
+                    y: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    }
                 }
             }
         });
     }
 
-    renderLegScoringChart(turns) {
-        const ctx = document.getElementById('ld-chart-scoring');
+    renderResultsChart(data) {
+        const ctx = document.getElementById('chart-results');
         if (!ctx) return;
 
-        let u60 = 0, s60 = 0, s100 = 0, s140 = 0, s180 = 0;
-        turns.forEach(t => {
-            if (t.points === null) return;
-            if (t.points === 180) s180++;
-            else if (t.points >= 140) s140++;
-            else if (t.points >= 100) s100++;
-            else if (t.points >= 60) s60++;
-            else u60++;
-        });
+        if (this.charts.results) {
+            this.charts.results.destroy();
+        }
 
-        if (this.ldScoreChart) this.ldScoreChart.destroy();
-        this.ldScoreChart = new Chart(ctx, {
+        const wins = data.filter(d => d.match.winner === d.player_index).length;
+        const losses = data.length - wins;
+
+        this.charts.results = new Chart(ctx, {
             type: 'doughnut',
             data: {
-                labels: ['180', '140+', '100+', '60+', '<60'],
+                labels: ['Siege', 'Niederlagen'],
                 datasets: [{
-                    data: [s180, s140, s100, s60, u60],
-                    backgroundColor: ['#10b981', '#f59e0b', '#8b5cf6', '#3b82f6', '#64748b']
+                    data: [wins, losses],
+                    backgroundColor: ['#10b981', '#ef4444'],
+                    borderWidth: 0
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 } } } },
-                cutout: '50%'
-            }
-        });
-    }
-
-    closeLegDetail() {
-        const panel = document.getElementById('leg-detail-panel');
-        if (panel) {
-            panel.classList.remove('visible');
-            setTimeout(() => panel.classList.add('hidden'), 300);
-        }
-    }
-
-    openMatchDetail(matchId) {
-        // Navigiert zur alten Match-Detail-Seite (später durch neues Detail-Panel ersetzen)
-        document.getElementById('match-detail-select').value = matchId;
-        this.navigateTo('matchdetail');
-        this.loadMatchDetail(matchId);
-    }
-
-    // ========== SCORING ==========
-    async loadScoringData(){this.showLoading();try{const matches=this.getFilteredData(),mpIds=matches.map(m=>m.id),turns=await this.loadTurns(mpIds),tids=turns.map(t=>t.id),throws=await this.loadThrows(tids);const t20=throws.filter(t=>[20,1,5].includes(t.segment_number)),t20h=t20.filter(t=>t.segment_bed==='Triple'&&t.segment_number===20).length,t20r=t20.length?((t20h/t20.length)*100).toFixed(1):0;const t19=throws.filter(t=>[19,3,7].includes(t.segment_number)),t19h=t19.filter(t=>t.segment_bed==='Triple'&&t.segment_number===19).length,t19r=t19.length?((t19h/t19.length)*100).toFixed(1):0;let c100=0,c140=0,c180=0;turns.forEach(t=>{if(t.points===180)c180++;else if(t.points>=140)c140++;else if(t.points>=100)c100++;});document.getElementById('stat-t20-rate').textContent=t20r+'%';document.getElementById('stat-t19-rate').textContent=t19r+'%';document.getElementById('stat-100plus').textContent=c100+c140+c180;document.getElementById('stat-140plus').textContent=c140+c180;document.getElementById('stat-180s-total').textContent=c180;document.getElementById('stat-visits-per-100').textContent=turns.length?((c100+c140+c180)/turns.length*100).toFixed(1)+'%':'0%';this.renderT20Chart(t20,t19);this.renderScoreFreqChart(turns);this.renderFirst9TrendChart(matches,turns);this.renderVisitsChart(turns);}catch(e){console.error(e);}finally{this.hideLoading();}}
-    renderT20Chart(t20,t19){const ctx=document.getElementById('chart-t20-distribution');if(!ctx)return;const c20={T:0,S:0,N:0},c19={T:0,S:0,N:0};t20.forEach(t=>{if(t.segment_bed==='Triple'&&t.segment_number===20)c20.T++;else if(t.segment_number===20)c20.S++;else c20.N++;});t19.forEach(t=>{if(t.segment_bed==='Triple'&&t.segment_number===19)c19.T++;else if(t.segment_number===19)c19.S++;else c19.N++;});if(this.t20Chart)this.t20Chart.destroy();this.t20Chart=new Chart(ctx,{type:'bar',data:{labels:['Triple','Single','Nachbar'],datasets:[{label:'T20',data:[c20.T,c20.S,c20.N],backgroundColor:CONFIG.COLORS.green},{label:'T19',data:[c19.T,c19.S,c19.N],backgroundColor:CONFIG.COLORS.blue}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:'#94a3b8'}}},scales:{x:{grid:{display:false},ticks:{color:'#94a3b8'}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'}}}}});}
-    renderScoreFreqChart(turns){const ctx=document.getElementById('chart-score-frequency');if(!ctx)return;const b={'0-19':0,'20-39':0,'40-59':0,'60-79':0,'80-99':0,'100-119':0,'120-139':0,'140-159':0,'160-180':0};turns.forEach(t=>{if(t.points===null)return;const p=t.points;if(p<20)b['0-19']++;else if(p<40)b['20-39']++;else if(p<60)b['40-59']++;else if(p<80)b['60-79']++;else if(p<100)b['80-99']++;else if(p<120)b['100-119']++;else if(p<140)b['120-139']++;else if(p<160)b['140-159']++;else b['160-180']++;});if(this.sfChart)this.sfChart.destroy();this.sfChart=new Chart(ctx,{type:'bar',data:{labels:Object.keys(b),datasets:[{data:Object.values(b),backgroundColor:CONFIG.COLORS.blue,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#94a3b8',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'}}}}});}
-    renderFirst9TrendChart(matches,turns){const ctx=document.getElementById('chart-first9-trend');if(!ctx)return;const byMp={};turns.filter(t=>t.round<=3&&t.points!==null).forEach(t=>{if(!byMp[t.match_player_id])byMp[t.match_player_id]=[];byMp[t.match_player_id].push(t.points);});const d=matches.map(mp=>({dt:new Date(mp.match.finished_at),avg:byMp[mp.id]?.length?byMp[mp.id].reduce((a,b)=>a+b,0)/byMp[mp.id].length:null})).filter(x=>x.avg!==null).sort((a,b)=>a.dt-b.dt).slice(-20);if(this.f9TChart)this.f9TChart.destroy();this.f9TChart=new Chart(ctx,{type:'line',data:{labels:d.map(x=>x.dt.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})),datasets:[{data:d.map(x=>x.avg.toFixed(1)),borderColor:CONFIG.COLORS.green,tension:.3,fill:true,backgroundColor:'rgba(16,185,129,.1)'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'},suggestedMin:35,suggestedMax:55}}}});}
-    renderVisitsChart(turns){const ctx=document.getElementById('chart-visits-breakdown');if(!ctx)return;let c60=0,c100=0,c140=0,c180=0,o=0;turns.forEach(t=>{if(t.points===null)return;if(t.points===180)c180++;else if(t.points>=140)c140++;else if(t.points>=100)c100++;else if(t.points>=60)c60++;else o++;});if(this.vChart)this.vChart.destroy();this.vChart=new Chart(ctx,{type:'doughnut',data:{labels:['180','140+','100+','60+','<60'],datasets:[{data:[c180,c140,c100,c60,o],backgroundColor:['#10b981','#f59e0b','#8b5cf6','#3b82f6','#64748b']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#94a3b8'}}}}});}
-    
-    // ========== CHECKOUT ==========
-    async loadCheckoutData(){this.showLoading();try{const matches=this.getFilteredData(),mpIds=matches.map(m=>m.id);let cSum=0,cCnt=0;matches.forEach(mp=>{if(mp.checkout_rate>0){cSum+=mp.checkout_rate;cCnt++;}});const turns=await this.loadTurns(mpIds),coTurns=turns.filter(t=>t.score_remaining===0),coTids=coTurns.map(t=>t.id),coThrows=await this.loadThrows(coTids,10000),dblThrows=coThrows.filter(t=>t.segment_bed==='Double'),dblCnt={};dblThrows.forEach(t=>{dblCnt[t.segment_name]=(dblCnt[t.segment_name]||0)+1;});const sorted=Object.entries(dblCnt).sort((a,b)=>b[1]-a[1]),highest=Math.max(...coTurns.map(t=>t.points||0),0);document.getElementById('stat-checkout-total').textContent=cCnt?((cSum/cCnt)*100).toFixed(1)+'%':'-';document.getElementById('stat-favorite-double').textContent=sorted[0]?.[0]||'-';document.getElementById('stat-highest-checkout').textContent=highest||'-';document.getElementById('stat-total-checkouts').textContent=coTurns.length;document.getElementById('stat-checkout-opportunities').textContent='-';document.getElementById('stat-best-double').textContent=sorted[0]?.[0]||'-';this.renderDoublesChart(sorted.slice(0,10));this.renderCheckoutScoreChart(coTurns);this.renderCheckoutTable(sorted);}catch(e){console.error(e);}finally{this.hideLoading();}}
-    renderDoublesChart(d){const ctx=document.getElementById('chart-favorite-doubles');if(!ctx)return;if(this.dblChart)this.dblChart.destroy();this.dblChart=new Chart(ctx,{type:'bar',data:{labels:d.map(x=>x[0]),datasets:[{data:d.map(x=>x[1]),backgroundColor:CONFIG.COLORS.green,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'}},y:{grid:{display:false},ticks:{color:'#94a3b8'}}}}});}
-    renderCheckoutScoreChart(coTurns){const ctx=document.getElementById('chart-checkout-by-score');if(!ctx)return;const r={'2-40':0,'41-60':0,'61-80':0,'81-100':0,'101-120':0,'121+':0};coTurns.forEach(c=>{const s=c.points;if(!s)return;if(s<=40)r['2-40']++;else if(s<=60)r['41-60']++;else if(s<=80)r['61-80']++;else if(s<=100)r['81-100']++;else if(s<=120)r['101-120']++;else r['121+']++;});if(this.coScChart)this.coScChart.destroy();this.coScChart=new Chart(ctx,{type:'bar',data:{labels:Object.keys(r),datasets:[{data:Object.values(r),backgroundColor:CONFIG.COLORS.blue,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#94a3b8'}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'}}}}});}
-    renderCheckoutTable(d){const tb=document.querySelector('#checkout-table tbody');if(!tb)return;const tot=d.reduce((s,x)=>s+x[1],0)||1;tb.innerHTML=d.slice(0,15).map(x=>'<tr><td><strong>'+x[0]+'</strong></td><td>'+x[1]+'</td><td>-</td><td>'+((x[1]/tot)*100).toFixed(1)+'%</td></tr>').join('');}
-    
-    // ========== MATCHES ==========
-    async loadMatchesPage(){this.showLoading();try{const matches=this.getFilteredData(),mpIds=matches.map(m=>m.id),turns=await this.loadTurns(mpIds);const byMp={};turns.forEach(t=>{if(t.points!==null){if(!byMp[t.match_player_id])byMp[t.match_player_id]=[];byMp[t.match_player_id].push(t.points);}});const matchData=matches.map(mp=>{const t=byMp[mp.id]||[];return{...mp,calcAvg:t.length?t.reduce((a,b)=>a+b,0)/t.length:(mp.average||0),isWin:mp.match.winner===mp.player_index};});this.matchRankings=this.calcRankings(matchData);const total=this.matchRankings.length;const tb=document.querySelector('#all-matches-table tbody');if(tb)tb.innerHTML=this.matchRankings.map(mp=>{const m=mp.match,d=new Date(m.finished_at),w=mp.isWin,opp=this.opponentMap[mp.match_id],on=opp?(opp.is_bot?'🤖 Bot '+Math.round((opp.cpu_ppr||40)/10):opp.name||'Gegner'):'?',avg=mp.calcAvg;return'<tr><td>'+d.toLocaleDateString('de-DE')+' '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+'</td><td>'+on+'</td><td class="'+(w?'result-win':'result-loss')+'">'+(w?'✅':'❌')+'</td><td>'+(mp.legs_won||0)+'</td><td>'+avg.toFixed(1)+'</td><td>'+this.getRankBadge(mp.avgRank,total)+'</td><td>'+(m.variant||'-')+'</td><td><span class="badge badge-'+(m.type||'online').toLowerCase()+'">'+(m.type||'')+'</span></td></tr>';}).join('');}catch(e){console.error(e);}finally{this.hideLoading();}}
-    
-    // ========== HEATMAP ==========
-    async loadHeatmapData(){this.showLoading();try{const matches=this.getFilteredData(),mpIds=matches.map(m=>m.id),turns=await this.loadTurns(mpIds),tids=turns.map(t=>t.id),target=document.getElementById('heatmap-target')?.value||'all';let throws=await this.loadThrows(tids,10000);
-        // T20 Bereich: Segment 20, sowie benachbarte Segmente 1 und 5
-        const t20Throws=throws.filter(t=>[20,1,5].includes(t.segment_number));
-        const t20Hits=t20Throws.filter(t=>t.segment_number===20&&t.segment_bed==='Triple');
-        const t19Throws=throws.filter(t=>[19,3,7].includes(t.segment_number));
-        const t19Hits=t19Throws.filter(t=>t.segment_number===19&&t.segment_bed==='Triple');
-        // Hit Rates berechnen
-        const t20Rate=t20Throws.length>0?((t20Hits.length/t20Throws.length)*100).toFixed(1)+'%':'-';
-        const t19Rate=t19Throws.length>0?((t19Hits.length/t19Throws.length)*100).toFixed(1)+'%':'-';
-        document.getElementById('stat-t20-hitrate').textContent=t20Rate;
-        document.getElementById('stat-t19-hitrate').textContent=t19Rate;
-        // Filter für Dartboard
-        if(target==='20')throws=t20Throws;else if(target==='19')throws=t19Throws;else if(target==='18')throws=throws.filter(t=>[18,4,1].includes(t.segment_number));else if(target==='doubles')throws=throws.filter(t=>t.segment_bed==='Double');
-        const wc=throws.filter(t=>t.coord_x!=null&&t.coord_y!=null);let gs='-',dx='-',dy='-';if(wc.length>10){const ax=wc.reduce((s,t)=>s+t.coord_x,0)/wc.length,ay=wc.reduce((s,t)=>s+t.coord_y,0)/wc.length,vx=wc.reduce((s,t)=>s+Math.pow(t.coord_x-ax,2),0)/wc.length,vy=wc.reduce((s,t)=>s+Math.pow(t.coord_y-ay,2),0)/wc.length;gs=(Math.sqrt(vx+vy)*170).toFixed(0);dx=ax>.02?'→ Rechts':ax<-.02?'← Links':'○ Mitte';dy=ay>.02?'↑ Hoch':ay<-.02?'↓ Tief':'○ Mitte';}
-        document.getElementById('stat-grouping-score').textContent=gs;document.getElementById('stat-drift-x').textContent=dx;document.getElementById('stat-drift-y').textContent=dy;document.getElementById('stat-total-throws').textContent=wc.length;
-        this.renderDartboard(wc);this.renderSegmentStats(throws);
-        // T20 Analyse
-        this.renderT20Scatter(t20Throws);
-        this.renderT20DirectionGrid(t20Throws,t20Hits);
-        this.renderT20DistanceBars(t20Throws);
-        this.renderT20TrendChart(matches);
-    }catch(e){console.error(e);}finally{this.hideLoading();}}
-    renderDartboard(throws){const cv=document.getElementById('dartboard-canvas');if(!cv)return;const ctx=cv.getContext('2d'),cx=cv.width/2,cy=cv.height/2,r=220;ctx.fillStyle='#1e293b';ctx.fillRect(0,0,cv.width,cv.height);[{r:r,c:'#1a1a2e'},{r:r*.85,c:'#252540'},{r:r*.65,c:'#1a1a2e'},{r:r*.45,c:'#252540'},{r:r*.15,c:'#10b981'},{r:r*.06,c:'#ef4444'}].forEach(x=>{ctx.beginPath();ctx.arc(cx,cy,x.r,0,Math.PI*2);ctx.fillStyle=x.c;ctx.fill();});throws.forEach(t=>{ctx.beginPath();ctx.arc(cx+t.coord_x*180,cy-t.coord_y*180,3,0,Math.PI*2);ctx.fillStyle='rgba(16,185,129,.6)';ctx.fill();});}
-    renderSegmentStats(throws){const c=document.getElementById('segment-stats');if(!c)return;const cnt={};throws.forEach(t=>{if(t.segment_name&&t.segment_name!=='Outside')cnt[t.segment_name]=(cnt[t.segment_name]||0)+1;});const s=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,10),mx=s[0]?.[1]||1;c.innerHTML=s.map(x=>'<div class="segment-stat"><span class="segment-name">'+x[0]+'</span><div class="segment-bar"><div class="segment-bar-fill" style="width:'+((x[1]/mx)*100)+'%"></div></div><span class="segment-count">'+x[1]+'</span></div>').join('');}
-
-    // T20 Scatter Plot - zeigt Würfe im T20 Bereich auf Mini-Dartboard
-    renderT20Scatter(throws){
-        const cv=document.getElementById('t20-scatter-canvas');if(!cv)return;
-        const ctx=cv.getContext('2d'),cx=cv.width/2,cy=cv.height/2,r=120;
-        // Hintergrund
-        ctx.fillStyle='#1e293b';ctx.fillRect(0,0,cv.width,cv.height);
-        // Dartboard Ringe (vereinfacht)
-        [{r:r,c:'#252540'},{r:r*.7,c:'#1a1a2e'},{r:r*.4,c:'#252540'},{r:r*.15,c:'#10b981'}].forEach(x=>{
-            ctx.beginPath();ctx.arc(cx,cy,x.r,0,Math.PI*2);ctx.fillStyle=x.c;ctx.fill();
-        });
-        // T20 Bereich markieren (oberer Teil) - bei -90° (oben)
-        ctx.save();ctx.beginPath();ctx.moveTo(cx,cy);
-        ctx.arc(cx,cy,r,-Math.PI/2-.16,-Math.PI/2+.16);
-        ctx.lineTo(cx,cy);ctx.fillStyle='rgba(16,185,129,.2)';ctx.fill();ctx.restore();
-        // Würfe zeichnen - Farbe nach Segment
-        const wc=throws.filter(t=>t.coord_x!=null&&t.coord_y!=null);
-        if(wc.length===0){
-            ctx.fillStyle='#64748b';ctx.font='12px sans-serif';ctx.textAlign='center';
-            ctx.fillText('Keine Koordinaten',cx,cy);
-            return;
-        }
-        wc.forEach(t=>{
-            const isT20=t.segment_number===20&&t.segment_bed==='Triple';
-            const is20=t.segment_number===20;
-            let color='rgba(239,68,68,.6)'; // rot - andere
-            if(isT20)color='rgba(16,185,129,.9)'; // grün - T20 Treffer
-            else if(is20)color='rgba(245,158,11,.7)'; // gelb - 20er aber kein Triple
-            ctx.beginPath();ctx.arc(cx+t.coord_x*r*2.5,cy-t.coord_y*r*2.5,3,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
-        });
-    }
-
-    // T20 Richtungs-Heatmap - zeigt wohin Fehlwürfe gehen
-    renderT20DirectionGrid(throws,hits){
-        const grid=document.getElementById('t20-direction-grid');if(!grid)return;
-        const wc=throws.filter(t=>t.coord_x!=null&&t.coord_y!=null);
-        const dirs={nw:0,n:0,ne:0,w:0,c:0,e:0,sw:0,s:0,se:0};
-        const total=wc.length||1;
-        const hitCount=hits.length;
-
-        // Für T20: oben ist gut (center), links=5, rechts=1, unten=Draht
-        wc.forEach(t=>{
-            const isHit=t.segment_number===20&&t.segment_bed==='Triple';
-            if(isHit){dirs.c++;return;}
-            // Richtung basierend auf Segment bestimmen
-            const seg=t.segment_number;
-            const bed=t.segment_bed;
-            if(seg===5){dirs.w++;} // Links von 20
-            else if(seg===1){dirs.e++;} // Rechts von 20
-            else if(seg===20&&bed==='Single'){dirs.s++;} // Unter Triple (Single 20)
-            else if(seg===20&&bed==='Double'){dirs.n++;} // Über Triple (Double 20)
-            else{dirs.c++;} // Sonstige
-        });
-
-        // Cells aktualisieren
-        const missValues=Object.entries(dirs).filter(([k])=>k!=='c').map(([,v])=>v);
-        const maxMiss=Math.max(...missValues,1);
-        const arrows={nw:'↖',n:'↑',ne:'↗',w:'←',c:'●',e:'→',sw:'↙',s:'↓',se:'↘'};
-
-        grid.querySelectorAll('.dir-cell').forEach(cell=>{
-            const dir=cell.dataset.dir;
-            const cnt=dirs[dir]||0;
-            cell.classList.remove('hit','hot','warm','cool');
-
-            if(dir==='c'){
-                cell.innerHTML=arrows[dir]+'<br><span class="dir-pct">' + hitCount + '</span>';
-                cell.classList.add('hit');
-            }else{
-                cell.innerHTML=arrows[dir]+'<br><span class="dir-pct">'+cnt+'</span>';
-                if(cnt>=maxMiss*.6)cell.classList.add('hot');
-                else if(cnt>=maxMiss*.3)cell.classList.add('warm');
-                else if(cnt>0)cell.classList.add('cool');
-            }
-        });
-    }
-
-    // T20 Distanz-Bars - zeigt Verteilung nach Entfernung
-    renderT20DistanceBars(throws){
-        const wc=throws.filter(t=>t.coord_x!=null&&t.coord_y!=null);
-        const bins={d01:0,d12:0,d23:0,d3p:0};
-        wc.forEach(t=>{
-            const dist=Math.sqrt(t.coord_x*t.coord_x+t.coord_y*t.coord_y)*170; // in mm
-            if(dist<=10)bins.d01++;else if(dist<=20)bins.d12++;else if(dist<=30)bins.d23++;else bins.d3p++;
-        });
-        const total=wc.length||1;
-        const maxB=Math.max(...Object.values(bins))||1;
-        // Update bars
-        const setBar=(id,cnt)=>{
-            const fill=document.getElementById(id);
-            const pct=document.getElementById(id.replace('dist-','dist-pct-'));
-            if(fill)fill.style.width=((cnt/maxB)*100)+'%';
-            if(pct)pct.textContent=cnt+' ('+((cnt/total)*100).toFixed(0)+'%)';
-        };
-        setBar('dist-0-1',bins.d01);setBar('dist-1-2',bins.d12);setBar('dist-2-3',bins.d23);setBar('dist-3-plus',bins.d3p);
-    }
-
-    // T20 Trend Chart - zeigt 3-Dart Average Trend über Zeit
-    renderT20TrendChart(matches){
-        const ctx=document.getElementById('chart-t20-trend');if(!ctx)return;
-        // Zeige Average-Trend statt T20-Rate (da T20-Rate nicht pro Match verfügbar)
-        const sorted=[...matches].filter(m=>m.match&&m.average>0).sort((a,b)=>new Date(a.match.finished_at)-new Date(b.match.finished_at)).slice(-30);
-        if(sorted.length===0){
-            if(this.t20Chart)this.t20Chart.destroy();
-            this.t20Chart=null;
-            return;
-        }
-        const labels=sorted.map(m=>new Date(m.match.finished_at).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}));
-        const data=sorted.map(m=>m.average.toFixed(1));
-        if(this.t20Chart)this.t20Chart.destroy();
-        this.t20Chart=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Ø Average',data,borderColor:CONFIG.COLORS.green,backgroundColor:'rgba(16,185,129,.1)',tension:.3,fill:true,pointRadius:3,pointBackgroundColor:CONFIG.COLORS.green}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},title:{display:true,text:'Average-Trend (letzte 30 Matches)',color:'#94a3b8',font:{size:12}}},scales:{x:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8',font:{size:9},maxRotation:45}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'},suggestedMin:30,suggestedMax:80}}}});
-    }
-
-    // ========== OPPONENTS (konsolidiert mit Advanced/Zeitanalyse) ==========
-    async loadOpponentsData(){this.showLoading();try{const matches=this.getFilteredData();
-        // === Tab 1: Gegner-Statistiken ===
-        const os={};let bw=0,bt=0,hw=0,ht=0,myS=0,opS=0,ac=0;matches.forEach(mp=>{const opp=this.opponentMap[mp.match_id];if(!opp)return;const w=mp.match.winner===mp.player_index,k=opp.is_bot?'🤖 Bot '+Math.round((opp.cpu_ppr||40)/10):(opp.name||opp.id);if(!os[k])os[k]={name:k,m:0,w:0,last:null,isBot:opp.is_bot,myAvg:0,opAvg:0,lvl:opp.is_bot?Math.round((opp.cpu_ppr||40)/10):0};os[k].m++;if(w)os[k].w++;if(!os[k].last||mp.match.finished_at>os[k].last)os[k].last=mp.match.finished_at;if(mp.average>0)os[k].myAvg+=mp.average;if(opp.average>0)os[k].opAvg+=opp.average;if(opp.is_bot){bt++;if(w)bw++;}else{ht++;if(w)hw++;}if(mp.average>0&&opp.average>0){myS+=mp.average;opS+=opp.average;ac++;}});const so=Object.values(os).sort((a,b)=>b.m-a.m),nem=so.filter(o=>o.m>=3&&(o.w/o.m)<.5).sort((a,b)=>(a.w/a.m)-(b.w/b.m))[0],vic=so.filter(o=>o.m>=3&&(o.w/o.m)>.5).sort((a,b)=>(b.w/b.m)-(a.w/a.m))[0],ad=ac?((myS-opS)/ac).toFixed(1):'-';document.getElementById('stat-unique-opponents').textContent=so.filter(o=>!o.isBot).length;document.getElementById('stat-vs-bots').textContent=bt?((bw/bt)*100).toFixed(0)+'%':'-';document.getElementById('stat-vs-humans').textContent=ht?((hw/ht)*100).toFixed(0)+'%':'-';document.getElementById('stat-nemesis').textContent=nem?.name||'-';document.getElementById('stat-favorite-victim').textContent=vic?.name||'-';document.getElementById('stat-avg-vs-opponents').textContent=ad!=='-'?(ad>0?'+':'')+ad:'-';this.renderBotLevelChart(so);this.renderTopOppsChart(so.slice(0,8));this.renderOpponentsTable(so);
-        // === Tab 2: Zeitanalyse (ehemals Advanced) ===
-        const bh={},bd={},dn=['So','Mo','Di','Mi','Do','Fr','Sa'];let tl=0,mc=0;matches.forEach(mp=>{const d=new Date(mp.match.finished_at),h=d.getHours(),day=d.getDay(),ts=h<12?'Morgen':h<17?'Nachmittag':h<21?'Abend':'Nacht';if(!bh[ts])bh[ts]={w:0,t:0,a:0};bh[ts].t++;if(mp.match.winner===mp.player_index)bh[ts].w++;if(mp.average>0)bh[ts].a+=mp.average;if(!bd[day])bd[day]={w:0,t:0,a:0};bd[day].t++;if(mp.match.winner===mp.player_index)bd[day].w++;if(mp.average>0)bd[day].a+=mp.average;tl+=(mp.legs_won||0)+(mp.legs_lost||0);mc++;});let btime='-',bdy='-',bta=0,bda=0;Object.entries(bh).forEach(([t,d])=>{const a=d.t?d.a/d.t:0;if(a>bta&&d.t>=5){bta=a;btime=t;}});Object.entries(bd).forEach(([day,d])=>{const a=d.t?d.a/d.t:0;if(a>bda&&d.t>=5){bda=a;bdy=dn[day];}});document.getElementById('stat-best-time').textContent=btime;document.getElementById('stat-best-day').textContent=bdy;document.getElementById('stat-avg-legs').textContent=mc?(tl/mc).toFixed(1):'-';document.getElementById('stat-total-playtime').textContent=mc?Math.round(mc*8)+' min':'-';this.renderByTimeChart(bh);this.renderByDayChart(bd,dn);this.renderLegsTrendChart(matches);this.renderConsistencyChart(matches);
-    }catch(e){console.error(e);}finally{this.hideLoading();}}
-    renderBotLevelChart(os){const ctx=document.getElementById('chart-winrate-by-bot-level');if(!ctx)return;const bl={};os.filter(o=>o.isBot).forEach(o=>{const l=o.lvl;if(!bl[l])bl[l]={w:0,t:0};bl[l].w+=o.w;bl[l].t+=o.m;});const ls=Object.keys(bl).sort((a,b)=>a-b),wr=ls.map(l=>bl[l].t?((bl[l].w/bl[l].t)*100).toFixed(0):0);if(this.blChart)this.blChart.destroy();this.blChart=new Chart(ctx,{type:'bar',data:{labels:ls.map(l=>'Lvl '+l),datasets:[{data:wr,backgroundColor:wr.map(r=>r>=50?CONFIG.COLORS.green:CONFIG.COLORS.red),borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#94a3b8'}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'},max:100}}}});}
-    renderTopOppsChart(os){const ctx=document.getElementById('chart-top-opponents');if(!ctx)return;if(this.toChart)this.toChart.destroy();this.toChart=new Chart(ctx,{type:'bar',data:{labels:os.map(o=>o.name.substring(0,12)),datasets:[{label:'Siege',data:os.map(o=>o.w),backgroundColor:CONFIG.COLORS.green},{label:'Niederl.',data:os.map(o=>o.m-o.w),backgroundColor:CONFIG.COLORS.red}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{position:'top',labels:{color:'#94a3b8'}}},scales:{x:{stacked:true,grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'}},y:{stacked:true,grid:{display:false},ticks:{color:'#94a3b8',font:{size:10}}}}}});}
-    renderOpponentsTable(os){const tb=document.querySelector('#opponents-table tbody');if(!tb)return;tb.innerHTML=os.slice(0,30).map(o=>{const wr=((o.w/o.m)*100).toFixed(0),ma=o.m&&o.myAvg?(o.myAvg/o.m).toFixed(1):'-',oa=o.m&&o.opAvg?(o.opAvg/o.m).toFixed(1):'-';return'<tr><td>'+o.name+'</td><td>'+o.m+'</td><td class="result-win">'+o.w+'</td><td class="result-loss">'+(o.m-o.w)+'</td><td>'+wr+'%</td><td>'+ma+'</td><td>'+oa+'</td><td>'+(o.last?new Date(o.last).toLocaleDateString('de-DE'):'-')+'</td></tr>';}).join('');}
-    
-    // ========== ADVANCED ==========
-    async loadAdvancedData(){this.showLoading();try{const matches=this.getFilteredData(),bh={},bd={},dn=['So','Mo','Di','Mi','Do','Fr','Sa'];let tl=0,mc=0;matches.forEach(mp=>{const d=new Date(mp.match.finished_at),h=d.getHours(),day=d.getDay(),ts=h<12?'Morgen':h<17?'Nachmittag':h<21?'Abend':'Nacht';if(!bh[ts])bh[ts]={w:0,t:0,a:0};bh[ts].t++;if(mp.match.winner===mp.player_index)bh[ts].w++;if(mp.average>0)bh[ts].a+=mp.average;if(!bd[day])bd[day]={w:0,t:0,a:0};bd[day].t++;if(mp.match.winner===mp.player_index)bd[day].w++;if(mp.average>0)bd[day].a+=mp.average;tl+=(mp.legs_won||0)+(mp.legs_lost||0);mc++;});let bt='-',bdy='-',bta=0,bda=0;Object.entries(bh).forEach(([t,d])=>{const a=d.t?d.a/d.t:0;if(a>bta&&d.t>=5){bta=a;bt=t;}});Object.entries(bd).forEach(([day,d])=>{const a=d.t?d.a/d.t:0;if(a>bda&&d.t>=5){bda=a;bdy=dn[day];}});document.getElementById('stat-best-time').textContent=bt;document.getElementById('stat-best-day').textContent=bdy;document.getElementById('stat-avg-legs').textContent=mc?(tl/mc).toFixed(1):'-';document.getElementById('stat-total-playtime').textContent=mc?Math.round(mc*8)+' min':'-';this.renderByTimeChart(bh);this.renderByDayChart(bd,dn);this.renderLegsTrendChart(matches);this.renderConsistencyChart(matches);}catch(e){console.error(e);}finally{this.hideLoading();}}
-    renderByTimeChart(bh){const ctx=document.getElementById('chart-by-time');if(!ctx)return;const ts=['Morgen','Nachmittag','Abend','Nacht'],av=ts.map(t=>bh[t]?.t?(bh[t].a/bh[t].t).toFixed(1):0);if(this.btChart)this.btChart.destroy();this.btChart=new Chart(ctx,{type:'bar',data:{labels:ts,datasets:[{data:av,backgroundColor:CONFIG.COLORS.green,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#94a3b8'}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'},suggestedMin:30,suggestedMax:50}}}});}
-    renderByDayChart(bd,dn){const ctx=document.getElementById('chart-by-weekday');if(!ctx)return;const ds=[1,2,3,4,5,6,0],av=ds.map(d=>bd[d]?.t?(bd[d].a/bd[d].t).toFixed(1):0);if(this.bdChart)this.bdChart.destroy();this.bdChart=new Chart(ctx,{type:'bar',data:{labels:ds.map(d=>dn[d]),datasets:[{data:av,backgroundColor:CONFIG.COLORS.blue,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#94a3b8'}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'},suggestedMin:30,suggestedMax:50}}}});}
-    renderLegsTrendChart(matches){const ctx=document.getElementById('chart-legs-trend');if(!ctx)return;const d=matches.slice(0,30).reverse().map(mp=>({l:new Date(mp.match.finished_at).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}),legs:(mp.legs_won||0)+(mp.legs_lost||0)}));if(this.ltChart)this.ltChart.destroy();this.ltChart=new Chart(ctx,{type:'line',data:{labels:d.map(x=>x.l),datasets:[{data:d.map(x=>x.legs),borderColor:CONFIG.COLORS.blue,tension:.3,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'}}}}});}
-    renderConsistencyChart(matches){const ctx=document.getElementById('chart-consistency-trend');if(!ctx)return;const s=[...matches].sort((a,b)=>new Date(a.match.finished_at)-new Date(b.match.finished_at)),d=[];for(let i=9;i<s.length;i++){const w=s.slice(i-9,i+1),av=w.filter(m=>m.average>0).map(m=>m.average);if(av.length){const mn=av.reduce((a,b)=>a+b,0)/av.length,sd=Math.sqrt(av.reduce((x,a)=>x+Math.pow(a-mn,2),0)/av.length);d.push({dt:new Date(s[i].match.finished_at),sd});}}const rd=d.slice(-20);if(this.csChart)this.csChart.destroy();this.csChart=new Chart(ctx,{type:'line',data:{labels:rd.map(x=>x.dt.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})),datasets:[{data:rd.map(x=>x.sd.toFixed(1)),borderColor:CONFIG.COLORS.yellow,tension:.3,fill:true,backgroundColor:'rgba(245,158,11,.1)'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'#94a3b8'},reverse:true}}}});}
-
-    // ========== HEAD-TO-HEAD ==========
-    async loadH2HData() {
-        this.showLoading();
-        try {
-            // Get all matches where both players participated (parallel)
-            const [{ data: franzMatches }, { data: bellaMatches }] = await Promise.all([
-                window.db.from('match_players').select('match_id').eq('user_id', FRANZ_ID),
-                window.db.from('match_players').select('match_id').eq('user_id', BELLACIAO_ID)
-            ]);
-
-            if (!franzMatches || !bellaMatches) { this.hideLoading(); return; }
-
-            const franzMatchIds = new Set(franzMatches.map(m => m.match_id));
-            const commonMatchIds = bellaMatches.filter(m => franzMatchIds.has(m.match_id)).map(m => m.match_id);
-
-            if (commonMatchIds.length === 0) {
-                document.getElementById('h2h-total-matches').textContent = '0';
-                this.hideLoading();
-                return;
-            }
-
-            // Load match details (parallel batches)
-            const matchBatches = []; for (let i = 0; i < commonMatchIds.length; i += 50) matchBatches.push(commonMatchIds.slice(i, i + 50));
-            const matchResults = await Promise.all(matchBatches.map(batch => window.db.from('matches').select('*').in('id', batch)));
-            let matches = matchResults.flatMap(r => r.data || []);
-
-            // Apply filters (time, type, variant) - but NOT player filter
-            if (this.filters.time !== 'all') {
-                const days = parseInt(this.filters.time);
-                const cutoff = new Date();
-                cutoff.setDate(cutoff.getDate() - days);
-                matches = matches.filter(m => new Date(m.finished_at) >= cutoff);
-            }
-            if (this.filters.type) {
-                matches = matches.filter(m => m.type === this.filters.type);
-            }
-            if (this.filters.variant) {
-                matches = matches.filter(m => m.variant === this.filters.variant);
-            }
-
-            if (matches.length === 0) {
-                document.getElementById('h2h-wins1').textContent = '0';
-                document.getElementById('h2h-wins2').textContent = '0';
-                document.getElementById('h2h-total-matches').textContent = '0';
-                document.getElementById('h2h-avg-p1').textContent = '-';
-                document.getElementById('h2h-avg-p2').textContent = '-';
-                document.getElementById('h2h-legs-p1').textContent = '-';
-                document.getElementById('h2h-legs-p2').textContent = '-';
-                document.getElementById('h2h-streak').textContent = '-';
-                document.getElementById('h2h-best-avg-p1').textContent = '-';
-                document.getElementById('h2h-best-avg-p2').textContent = '-';
-                document.getElementById('h2h-180s-p1').textContent = '-';
-                document.getElementById('h2h-180s-p2').textContent = '-';
-                document.getElementById('h2h-last10').textContent = '-';
-                document.getElementById('h2h-avg-diff').textContent = '-';
-                document.getElementById('h2h-winrate-p1').textContent = '-';
-                document.getElementById('h2h-winrate-p2').textContent = '-';
-                this.hideLoading();
-                return;
-            }
-
-            // Get filtered match IDs for loading players
-            const filteredMatchIds = matches.map(m => m.id);
-
-            // Load match_players for these matches (parallel batches)
-            const playerBatches = []; for (let i = 0; i < filteredMatchIds.length; i += 50) playerBatches.push(filteredMatchIds.slice(i, i + 50));
-            const playerResults = await Promise.all(playerBatches.map(batch => window.db.from('match_players').select('*').in('match_id', batch)));
-            const allPlayers = playerResults.flatMap(r => r.data || []);
-
-            // Load turns for calculating real averages
-            const mpIds = allPlayers.map(p => p.id);
-            const turns = await this.loadTurns(mpIds);
-            const turnsByMp = {};
-            turns.forEach(t => {
-                if (t.points !== null) {
-                    if (!turnsByMp[t.match_player_id]) turnsByMp[t.match_player_id] = [];
-                    turnsByMp[t.match_player_id].push(t.points);
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: '#888' }
+                    }
                 }
-            });
-            
-            // Build H2H data
-            let franzWins = 0, bellaWins = 0, franzLegs = 0, bellaLegs = 0;
-            let franzAvgSum = 0, bellaAvgSum = 0, matchCount = 0;
-            let franz180s = 0, bella180s = 0;
-            let franzBestAvg = 0, bellaBestAvg = 0;
-            let avgDiffSum = 0;
-            const h2hMatches = [];
-            let currentStreak = 0, streakPlayer = null;
-
-            matches.sort((a, b) => new Date(a.finished_at) - new Date(b.finished_at)).forEach(match => {
-                const franzMp = allPlayers.find(p => p.match_id === match.id && p.user_id === FRANZ_ID);
-                const bellaMp = allPlayers.find(p => p.match_id === match.id && p.user_id === BELLACIAO_ID);
-                if (!franzMp || !bellaMp) return;
-
-                // Check that this is a direct 1v1 match (exactly 2 players)
-                const playersInMatch = allPlayers.filter(p => p.match_id === match.id);
-                if (playersInMatch.length !== 2) return;
-
-                const franzTurns = turnsByMp[franzMp.id] || [];
-                const bellaTurns = turnsByMp[bellaMp.id] || [];
-                const franzAvg = franzTurns.length ? franzTurns.reduce((a,b)=>a+b,0) / franzTurns.length : 0;
-                const bellaAvg = bellaTurns.length ? bellaTurns.reduce((a,b)=>a+b,0) / bellaTurns.length : 0;
-
-                // Count 180s
-                franz180s += franzTurns.filter(p => p === 180).length;
-                bella180s += bellaTurns.filter(p => p === 180).length;
-
-                // Track best averages
-                if (franzAvg > franzBestAvg) franzBestAvg = franzAvg;
-                if (bellaAvg > bellaBestAvg) bellaBestAvg = bellaAvg;
-
-                const franzWon = match.winner === franzMp.player_index;
-                if (franzWon) franzWins++; else bellaWins++;
-
-                franzLegs += franzMp.legs_won || 0;
-                bellaLegs += bellaMp.legs_won || 0;
-
-                if (franzAvg > 0) { franzAvgSum += franzAvg; matchCount++; }
-                if (bellaAvg > 0) { bellaAvgSum += bellaAvg; }
-                if (franzAvg > 0 && bellaAvg > 0) { avgDiffSum += franzAvg - bellaAvg; }
-
-                // Streak tracking
-                const winner = franzWon ? 'franz' : 'bella';
-                if (winner === streakPlayer) currentStreak++;
-                else { currentStreak = 1; streakPlayer = winner; }
-
-                h2hMatches.push({
-                    date: new Date(match.finished_at),
-                    matchId: match.id,
-                    franzAvg, bellaAvg,
-                    franzWon,
-                    legs: (franzMp.legs_won || 0) + '-' + (bellaMp.legs_won || 0),
-                    franzMpId: franzMp.id,
-                    bellaMpId: bellaMp.id
-                });
-            });
-
-            // Last 10 matches
-            const last10 = h2hMatches.slice(-10);
-            const last10Franz = last10.filter(m => m.franzWon).length;
-            const last10Bella = last10.length - last10Franz;
-
-            // Update stats
-            document.getElementById('h2h-wins1').textContent = franzWins;
-            document.getElementById('h2h-wins2').textContent = bellaWins;
-            document.getElementById('h2h-total-matches').textContent = h2hMatches.length;
-            document.getElementById('h2h-avg-p1').textContent = matchCount ? (franzAvgSum / matchCount).toFixed(1) : '-';
-            document.getElementById('h2h-avg-p2').textContent = matchCount ? (bellaAvgSum / matchCount).toFixed(1) : '-';
-            document.getElementById('h2h-legs-p1').textContent = franzLegs;
-            document.getElementById('h2h-legs-p2').textContent = bellaLegs;
-            document.getElementById('h2h-streak').textContent = currentStreak + 'x ' + (streakPlayer === 'franz' ? '🟢' : '🔴');
-
-            // New stats
-            document.getElementById('h2h-best-avg-p1').textContent = franzBestAvg > 0 ? franzBestAvg.toFixed(1) : '-';
-            document.getElementById('h2h-best-avg-p2').textContent = bellaBestAvg > 0 ? bellaBestAvg.toFixed(1) : '-';
-            document.getElementById('h2h-180s-p1').textContent = franz180s;
-            document.getElementById('h2h-180s-p2').textContent = bella180s;
-            document.getElementById('h2h-last10').textContent = last10Franz + ':' + last10Bella;
-            const avgDiff = matchCount ? (avgDiffSum / matchCount) : 0;
-            document.getElementById('h2h-avg-diff').textContent = (avgDiff >= 0 ? '+' : '') + avgDiff.toFixed(1);
-
-            // Win rate percentage
-            const totalMatches = franzWins + bellaWins;
-            const franzWinRate = totalMatches > 0 ? ((franzWins / totalMatches) * 100).toFixed(1) : '-';
-            const bellaWinRate = totalMatches > 0 ? ((bellaWins / totalMatches) * 100).toFixed(1) : '-';
-            document.getElementById('h2h-winrate-p1').textContent = franzWinRate !== '-' ? franzWinRate + '%' : '-';
-            document.getElementById('h2h-winrate-p2').textContent = bellaWinRate !== '-' ? bellaWinRate + '%' : '-';
-
-            // Render charts
-            this.renderH2HWinsChart(h2hMatches);
-            this.renderH2HAvgChart(h2hMatches);
-            this.renderH2HFormChart(h2hMatches);
-            this.renderH2HPie(franzWins, bellaWins);
-            this.renderH2HTable(h2hMatches.slice().reverse(), turnsByMp);
-            
-        } catch (e) { console.error('H2H error:', e); }
-        finally { this.hideLoading(); }
-    }
-    
-    renderH2HWinsChart(matches) {
-        const ctx = document.getElementById('chart-h2h-wins');
-        if (!ctx) return;
-        
-        let franzCum = 0, bellaCum = 0;
-        const data = matches.map(m => {
-            if (m.franzWon) franzCum++; else bellaCum++;
-            return { date: m.date.toLocaleDateString('de-DE', {month:'short', year:'2-digit'}), franz: franzCum, bella: bellaCum };
-        });
-        
-        if (this.h2hWinsChart) this.h2hWinsChart.destroy();
-        this.h2hWinsChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: data.map(d => d.date),
-                datasets: [
-                    { label: 'franzinwien', data: data.map(d => d.franz), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.3 },
-                    { label: 'bellaciao', data: data.map(d => d.bella), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.3 }
-                ]
-            },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { color: '#94a3b8' } } }, scales: { x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } }, y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } } } }
+            }
         });
     }
-    
-    renderH2HAvgChart(matches) {
-        const ctx = document.getElementById('chart-h2h-avg');
+
+    renderScoringChart(data) {
+        const ctx = document.getElementById('chart-scoring');
         if (!ctx) return;
-        
-        const recent = matches.slice(-15);
-        if (this.h2hAvgChart) this.h2hAvgChart.destroy();
-        this.h2hAvgChart = new Chart(ctx, {
+
+        if (this.charts.scoring) {
+            this.charts.scoring.destroy();
+        }
+
+        const playerTurns = this.getPlayerTurns(data);
+        const validTurns = playerTurns.filter(t => t.points != null);
+
+        // Scoring buckets
+        const buckets = {
+            '0-20': 0,
+            '21-40': 0,
+            '41-60': 0,
+            '61-80': 0,
+            '81-100': 0,
+            '101-120': 0,
+            '121-140': 0,
+            '141-180': 0
+        };
+
+        validTurns.forEach(t => {
+            const p = t.points;
+            if (p <= 20) buckets['0-20']++;
+            else if (p <= 40) buckets['21-40']++;
+            else if (p <= 60) buckets['41-60']++;
+            else if (p <= 80) buckets['61-80']++;
+            else if (p <= 100) buckets['81-100']++;
+            else if (p <= 120) buckets['101-120']++;
+            else if (p <= 140) buckets['121-140']++;
+            else buckets['141-180']++;
+        });
+
+        this.charts.scoring = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: recent.map(m => m.date.toLocaleDateString('de-DE', {day:'2-digit', month:'2-digit'})),
-                datasets: [
-                    { label: 'franzinwien', data: recent.map(m => m.franzAvg.toFixed(1)), backgroundColor: '#10b981' },
-                    { label: 'bellaciao', data: recent.map(m => m.bellaAvg.toFixed(1)), backgroundColor: '#ef4444' }
-                ]
+                labels: Object.keys(buckets),
+                datasets: [{
+                    label: 'Aufnahmen',
+                    data: Object.values(buckets),
+                    backgroundColor: '#3b82f6'
+                }]
             },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { color: '#94a3b8' } } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } }, y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' }, suggestedMin: 25, suggestedMax: 50 } } }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    },
+                    y: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    }
+                }
+            }
         });
     }
-    
-    renderH2HFormChart(matches) {
-        const ctx = document.getElementById('chart-h2h-form');
-        if (!ctx) return;
 
-        // Rolling 5-match win rate for last 20 matches
-        const recent = matches.slice(-20);
-        const windowSize = 5;
-        const franzForm = [];
-        const bellaForm = [];
-        const labels = [];
+    renderRecentMatches(data) {
+        const container = document.getElementById('recent-matches');
+        if (!container) return;
 
-        for (let i = windowSize - 1; i < recent.length; i++) {
-            const window = recent.slice(i - windowSize + 1, i + 1);
-            const fWins = window.filter(m => m.franzWon).length;
-            franzForm.push((fWins / windowSize) * 100);
-            bellaForm.push(((windowSize - fWins) / windowSize) * 100);
-            labels.push(recent[i].date.toLocaleDateString('de-DE', {day:'2-digit', month:'2-digit'}));
+        container.innerHTML = data.map(d => {
+            const opponent = this.getOpponent(d);
+            const isWin = d.match.winner === d.player_index;
+            const date = new Date(d.match.finished_at).toLocaleDateString('de-DE');
+
+            const playerTurns = this.turns.filter(t => t.match_player_id === d.id && t.points != null);
+            const avg = playerTurns.length > 0
+                ? (playerTurns.reduce((sum, t) => sum + t.points, 0) / playerTurns.length).toFixed(1)
+                : '--';
+
+            const count180 = playerTurns.filter(t => t.points === 180).length;
+
+            return `
+                <div class="match-item">
+                    <div class="match-date">${date}</div>
+                    <div class="match-opponent">${opponent}</div>
+                    <div class="match-result ${isWin ? 'win' : 'loss'}">${isWin ? 'Sieg' : 'Niederlage'}</div>
+                    <div class="match-avg">${avg}</div>
+                    <div class="match-180s">${count180 > 0 ? count180 + 'x 180' : ''}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    getOpponent(matchPlayer) {
+        const opponents = this.matchPlayers.filter(
+            mp => mp.match_id === matchPlayer.match_id && mp.id !== matchPlayer.id
+        );
+        if (opponents.length === 0) return 'Unbekannt';
+        return opponents.map(o => o.name || 'Unbekannt').join(', ');
+    }
+
+    renderMatchesTable() {
+        const data = this.getFilteredData();
+        const sort = document.getElementById('matches-sort')?.value || 'date-desc';
+
+        // Sort data
+        let sorted = [...data];
+        switch (sort) {
+            case 'date-asc':
+                sorted.sort((a, b) => new Date(a.match.finished_at) - new Date(b.match.finished_at));
+                break;
+            case 'avg-desc':
+                sorted.sort((a, b) => (b.average || 0) - (a.average || 0));
+                break;
+            case 'avg-asc':
+                sorted.sort((a, b) => (a.average || 0) - (b.average || 0));
+                break;
+            default:
+                sorted.sort((a, b) => new Date(b.match.finished_at) - new Date(a.match.finished_at));
         }
 
-        if (this.h2hFormChart) this.h2hFormChart.destroy();
-        this.h2hFormChart = new Chart(ctx, {
+        // Paginate
+        const start = (this.currentPage - 1) * this.matchesPerPage;
+        const paged = sorted.slice(start, start + this.matchesPerPage);
+
+        const tbody = document.querySelector('#matches-table tbody');
+        if (!tbody) return;
+
+        tbody.innerHTML = paged.map(d => {
+            const opponent = this.getOpponent(d);
+            const isWin = d.match.winner === d.player_index;
+            const date = new Date(d.match.finished_at).toLocaleDateString('de-DE');
+
+            const playerTurns = this.turns.filter(t => t.match_player_id === d.id && t.points != null);
+            const avg = playerTurns.length > 0
+                ? (playerTurns.reduce((sum, t) => sum + t.points, 0) / playerTurns.length).toFixed(1)
+                : '--';
+
+            const first9Turns = playerTurns.filter(t => t.round <= 3);
+            const first9 = first9Turns.length > 0
+                ? (first9Turns.reduce((sum, t) => sum + t.points, 0) / first9Turns.length).toFixed(1)
+                : '--';
+
+            const checkout = d.checkout_rate ? d.checkout_rate.toFixed(1) + '%' : '--';
+            const count180 = playerTurns.filter(t => t.points === 180).length;
+
+            return `
+                <tr>
+                    <td>${date}</td>
+                    <td>${opponent}</td>
+                    <td class="${isWin ? 'win' : 'loss'}">${isWin ? 'Sieg' : 'Niederlage'}</td>
+                    <td>${avg}</td>
+                    <td>${first9}</td>
+                    <td>${checkout}</td>
+                    <td>${count180 > 0 ? count180 : '-'}</td>
+                </tr>
+            `;
+        }).join('');
+
+        // Pagination
+        this.renderPagination(sorted.length);
+    }
+
+    renderPagination(total) {
+        const container = document.getElementById('matches-pagination');
+        if (!container) return;
+
+        const pages = Math.ceil(total / this.matchesPerPage);
+        if (pages <= 1) {
+            container.innerHTML = '';
+            return;
+        }
+
+        let html = '';
+        for (let i = 1; i <= pages; i++) {
+            html += `<button class="${i === this.currentPage ? 'active' : ''}" onclick="app.goToPage(${i})">${i}</button>`;
+        }
+        container.innerHTML = html;
+    }
+
+    goToPage(page) {
+        this.currentPage = page;
+        this.renderMatchesTable();
+    }
+
+    updateH2H() {
+        const player1Id = document.getElementById('h2h-player1')?.value;
+        const player2Id = document.getElementById('h2h-player2')?.value;
+
+        if (!player1Id || !player2Id || player1Id === player2Id) {
+            return;
+        }
+
+        // Find matches where both players played
+        const h2hMatches = [];
+        this.matches.forEach(match => {
+            const players = this.matchPlayers.filter(mp => mp.match_id === match.id);
+            const p1 = players.find(p => p.user_id === player1Id);
+            const p2 = players.find(p => p.user_id === player2Id);
+            if (p1 && p2) {
+                h2hMatches.push({ match, p1, p2 });
+            }
+        });
+
+        // Sort by date
+        h2hMatches.sort((a, b) => new Date(a.match.finished_at) - new Date(b.match.finished_at));
+
+        // Calculate stats
+        let wins1 = 0, wins2 = 0;
+        let totalAvg1 = 0, totalAvg2 = 0;
+        let legs1 = 0, legs2 = 0;
+        let count180s1 = 0, count180s2 = 0;
+
+        h2hMatches.forEach(h => {
+            if (h.match.winner === h.p1.player_index) wins1++;
+            else if (h.match.winner === h.p2.player_index) wins2++;
+
+            legs1 += h.p1.legs_won || 0;
+            legs2 += h.p2.legs_won || 0;
+
+            // Calculate averages from turns
+            const turns1 = this.turns.filter(t => t.match_player_id === h.p1.id && t.points != null);
+            const turns2 = this.turns.filter(t => t.match_player_id === h.p2.id && t.points != null);
+
+            if (turns1.length > 0) {
+                totalAvg1 += turns1.reduce((sum, t) => sum + t.points, 0) / turns1.length;
+            }
+            if (turns2.length > 0) {
+                totalAvg2 += turns2.reduce((sum, t) => sum + t.points, 0) / turns2.length;
+            }
+
+            count180s1 += turns1.filter(t => t.points === 180).length;
+            count180s2 += turns2.filter(t => t.points === 180).length;
+        });
+
+        const avgAvg1 = h2hMatches.length > 0 ? totalAvg1 / h2hMatches.length : 0;
+        const avgAvg2 = h2hMatches.length > 0 ? totalAvg2 / h2hMatches.length : 0;
+
+        // Update UI
+        const p1Name = this.allowedUsers.find(u => u.autodarts_user_id === player1Id)?.autodarts_username || 'Spieler 1';
+        const p2Name = this.allowedUsers.find(u => u.autodarts_user_id === player2Id)?.autodarts_username || 'Spieler 2';
+
+        document.getElementById('h2h-name1').textContent = p1Name;
+        document.getElementById('h2h-name2').textContent = p2Name;
+        document.getElementById('h2h-wins1').textContent = wins1;
+        document.getElementById('h2h-wins2').textContent = wins2;
+
+        // Stats comparison
+        document.getElementById('h2h-avg1').textContent = avgAvg1.toFixed(1);
+        document.getElementById('h2h-avg2').textContent = avgAvg2.toFixed(1);
+        document.getElementById('h2h-first9-1').textContent = '--'; // TODO
+        document.getElementById('h2h-first9-2').textContent = '--';
+        document.getElementById('h2h-checkout1').textContent = '--';
+        document.getElementById('h2h-checkout2').textContent = '--';
+        document.getElementById('h2h-180s1').textContent = count180s1;
+        document.getElementById('h2h-180s2').textContent = count180s2;
+        document.getElementById('h2h-legs1').textContent = legs1;
+        document.getElementById('h2h-legs2').textContent = legs2;
+
+        // Highlight better values
+        this.highlightBetter('h2h-avg1', 'h2h-avg2', avgAvg1, avgAvg2);
+        this.highlightBetter('h2h-180s1', 'h2h-180s2', count180s1, count180s2);
+        this.highlightBetter('h2h-legs1', 'h2h-legs2', legs1, legs2);
+
+        // Chart
+        this.renderH2HChart(h2hMatches, p1Name, p2Name);
+
+        // Match list
+        this.renderH2HMatches(h2hMatches, p1Name, p2Name);
+    }
+
+    highlightBetter(id1, id2, val1, val2) {
+        const el1 = document.getElementById(id1);
+        const el2 = document.getElementById(id2);
+        el1?.classList.remove('better');
+        el2?.classList.remove('better');
+        if (val1 > val2) el1?.classList.add('better');
+        else if (val2 > val1) el2?.classList.add('better');
+    }
+
+    renderH2HChart(matches, name1, name2) {
+        const ctx = document.getElementById('chart-h2h');
+        if (!ctx) return;
+
+        if (this.charts.h2h) {
+            this.charts.h2h.destroy();
+        }
+
+        const labels = matches.map((h, i) => `Match ${i + 1}`);
+        const data1 = matches.map(h => {
+            const turns = this.turns.filter(t => t.match_player_id === h.p1.id && t.points != null);
+            return turns.length > 0 ? turns.reduce((sum, t) => sum + t.points, 0) / turns.length : 0;
+        });
+        const data2 = matches.map(h => {
+            const turns = this.turns.filter(t => t.match_player_id === h.p2.id && t.points != null);
+            return turns.length > 0 ? turns.reduce((sum, t) => sum + t.points, 0) / turns.length : 0;
+        });
+
+        this.charts.h2h = new Chart(ctx, {
             type: 'line',
             data: {
                 labels,
                 datasets: [
-                    { label: 'franzinwien Form %', data: franzForm, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 },
-                    { label: 'bellaciao Form %', data: bellaForm, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.4 }
-                ]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { position: 'top', labels: { color: '#94a3b8' } } },
-                scales: {
-                    x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8', font: { size: 9 } } },
-                    y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' }, min: 0, max: 100, title: { display: true, text: 'Win % (5er Fenster)', color: '#94a3b8' } }
-                }
-            }
-        });
-    }
-    
-    renderH2HPie(fWins, bWins) {
-        const ctx = document.getElementById('chart-h2h-pie');
-        if (!ctx) return;
-        
-        if (this.h2hPieChart) this.h2hPieChart.destroy();
-        this.h2hPieChart = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['franzinwien', 'bellaciao'],
-                datasets: [{ data: [fWins, bWins], backgroundColor: ['#10b981', '#ef4444'], borderWidth: 0 }]
-            },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8' } } }, cutout: '60%' }
-        });
-    }
-    
-    renderH2HTable(matches, turnsByMp) {
-        const tb = document.querySelector('#h2h-matches-table tbody');
-        if (!tb) return;
-
-        // Calculate rankings within H2H matches for Franz
-        const franzMatches = matches.map(m => ({ ...m, calcAvg: m.franzAvg }));
-        franzMatches.sort((a, b) => b.calcAvg - a.calcAvg);
-        franzMatches.forEach((m, i) => m.rank = i + 1);
-        const rankMap = {};
-        franzMatches.forEach(m => rankMap[m.franzMpId] = m.rank);
-
-        const total = matches.length;
-        tb.innerHTML = matches.map(m => {
-            const rank = rankMap[m.franzMpId] || '-';
-            const avgDiff = (m.franzAvg - m.bellaAvg).toFixed(1);
-            const avgDiffClass = avgDiff >= 0 ? 'result-win' : 'result-loss';
-            return '<tr style="cursor:pointer" onclick="window.app.goToMatchDetail(\'' + m.matchId + '\')">' +
-                '<td>' + m.date.toLocaleDateString('de-DE') + '</td>' +
-                '<td class="' + (m.franzWon ? 'result-win' : 'result-loss') + '">' + (m.franzWon ? '✅ Sieg' : '❌ Niederlage') + '</td>' +
-                '<td>' + m.franzAvg.toFixed(1) + '</td>' +
-                '<td>' + m.bellaAvg.toFixed(1) + '</td>' +
-                '<td class="' + avgDiffClass + '">' + (avgDiff >= 0 ? '+' : '') + avgDiff + '</td>' +
-                '<td>' + m.legs + '</td>' +
-                '<td>' + this.getRankBadge(rank, total) + '</td>' +
-                '</tr>';
-        }).join('');
-    }
-
-    // ========== MATCH DETAIL ==========
-    async loadLegHistoryData() {
-        // Load leg averages from Supabase view (single query per match batch)
-        if (this.legHistoryLoaded) return;
-
-        try {
-            // Get filtered match IDs and match_player_ids
-            const matches = this.getFilteredData();
-            const filteredMatchIds = matches.map(m => m.match_id);
-            const mpIdSet = new Set(matches.map(m => m.id));
-
-            if (filteredMatchIds.length === 0) {
-                this.legHistory = [];
-                this.legHistoryLoaded = true;
-                return;
-            }
-
-            // Load from leg_averages view by match_id (parallel batches)
-            const legBatches = []; for (let i = 0; i < filteredMatchIds.length; i += 100) legBatches.push(filteredMatchIds.slice(i, i + 100));
-            const legResults = await Promise.all(legBatches.map(batch => window.db.from('leg_averages').select('*').in('match_id', batch)));
-            const allLegAvgs = legResults.flatMap(r => r.data || []);
-
-            // Filter to only current player's legs (not opponent's)
-            const myLegAvgs = allLegAvgs.filter(l => mpIdSet.has(l.match_player_id));
-
-            // Sort by average descending and assign ranks
-            const legAvgs = myLegAvgs.map(l => ({
-                legId: l.leg_id,
-                avg: l.three_dart_avg || 0,
-                totalPoints: l.total_points,
-                totalDarts: l.total_darts
-            }));
-            legAvgs.sort((a, b) => b.avg - a.avg);
-            legAvgs.forEach((leg, i) => leg.rank = i + 1);
-
-            this.legHistory = legAvgs;
-            this.legHistoryLoaded = true;
-        } catch (e) {
-            console.error('loadLegHistoryData error:', e);
-        }
-    }
-
-    getLegRank(legId) {
-        if (!this.legHistory) return null;
-        const leg = this.legHistory.find(l => l.legId === legId);
-        return leg ? { rank: leg.rank, total: this.legHistory.length, avg: leg.avg } : null;
-    }
-
-    async loadMatchHistoryData() {
-        // Load match averages from Supabase view (single query!)
-        if (this.matchHistoryLoaded) return;
-
-        try {
-            // Get ALL match averages for current player in ONE query
-            const { data, error } = await supabase
-                .from('match_averages')
-                .select('*')
-                .eq('user_id', this.currentPlayerId);
-
-            if (error) throw error;
-
-            // Filter to only include matches that match current filters (variant, etc.)
-            const filteredMatches = this.getFilteredData();
-            const filteredMatchIds = new Set(filteredMatches.map(m => m.match_id));
-            const filteredData = (data || []).filter(m => filteredMatchIds.has(m.match_id));
-
-            // Sort by average descending and assign ranks
-            const matchAvgs = filteredData.map(m => ({
-                matchId: m.match_id,
-                avg: m.three_dart_avg || 0,
-                totalPoints: m.total_points,
-                totalDarts: m.total_darts
-            }));
-            matchAvgs.sort((a, b) => b.avg - a.avg);
-            matchAvgs.forEach((m, i) => m.rank = i + 1);
-
-            this.matchHistory = matchAvgs;
-            this.matchHistoryLoaded = true;
-        } catch (e) {
-            console.error('loadMatchHistoryData error:', e);
-        }
-    }
-
-    getMatchRank(matchId) {
-        if (!this.matchHistory) return null;
-        const match = this.matchHistory.find(m => m.matchId === matchId);
-        return match ? { rank: match.rank, total: this.matchHistory.length, avg: match.avg } : null;
-    }
-
-    async loadMatchDetailPage() {
-        const select = document.getElementById('match-detail-select');
-        if (!select) return;
-
-        // Load leg and match history in background
-        this.loadLegHistoryData();
-        this.loadMatchHistoryData();
-
-        // Populate match dropdown
-        const matches = this.getFilteredData();
-        select.innerHTML = '<option value="">Match auswählen...</option>' +
-            matches.map(mp => {
-                const d = new Date(mp.match.finished_at);
-                const opp = this.opponentMap[mp.match_id];
-                const oppName = opp ? (opp.is_bot ? '🤖 Bot ' + Math.round((opp.cpu_ppr||40)/10) : opp.name || 'Gegner') : '?';
-                const win = mp.match.winner === mp.player_index;
-                return `<option value="${mp.match_id}">${d.toLocaleDateString('de-DE')} - vs ${oppName} ${win ? '✅' : '❌'} (${mp.average?.toFixed(1) || '-'})</option>`;
-            }).join('');
-
-        // Load first match if available
-        if (matches.length > 0 && !select.value) {
-            // Don't auto-load, show empty state
-        }
-    }
-
-    navigateMatch(direction) {
-        const select = document.getElementById('match-detail-select');
-        if (!select) return;
-        const options = Array.from(select.options).filter(o => o.value);
-        const currentIdx = options.findIndex(o => o.value === select.value);
-        const newIdx = Math.max(0, Math.min(options.length - 1, currentIdx + direction));
-        if (options[newIdx]) {
-            select.value = options[newIdx].value;
-            this.loadMatchDetail(select.value);
-        }
-    }
-
-    async loadMatchDetail(matchId) {
-        if (!matchId) {
-            document.getElementById('match-detail-header')?.classList.add('hidden');
-            document.getElementById('match-detail-content')?.classList.add('hidden');
-            document.getElementById('match-detail-empty')?.classList.remove('hidden');
-            return;
-        }
-
-        this.showLoading();
-        try {
-            // Find match player data
-            const mp = this.allMatchPlayers.find(m => m.match_id === matchId);
-            const match = this.allMatches.find(m => m.id === matchId);
-            const opp = this.opponentMap[matchId];
-            if (!mp || !match) { this.hideLoading(); return; }
-
-            const isWin = match.winner === mp.player_index;
-            const oppMp = opp;
-
-            // Load legs for this match
-            const { data: legs } = await window.db.from('legs').select('*').eq('match_id', matchId).order('leg_number');
-
-            // Load turns for both players
-            const { data: myTurns } = await window.db.from('turns').select('*').eq('match_player_id', mp.id).order('created_at');
-            let oppTurns = [];
-            if (oppMp) {
-                const { data } = await window.db.from('turns').select('*').eq('match_player_id', oppMp.id).order('created_at');
-                oppTurns = data || [];
-            }
-
-            // Update header
-            document.getElementById('match-detail-header')?.classList.remove('hidden');
-            document.getElementById('match-detail-content')?.classList.remove('hidden');
-            document.getElementById('match-detail-empty')?.classList.add('hidden');
-
-            const d = new Date(match.finished_at);
-            // Get current player's name from allowed_users
-            const currentPlayer = this.allPlayers.find(p => p.autodarts_user_id === this.currentPlayerId);
-            const playerName = currentPlayer?.autodarts_username || mp.name || 'Du';
-
-            document.getElementById('md-date').textContent = `📅 ${d.toLocaleDateString('de-DE')} ${d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})}`;
-            document.getElementById('md-opponent').textContent = `🎯 ${playerName} vs ${opp ? (opp.is_bot ? '🤖 Bot ' + Math.round((opp.cpu_ppr||40)/10) : opp.name) : '?'}`;
-            document.getElementById('md-result').textContent = isWin ? '✅ Sieg' : '❌ Niederlage';
-            document.getElementById('md-result').className = 'match-result ' + (isWin ? 'win' : 'loss');
-
-            // Count legs won/lost from legs data (legs_lost doesn't exist in DB)
-            const myLegsWon = (legs || []).filter(l => l.winner_player_id === mp.id).length;
-            const oppLegsWon = (legs || []).length - myLegsWon;
-            document.getElementById('md-legs').textContent = `${myLegsWon}:${oppLegsWon} Legs`;
-
-            // Show match ranking if available - ensure history is loaded first
-            await this.loadMatchHistoryData();
-            const matchRank = this.getMatchRank(matchId);
-            const matchRankEl = document.getElementById('md-match-rank');
-            if (matchRankEl) {
-                if (matchRank) {
-                    const badge = this.getMatchRankBadge(matchRank.rank, matchRank.total);
-                    matchRankEl.innerHTML = badge;
-                } else {
-                    matchRankEl.innerHTML = '<span class="rank-loading">Ranking lädt...</span>';
-                }
-            }
-
-            // Load throws for accurate dart count and stats
-            const turnIds = (myTurns || []).map(t => t.id);
-            const myThrows = await this.loadThrows(turnIds, 10000);
-
-            // Calculate actual darts thrown from throws table
-            const dartsThrown = myThrows.length || (myTurns?.length || 0) * 3;
-
-            // Calculate Match Average: (Total Points / Total Darts) × 3
-            const totalPoints = (myTurns || []).reduce((s, t) => s + (t.points || 0), 0);
-            const matchAverage = dartsThrown > 0 ? (totalPoints / dartsThrown) * 3 : 0;
-
-            // Calculate First 9 Average (first 3 rounds = 9 darts)
-            const first9Turns = (myTurns || []).filter(t => t.round <= 3 && t.points !== null);
-            const first9Avg = first9Turns.length > 0
-                ? first9Turns.reduce((s, t) => s + t.points, 0) / first9Turns.length
-                : 0;
-
-            // Calculate Checkout % correctly:
-            // Checkout % = Successful checkouts / Checkout attempts
-            // A checkout attempt = turn where score_remaining <= 170 (player was in checkout range)
-            const myLegsWonCount = (legs || []).filter(l => l.winner_player_id === mp.id).length;
-            const checkoutAttempts = (myTurns || []).filter(t =>
-                t.score_remaining !== null &&
-                t.score_remaining > 0 &&
-                t.score_remaining <= 170
-            ).length;
-            // Successful checkouts = legs won by this player
-            const checkoutRate = checkoutAttempts > 0 ? (myLegsWonCount / checkoutAttempts) * 100 : 0;
-
-            // Update stats
-            document.getElementById('md-average').textContent = matchAverage.toFixed(2) || '-';
-            document.getElementById('md-first9').textContent = first9Avg > 0 ? first9Avg.toFixed(1) : '-';
-            document.getElementById('md-checkout').textContent = checkoutAttempts > 0 ? checkoutRate.toFixed(1) + '%' : '-';
-
-            // Count 180s from turns for THIS match only (not mp.total_180s which is overall)
-            const match180s = (myTurns || []).filter(t => t.points === 180).length;
-            document.getElementById('md-180s').textContent = match180s;
-
-            document.getElementById('md-darts').textContent = dartsThrown || '-';
-
-            // T20 count and rate
-            const t20Throws = myThrows.filter(t => t.segment_name === 'T20');
-            const totalThrows = myThrows.length;
-            document.getElementById('md-t20-count').textContent = t20Throws.length;
-            document.getElementById('md-t20-rate').textContent = totalThrows ? ((t20Throws.length / totalThrows) * 100).toFixed(1) + '%' : '-';
-
-            // Highest visit
-            const highestVisit = Math.max(...(myTurns || []).map(t => t.points || 0), 0);
-            document.getElementById('md-highest').textContent = highestVisit || '-';
-
-            // Store throws for later use
-            this.currentMyThrows = myThrows;
-
-            // Store data for leg display
-            this.currentMatchLegs = legs || [];
-            this.currentMyTurns = myTurns || [];
-            this.currentOppTurns = oppTurns;
-            this.currentMp = mp;
-            this.currentOppMp = oppMp;
-
-            // Store match data for summary generation (use calculated values)
-            this.currentMatchData = {
-                myStats: {
-                    average: matchAverage,
-                    first9_average: first9Avg,
-                    checkout_percentage: checkoutRate,
-                    player_id: mp.id
-                },
-                opponent: opp ? (opp.is_bot ? 'Bot ' + Math.round((opp.cpu_ppr || 40) / 10) : opp.name || 'Gegner') : 'Gegner'
-            };
-
-            // Render leg filter tabs
-            this.renderLegFilterTabs();
-            this.enableStickyHeader();
-
-            // Default: Match view
-            this.selectView('match');
-
-        } catch (e) {
-            console.error('loadMatchDetail error:', e);
-        } finally {
-            this.hideLoading();
-        }
-    }
-
-    renderLegOverview() {
-        const grid = document.getElementById('leg-overview-grid');
-        if (!grid || !this.currentMatchLegs) return;
-
-        // Group throws by turn_id to count actual darts per turn
-        const dartsByTurn = {};
-        if (this.currentMyThrows) {
-            this.currentMyThrows.forEach(th => {
-                dartsByTurn[th.turn_id] = (dartsByTurn[th.turn_id] || 0) + 1;
-            });
-        }
-
-        grid.innerHTML = this.currentMatchLegs.map((leg, i) => {
-            const myTurns = this.currentMyTurns.filter(t => t.leg_id === leg.id);
-            const totalPoints = myTurns.reduce((s, t) => s + (t.points || 0), 0);
-
-            // Calculate actual darts thrown (from throws table, fallback to turns * 3)
-            let totalDarts = 0;
-            myTurns.forEach(t => {
-                totalDarts += dartsByTurn[t.id] || 3; // fallback to 3 if no throws data
-            });
-
-            // 3-Dart-Average = (Total Points / Total Darts) * 3
-            const avg = totalDarts > 0 ? (totalPoints / totalDarts) * 3 : 0;
-
-            // winner_player_id contains match_player.id, NOT user_id!
-            const won = leg.winner_player_id === this.currentMp?.id;
-
-            // Get historical rank for this leg
-            const rankInfo = this.getLegRank(leg.id);
-            const rankHtml = rankInfo ? this.getLegRankBadge(rankInfo.rank, rankInfo.total) : '';
-
-            return `<div class="leg-card ${won ? 'won' : 'lost'}" data-leg-id="${leg.id}" onclick="window.app.selectLeg('${leg.id}')">
-                <div class="leg-number">Leg ${leg.leg_number + 1}</div>
-                <div class="leg-avg">${avg.toFixed(1)}</div>
-                <div class="leg-darts">${totalDarts} Darts</div>
-                <div class="leg-rank">${rankHtml}</div>
-                <div class="leg-result">${won ? '✅' : '❌'}</div>
-            </div>`;
-        }).join('');
-    }
-
-    getLegRankBadge(rank, total) {
-        const percentile = ((total - rank + 1) / total) * 100;
-        if (rank === 1) return '<span class="leg-rank-badge rank-gold" title="Bestes Leg aller Zeiten!">🥇 #1</span>';
-        if (rank === 2) return '<span class="leg-rank-badge rank-silver" title="Platz 2">🥈 #2</span>';
-        if (rank === 3) return '<span class="leg-rank-badge rank-bronze" title="Platz 3">🥉 #3</span>';
-        if (percentile >= 90) return `<span class="leg-rank-badge rank-top10" title="Top 10%">#${rank}</span>`;
-        if (percentile >= 75) return `<span class="leg-rank-badge rank-top25" title="Top 25%">#${rank}</span>`;
-        if (percentile >= 50) return `<span class="leg-rank-badge rank-top50" title="Top 50%">#${rank}</span>`;
-        return `<span class="leg-rank-badge rank-normal" title="Position ${rank} von ${total}">#${rank}</span>`;
-    }
-
-    getMatchRankBadge(rank, total) {
-        const percentile = ((total - rank + 1) / total) * 100;
-        if (rank === 1) return `<span class="match-rank-badge rank-gold" title="Bestes Match aller Zeiten!">🏆 Match #1 von ${total}</span>`;
-        if (rank === 2) return `<span class="match-rank-badge rank-silver" title="Platz 2">🥈 Match #2 von ${total}</span>`;
-        if (rank === 3) return `<span class="match-rank-badge rank-bronze" title="Platz 3">🥉 Match #3 von ${total}</span>`;
-        if (percentile >= 90) return `<span class="match-rank-badge rank-top10" title="Top 10%">⭐ Match #${rank} von ${total}</span>`;
-        if (percentile >= 75) return `<span class="match-rank-badge rank-top25" title="Top 25%">Match #${rank} von ${total}</span>`;
-        if (percentile >= 50) return `<span class="match-rank-badge rank-top50" title="Top 50%">Match #${rank} von ${total}</span>`;
-        return `<span class="match-rank-badge rank-normal" title="Position ${rank} von ${total}">Match #${rank} von ${total}</span>`;
-    }
-
-    selectLeg(legId) {
-        // Update active state
-        document.querySelectorAll('.leg-card').forEach(c => c.classList.toggle('active', c.dataset.legId === legId));
-
-        const leg = this.currentMatchLegs.find(l => l.id === legId);
-        if (!leg) return;
-
-        document.getElementById('leg-detail-title').textContent = `- Leg ${leg.leg_number + 1}`;
-
-        // Get turns for this leg
-        const myTurns = this.currentMyTurns.filter(t => t.leg_id === legId).sort((a,b) => a.turn - b.turn);
-        const oppTurns = this.currentOppTurns.filter(t => t.leg_id === legId).sort((a,b) => a.turn - b.turn);
-
-        // Render detail table
-        this.renderLegDetailTable(myTurns, oppTurns);
-
-        // Render score progression chart
-        this.renderLegProgressionChart(myTurns, oppTurns, leg);
-    }
-
-    renderLegDetailTable(myTurns, oppTurns) {
-        const tbody = document.querySelector('#leg-detail-table tbody');
-        if (!tbody) return;
-
-        const maxVisits = Math.max(myTurns.length, oppTurns.length);
-        let rows = [];
-
-        for (let i = 0; i < maxVisits; i++) {
-            const my = myTurns[i];
-            const opp = oppTurns[i];
-            rows.push(`<tr>
-                <td>${i + 1}</td>
-                <td>${my?.points ?? '-'}</td>
-                <td>${my?.score_remaining ?? '-'}</td>
-                <td>${opp?.points ?? '-'}</td>
-                <td>${opp?.score_remaining ?? '-'}</td>
-            </tr>`);
-        }
-
-        tbody.innerHTML = rows.join('');
-    }
-
-    renderT20Analysis(throws) {
-        const analysis = analyzeT20Misses(throws);
-
-        // Update stats
-        const hitRate = analysis.total > 0 ? ((analysis.hits / analysis.total) * 100).toFixed(1) : '-';
-        document.getElementById('t20-hit-rate').textContent = hitRate !== '-' ? hitRate + '%' : '-';
-        document.getElementById('t20-total-attempts').textContent = analysis.total || '-';
-
-        // Average miss distance in mm
-        if (analysis.misses.length > 0) {
-            const avgDist = analysis.misses.reduce((s, m) => s + m.distMm, 0) / analysis.misses.length;
-            document.getElementById('t20-avg-miss-dist').textContent = avgDist.toFixed(1) + 'mm';
-        } else {
-            document.getElementById('t20-avg-miss-dist').textContent = '-';
-        }
-
-        // 8 Direction stats with heatmap
-        const directions = ['links-oben', 'links-mitte', 'links-unten', 'oben', 'unten', 'rechts-oben', 'rechts-mitte', 'rechts-unten'];
-
-        // Calculate counts for heatmap scaling
-        const counts = directions.map(dir => {
-            const data = analysis.byDirection[dir];
-            return data.close.length + data.far.length;
-        });
-        const maxCount = Math.max(...counts, 1);
-        const totalMisses = analysis.misses.length || 1;
-
-        directions.forEach((dir, i) => {
-            const el = document.getElementById(`t20-miss-${dir}`);
-            if (el) {
-                const data = analysis.byDirection[dir];
-                const closeCount = data.close.length;
-                const farCount = data.far.length;
-                const total = closeCount + farCount;
-
-                if (total > 0) {
-                    el.querySelector('.direction-value').textContent = total;
-                    el.querySelector('.direction-detail').textContent = `≤1cm: ${closeCount} | >1cm: ${farCount}`;
-
-                    // Heatmap color based on intensity
-                    const intensity = total / maxCount;
-                    el.style.background = this.getHeatmapColor(intensity);
-                    el.style.color = intensity > 0.5 ? '#000' : '#fff';
-                    const label = el.querySelector('.direction-label');
-                    const detail = el.querySelector('.direction-detail');
-                    if (label) label.style.color = intensity > 0.5 ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)';
-                    if (detail) detail.style.color = intensity > 0.5 ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)';
-                } else {
-                    el.querySelector('.direction-value').textContent = '-';
-                    el.querySelector('.direction-detail').textContent = '';
-                    el.style.background = 'var(--bg-tertiary)';
-                    el.style.color = '';
-                    const label = el.querySelector('.direction-label');
-                    const detail = el.querySelector('.direction-detail');
-                    if (label) label.style.color = '';
-                    if (detail) detail.style.color = '';
-                }
-            }
-        });
-
-        // Center (T20 hits)
-        const centerEl = document.getElementById('t20-miss-center');
-        if (centerEl) {
-            centerEl.querySelector('.direction-value').textContent = analysis.hits || '0';
-        }
-
-        // Distance breakdown bars (in cm)
-        const distMapping = {
-            '0-1cm': { fillId: 'dist-0-1', countId: 'dist-count-0-1' },
-            '1-2cm': { fillId: 'dist-1-2', countId: 'dist-count-1-2' },
-            '2-3cm': { fillId: 'dist-2-3', countId: 'dist-count-2-3' },
-            '>3cm': { fillId: 'dist-3plus', countId: 'dist-count-3plus' }
-        };
-
-        Object.entries(analysis.byDistance).forEach(([key, count]) => {
-            const mapping = distMapping[key];
-            if (mapping) {
-                const fillEl = document.getElementById(mapping.fillId);
-                const countEl = document.getElementById(mapping.countId);
-                if (fillEl) fillEl.style.width = ((count / totalMisses) * 100) + '%';
-                if (countEl) countEl.textContent = count;
-            }
-        });
-
-        // Textual analysis
-        this.renderT20TextAnalysis(analysis, totalMisses);
-
-        // Extended analysis
-        this.renderT20Scatter(throws, analysis);
-        this.renderT20Fatigue(throws);
-
-        // T20 trend chart (only in Match view)
-        if (this.currentLegView === 'match') {
-            this.renderT20TrendChart();
-            document.getElementById('t20-trend-section').style.display = '';
-        } else {
-            document.getElementById('t20-trend-section').style.display = 'none';
-        }
-    }
-
-    renderT20Scatter(throws, analysis) {
-        const canvas = document.getElementById('t20-scatter-canvas');
-        if (!canvas) return;
-
-        const ctx = canvas.getContext('2d');
-        const w = canvas.width;
-        const h = canvas.height;
-        const cx = w / 2;
-        const cy = h / 2;
-
-        // Clear canvas
-        ctx.fillStyle = '#1e293b';
-        ctx.fillRect(0, 0, w, h);
-
-        // Scale and center on T20
-        const scale = 2500;
-        const t20x = T20_CENTROID[0];
-        const t20y = T20_CENTROID[1];
-
-        // Helper to transform coordinates (centered on T20)
-        const toCanvasX = (x) => cx + (x - t20x) * scale;
-        const toCanvasY = (y) => cy - (y - t20y) * scale;
-
-        // Draw T20 polygon
-        ctx.strokeStyle = 'rgba(16, 185, 129, 0.5)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        T20_POLYGON.forEach((p, i) => {
-            const x = toCanvasX(p[0]);
-            const y = toCanvasY(p[1]);
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        });
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(16, 185, 129, 0.2)';
-        ctx.fill();
-        ctx.stroke();
-
-        // Draw crosshair at T20 center
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(cx - 20, cy);
-        ctx.lineTo(cx + 20, cy);
-        ctx.moveTo(cx, cy - 20);
-        ctx.lineTo(cx, cy + 20);
-        ctx.stroke();
-
-        // Draw distance rings (1cm, 2cm, 3cm)
-        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-        [10, 20, 30].forEach(mm => {
-            const radius = (mm / COORD_TO_MM) * scale;
-            ctx.beginPath();
-            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-            ctx.stroke();
-        });
-
-        // Draw all throws (only show T20 hits and throws within 3cm)
-        const t20Throws = throws.filter(t => [20, 1, 5].includes(t.segment_number) && t.coord_x != null && t.coord_y != null);
-
-        t20Throws.forEach(t => {
-            const x = toCanvasX(t.coord_x);
-            const y = toCanvasY(t.coord_y);
-
-            // Skip if outside canvas
-            if (x < -10 || x > w + 10 || y < -10 || y > h + 10) return;
-
-            const inT20 = pointInPolygon(t.coord_x, t.coord_y, T20_POLYGON);
-            const dist = inT20 ? 0 : distanceToPolygon(t.coord_x, t.coord_y, T20_POLYGON) * COORD_TO_MM;
-
-            // Hide throws >3cm from T20
-            if (!inT20 && dist > 30) return;
-
-            // Color based on distance: T20 (green), ≤1cm (yellow), 1-2cm (orange), 2-3cm (red)
-            if (inT20) {
-                ctx.fillStyle = '#10b981'; // Green for T20 hits
-            } else if (dist <= 10) {
-                ctx.fillStyle = '#fbbf24'; // Yellow for ≤1cm
-            } else if (dist <= 20) {
-                ctx.fillStyle = '#f97316'; // Orange for 1-2cm
-            } else {
-                ctx.fillStyle = '#ef4444'; // Red for 2-3cm
-            }
-
-            ctx.beginPath();
-            ctx.arc(x, y, 5, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Add border for visibility
-            ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-        });
-
-        // Draw center marker
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(cx, cy, 2, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    async renderT20TrendChart() {
-        const canvas = document.getElementById('chart-t20-trend');
-        if (!canvas) return;
-
-        // Destroy existing chart
-        if (this.charts['t20-trend']) {
-            this.charts['t20-trend'].destroy();
-        }
-
-        // Fetch T20 rates for recent matches
-        try {
-            const playerId = this.getPlayerId();
-            const { data: recentMatches, error } = await supabase
-                .from('matches')
-                .select('id, created_at')
-                .eq('player_id', playerId)
-                .eq('variant', 'X01')
-                .order('created_at', { ascending: false })
-                .limit(100);
-
-            if (error || !recentMatches || recentMatches.length < 5) {
-                canvas.parentElement.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 1rem;">Nicht genug Daten für Trendanalyse</p>';
-                return;
-            }
-
-            // Fetch throws for each match
-            const matchIds = recentMatches.map(m => m.id);
-            const { data: allThrows, error: throwsError } = await supabase
-                .from('throws')
-                .select('match_id, segment_number, multiplier, coord_x, coord_y')
-                .in('match_id', matchIds);
-
-            if (throwsError || !allThrows) {
-                return;
-            }
-
-            // Group throws by match and calculate T20 rates
-            const matchT20Rates = [];
-            for (const match of recentMatches.reverse()) { // oldest first
-                const matchThrows = allThrows.filter(t => t.match_id === match.id);
-                const t20AreaThrows = matchThrows.filter(t =>
-                    [20, 1, 5].includes(t.segment_number) && t.coord_x != null && t.coord_y != null
-                );
-
-                if (t20AreaThrows.length >= 5) {
-                    const t20Hits = t20AreaThrows.filter(t =>
-                        pointInPolygon(t.coord_x, t.coord_y, T20_POLYGON)
-                    ).length;
-                    const rate = (t20Hits / t20AreaThrows.length) * 100;
-                    matchT20Rates.push({
-                        date: new Date(match.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
-                        rate: rate,
-                        isCurrent: match.id === this.currentMatchId
-                    });
-                }
-            }
-
-            if (matchT20Rates.length < 5) {
-                canvas.parentElement.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 1rem;">Nicht genug Daten für Trendanalyse</p>';
-                return;
-            }
-
-            // Calculate moving average
-            const movingAvg = [];
-            const windowSize = 5;
-            for (let i = 0; i < matchT20Rates.length; i++) {
-                if (i < windowSize - 1) {
-                    movingAvg.push(null);
-                } else {
-                    const window = matchT20Rates.slice(i - windowSize + 1, i + 1);
-                    const avg = window.reduce((sum, m) => sum + m.rate, 0) / windowSize;
-                    movingAvg.push(avg);
-                }
-            }
-
-            // Create chart
-            this.charts['t20-trend'] = new Chart(canvas, {
-                type: 'line',
-                data: {
-                    labels: matchT20Rates.map(m => m.date),
-                    datasets: [
-                        {
-                            label: 'T20 Rate',
-                            data: matchT20Rates.map(m => m.rate),
-                            borderColor: 'rgba(16, 185, 129, 0.5)',
-                            backgroundColor: matchT20Rates.map(m =>
-                                m.isCurrent ? '#10b981' : 'rgba(16, 185, 129, 0.3)'
-                            ),
-                            pointRadius: matchT20Rates.map(m => m.isCurrent ? 8 : 3),
-                            pointBackgroundColor: matchT20Rates.map(m =>
-                                m.isCurrent ? '#10b981' : 'rgba(16, 185, 129, 0.5)'
-                            ),
-                            fill: false,
-                            tension: 0.3
-                        },
-                        {
-                            label: '5-Match Ø',
-                            data: movingAvg,
-                            borderColor: '#3b82f6',
-                            borderWidth: 2,
-                            pointRadius: 0,
-                            fill: false,
-                            tension: 0.4
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'bottom',
-                            labels: { color: '#94a3b8', boxWidth: 12, padding: 8 }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            display: false
-                        },
-                        y: {
-                            min: 0,
-                            max: 100,
-                            ticks: { color: '#64748b', callback: v => v + '%' },
-                            grid: { color: 'rgba(255,255,255,0.05)' }
-                        }
-                    }
-                }
-            });
-        } catch (err) {
-            console.error('Error rendering T20 trend chart:', err);
-        }
-    }
-
-    renderT20Fatigue(throws) {
-        const t20Throws = throws.filter(t => [20, 1, 5].includes(t.segment_number) && t.coord_x != null && t.coord_y != null);
-        if (t20Throws.length < 4) {
-            document.getElementById('t20-first-half').textContent = '-';
-            document.getElementById('t20-second-half').textContent = '-';
-            document.getElementById('t20-fatigue').textContent = 'Zu wenige Daten';
-            return;
-        }
-
-        const mid = Math.floor(t20Throws.length / 2);
-        const firstHalf = t20Throws.slice(0, mid);
-        const secondHalf = t20Throws.slice(mid);
-
-        const firstHits = firstHalf.filter(t => pointInPolygon(t.coord_x, t.coord_y, T20_POLYGON)).length;
-        const secondHits = secondHalf.filter(t => pointInPolygon(t.coord_x, t.coord_y, T20_POLYGON)).length;
-
-        const firstRate = (firstHits / firstHalf.length) * 100;
-        const secondRate = (secondHits / secondHalf.length) * 100;
-
-        document.getElementById('t20-first-half').textContent = firstRate.toFixed(1) + '%';
-        document.getElementById('t20-second-half').textContent = secondRate.toFixed(1) + '%';
-
-        const diff = secondRate - firstRate;
-        const fatigueEl = document.getElementById('t20-fatigue');
-
-        if (diff > 3) {
-            fatigueEl.textContent = '📈 Verbesserung (+' + diff.toFixed(1) + '%)';
-            fatigueEl.className = 'comp-value positive';
-        } else if (diff < -3) {
-            fatigueEl.textContent = '📉 Ermüdung (' + diff.toFixed(1) + '%)';
-            fatigueEl.className = 'comp-value negative';
-        } else {
-            fatigueEl.textContent = '➡️ Konstant (' + (diff >= 0 ? '+' : '') + diff.toFixed(1) + '%)';
-            fatigueEl.className = 'comp-value';
-        }
-    }
-
-    getHeatmapColor(intensity) {
-        // From dark/neutral (0) to red (1)
-        if (intensity < 0.1) return 'var(--bg-tertiary)';
-        if (intensity < 0.25) return '#2d5a3d'; // dark green
-        if (intensity < 0.4) return '#4a7c3f';  // green
-        if (intensity < 0.55) return '#7fb041'; // light green
-        if (intensity < 0.7) return '#c4a82b';  // yellow
-        if (intensity < 0.85) return '#d97b2a'; // orange
-        return '#d94a2a'; // red
-    }
-
-    renderT20TextAnalysis(analysis, totalMisses) {
-        const el = document.getElementById('t20-text-analysis');
-        if (!el) return;
-
-        if (totalMisses < 5) {
-            el.textContent = 'Zu wenige Daten für Analyse';
-            return;
-        }
-
-        const insights = [];
-        const bd = analysis.byDirection;
-
-        // Calculate direction sums
-        const leftCount = (bd['links-oben'].close.length + bd['links-oben'].far.length) +
-                         (bd['links-mitte'].close.length + bd['links-mitte'].far.length) +
-                         (bd['links-unten'].close.length + bd['links-unten'].far.length);
-        const rightCount = (bd['rechts-oben'].close.length + bd['rechts-oben'].far.length) +
-                          (bd['rechts-mitte'].close.length + bd['rechts-mitte'].far.length) +
-                          (bd['rechts-unten'].close.length + bd['rechts-unten'].far.length);
-        const topCount = (bd['links-oben'].close.length + bd['links-oben'].far.length) +
-                        (bd['oben'].close.length + bd['oben'].far.length) +
-                        (bd['rechts-oben'].close.length + bd['rechts-oben'].far.length);
-        const bottomCount = (bd['links-unten'].close.length + bd['links-unten'].far.length) +
-                           (bd['unten'].close.length + bd['unten'].far.length) +
-                           (bd['rechts-unten'].close.length + bd['rechts-unten'].far.length);
-
-        const horizontalBias = leftCount - rightCount;
-        const verticalBias = topCount - bottomCount;
-        const horizontalRatio = Math.abs(horizontalBias) / totalMisses;
-        const verticalRatio = Math.abs(verticalBias) / totalMisses;
-
-        // Check spread uniformity
-        const dirCounts = Object.values(bd).map(d => d.close.length + d.far.length);
-        const maxDir = Math.max(...dirCounts);
-        const nonZeroCounts = dirCounts.filter(c => c > 0);
-        const minDir = nonZeroCounts.length > 0 ? Math.min(...nonZeroCounts) : 0;
-        const spreadRatio = maxDir > 0 ? minDir / maxDir : 1;
-
-        if (spreadRatio > 0.5 && horizontalRatio < 0.15 && verticalRatio < 0.15) {
-            insights.push('📊 Gleichmäßige Streuung in alle Richtungen');
-        } else {
-            // Horizontal tendency
-            if (horizontalRatio > 0.15) {
-                if (horizontalBias > 0) {
-                    insights.push(`⬅️ Tendenz nach links (5er) - ${leftCount} vs ${rightCount}`);
-                } else {
-                    insights.push(`➡️ Tendenz nach rechts (1er) - ${rightCount} vs ${leftCount}`);
-                }
-            }
-
-            // Vertical tendency
-            if (verticalRatio > 0.15) {
-                if (verticalBias > 0) {
-                    insights.push(`⬆️ Tendenz nach oben (Bull) - ${topCount} vs ${bottomCount}`);
-                } else {
-                    insights.push(`⬇️ Tendenz nach unten (Draht) - ${bottomCount} vs ${topCount}`);
-                }
-            }
-        }
-
-        // Precision analysis
-        const closeTotal = Object.values(bd).reduce((s, d) => s + d.close.length, 0);
-        const closeRatio = closeTotal / totalMisses;
-
-        if (closeRatio > 0.5) {
-            insights.push(`✅ Gute Präzision - ${(closeRatio * 100).toFixed(0)}% knapp daneben (≤1cm)`);
-        } else if (closeRatio < 0.3) {
-            insights.push(`⚠️ Hohe Streuung - nur ${(closeRatio * 100).toFixed(0)}% knapp daneben`);
-        }
-
-        // Hit rate
-        const hitRateNum = analysis.total > 0 ? (analysis.hits / analysis.total) * 100 : 0;
-        if (hitRateNum >= 15) {
-            insights.push(`🎯 Starke T20-Quote: ${hitRateNum.toFixed(1)}%`);
-        } else if (hitRateNum < 8) {
-            insights.push(`💡 T20-Quote: ${hitRateNum.toFixed(1)}% - Raum für Verbesserung`);
-        }
-
-        el.innerHTML = insights.length > 0 ? insights.join('<br>') : 'Keine auffälligen Muster erkannt';
-    }
-
-    async renderMatchSummary() {
-        const container = document.getElementById('match-summary-content');
-        if (!container || !this.currentMatchData) return;
-
-        const match = this.currentMatchData;
-        const myStats = match.myStats || {};
-        const turns = this.currentMyTurns;
-        const legs = this.currentMatchLegs;
-
-        // Collect key stats (use > 0 instead of truthy to handle 0 values)
-        const avg = myStats.average > 0 ? parseFloat(myStats.average).toFixed(1) : '-';
-        const first9 = myStats.first9_average > 0 ? parseFloat(myStats.first9_average).toFixed(1) : '-';
-        const checkout = myStats.checkout_percentage > 0 ? parseFloat(myStats.checkout_percentage).toFixed(1) + '%' : '-';
-        const legsWon = legs.filter(l => l.winner_player_id === myStats.player_id).length;
-        const legsLost = legs.length - legsWon;
-        const isWin = legsWon > legsLost;
-
-        // Calculate 100+ and 140+ rates
-        const points = turns.map(t => t.points || 0);
-        const total = points.length;
-        const c100plus = points.filter(p => p >= 100).length;
-        const c140plus = points.filter(p => p >= 140).length;
-        const c180 = points.filter(p => p === 180).length;
-
-        // Calculate consistency (std dev)
-        const avgPoints = total > 0 ? points.reduce((a, b) => a + b, 0) / total : 0;
-        const variance = total > 0 ? points.reduce((s, p) => s + Math.pow(p - avgPoints, 2), 0) / total : 0;
-        const stdDev = Math.sqrt(variance);
-
-        // Build summary text
-        let summary = [];
-        let kpis = [];
-
-        // Result summary
-        if (isWin) {
-            summary.push(`<span class="highlight-good">Sieg ${legsWon}:${legsLost}</span> gegen ${match.opponent || 'Gegner'}.`);
-        } else {
-            summary.push(`<span class="highlight-bad">Niederlage ${legsWon}:${legsLost}</span> gegen ${match.opponent || 'Gegner'}.`);
-        }
-
-        // Average assessment
-        const avgNum = parseFloat(myStats.average) || 0;
-        if (avgNum >= 80) {
-            summary.push(`Starkes Match mit <span class="highlight-good">${avg}</span> Punkten Average.`);
-        } else if (avgNum >= 60) {
-            summary.push(`Solides Match mit <span class="highlight-neutral">${avg}</span> Punkten Average.`);
-        } else if (avgNum > 0) {
-            summary.push(`Ausbaufähig mit <span class="highlight-bad">${avg}</span> Punkten Average.`);
-        }
-
-        // First 9 vs overall comparison
-        const first9Num = parseFloat(myStats.first9_average) || 0;
-        if (first9Num > avgNum + 5) {
-            summary.push(`First 9 Average (${first9}) deutlich stärker - <span class="highlight-bad">Leistungsabfall im Verlauf</span>.`);
-        } else if (first9Num < avgNum - 5) {
-            summary.push(`<span class="highlight-good">Warmgespielt:</span> Von ${first9} auf ${avg} Average gesteigert.`);
-        }
-
-        // Checkout assessment
-        const checkoutNum = parseFloat(myStats.checkout_percentage) || 0;
-        if (checkoutNum >= 40) {
-            summary.push(`<span class="highlight-good">Exzellente Checkout-Quote von ${checkout}</span>.`);
-        } else if (checkoutNum < 25 && checkoutNum > 0) {
-            summary.push(`<span class="highlight-bad">Checkout-Quote ${checkout}</span> - Potential zur Verbesserung.`);
-        }
-
-        // Consistency assessment
-        if (stdDev < 25) {
-            summary.push(`<span class="highlight-good">Konstantes Scoring</span> (σ=${stdDev.toFixed(1)}).`);
-        } else if (stdDev > 35) {
-            summary.push(`<span class="highlight-bad">Schwankendes Scoring</span> (σ=${stdDev.toFixed(1)}).`);
-        }
-
-        // 180s
-        if (c180 > 0) {
-            summary.push(`🎯 ${c180}x 180!`);
-        }
-
-        // Build KPI grid
-        kpis = [
-            { label: 'Average', value: avg, class: avgNum >= 70 ? 'good' : avgNum >= 50 ? 'neutral' : 'bad' },
-            { label: 'First 9', value: first9, class: first9Num >= 80 ? 'good' : first9Num >= 60 ? 'neutral' : 'bad' },
-            { label: 'Checkout', value: checkout, class: checkoutNum >= 40 ? 'good' : checkoutNum >= 25 ? 'neutral' : 'bad' },
-            { label: '100+ Rate', value: total > 0 ? ((c100plus / total) * 100).toFixed(1) + '%' : '-', class: (c100plus / total) >= 0.3 ? 'good' : 'neutral' },
-            { label: '140+ Rate', value: total > 0 ? ((c140plus / total) * 100).toFixed(1) + '%' : '-', class: (c140plus / total) >= 0.1 ? 'good' : 'neutral' },
-            { label: 'Konsistenz', value: '±' + stdDev.toFixed(1), class: stdDev < 25 ? 'good' : stdDev < 35 ? 'neutral' : 'bad' }
-        ];
-
-        // Render
-        let html = '<p>' + summary.join(' ') + '</p>';
-        html += '<div class="summary-kpi-grid">';
-        kpis.forEach(kpi => {
-            html += `<div class="summary-kpi">
-                <span class="summary-kpi-label">${kpi.label}</span>
-                <span class="summary-kpi-value ${kpi.class}">${kpi.value}</span>
-            </div>`;
-        });
-        html += '</div>';
-
-        container.innerHTML = html;
-    }
-
-    renderLegProgressionChart(myTurns, oppTurns, leg) {
-        const ctx = document.getElementById('chart-leg-progression');
-        if (!ctx) return;
-
-        // Build score progression
-        const startScore = 501;
-        const myScores = [startScore];
-        const oppScores = [startScore];
-
-        myTurns.forEach(t => {
-            if (t.score_remaining !== null) myScores.push(t.score_remaining);
-        });
-
-        oppTurns.forEach(t => {
-            if (t.score_remaining !== null) oppScores.push(t.score_remaining);
-        });
-
-        const labels = Array.from({length: Math.max(myScores.length, oppScores.length)}, (_, i) => i === 0 ? 'Start' : `V${i}`);
-
-        if (this.legProgressionChart) this.legProgressionChart.destroy();
-        this.legProgressionChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [
-                    { label: 'Du', data: myScores, borderColor: CONFIG.COLORS.green, backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.3 },
-                    { label: 'Gegner', data: oppScores, borderColor: CONFIG.COLORS.red, backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.3 }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { position: 'top', labels: { color: '#94a3b8' } } },
-                scales: {
-                    x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
-                    y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' }, reverse: false, min: 0, max: 520 }
-                }
-            }
-        });
-    }
-
-    renderLegAveragesChart() {
-        const ctx = document.getElementById('chart-leg-averages');
-        if (!ctx || !this.currentMatchLegs) return;
-
-        // Group throws by turn_id to count actual darts per turn
-        const dartsByTurn = {};
-        if (this.currentMyThrows) {
-            this.currentMyThrows.forEach(th => {
-                dartsByTurn[th.turn_id] = (dartsByTurn[th.turn_id] || 0) + 1;
-            });
-        }
-
-        const labels = this.currentMatchLegs.map((l, i) => `L${i + 1}`);
-        const myAvgs = this.currentMatchLegs.map(leg => {
-            const turns = this.currentMyTurns.filter(t => t.leg_id === leg.id);
-            const totalPoints = turns.reduce((s, t) => s + (t.points || 0), 0);
-            let totalDarts = 0;
-            turns.forEach(t => { totalDarts += dartsByTurn[t.id] || 3; });
-            return totalDarts > 0 ? (totalPoints / totalDarts) * 3 : 0;
-        });
-        const oppAvgs = this.currentMatchLegs.map(leg => {
-            const turns = this.currentOppTurns.filter(t => t.leg_id === leg.id);
-            // For opponent, we don't have throws, so use turns * 3 as approximation
-            return turns.length ? turns.reduce((s, t) => s + (t.points || 0), 0) / turns.length : 0;
-        });
-        // winner_player_id contains match_player.id, NOT user_id!
-        const colors = this.currentMatchLegs.map(leg => leg.winner_player_id === this.currentMp?.id ? CONFIG.COLORS.green : CONFIG.COLORS.red);
-
-        if (this.legAvgChart) this.legAvgChart.destroy();
-        this.legAvgChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [
-                    { label: 'Dein Avg', data: myAvgs.map(a => a.toFixed(1)), backgroundColor: colors, borderRadius: 4 },
-                    { label: 'Gegner Avg', data: oppAvgs.map(a => a.toFixed(1)), backgroundColor: 'rgba(148,163,184,0.5)', borderRadius: 4 }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { position: 'top', labels: { color: '#94a3b8' } } },
-                scales: {
-                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
-                    y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' }, suggestedMin: 20, suggestedMax: 60 }
-                }
-            }
-        });
-    }
-
-    renderMatchScoringChart() {
-        const ctx = document.getElementById('chart-match-scoring');
-        if (!ctx || !this.currentMyTurns) return;
-
-        let u40 = 0, s40 = 0, s60 = 0, s100 = 0, s140 = 0, s180 = 0;
-        this.currentMyTurns.forEach(t => {
-            if (t.points === null) return;
-            if (t.points === 180) s180++;
-            else if (t.points >= 140) s140++;
-            else if (t.points >= 100) s100++;
-            else if (t.points >= 60) s60++;
-            else if (t.points >= 40) s40++;
-            else u40++;
-        });
-
-        if (this.matchScoringChart) this.matchScoringChart.destroy();
-        this.matchScoringChart = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['<40', '40-59', '60-99', '100-139', '140-179', '180'],
-                datasets: [{
-                    data: [u40, s40, s60, s100, s140, s180],
-                    backgroundColor: ['#64748b', '#94a3b8', '#3b82f6', '#8b5cf6', '#f59e0b', '#10b981'],
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 11 } } }
-                },
-                cutout: '50%'
-            }
-        });
-    }
-
-    renderMatchFirst9Chart() {
-        const ctx = document.getElementById('chart-match-first9');
-        if (!ctx || !this.currentMyTurns) return;
-
-        let f9 = 0, f9c = 0, r = 0, rc = 0;
-        this.currentMyTurns.forEach(t => {
-            if (t.points !== null) {
-                if (t.round <= 3) { f9 += t.points; f9c++; }
-                else { r += t.points; rc++; }
-            }
-        });
-
-        if (this.matchFirst9Chart) this.matchFirst9Chart.destroy();
-        this.matchFirst9Chart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: ['First 9', 'Rest'],
-                datasets: [{
-                    data: [f9c ? (f9 / f9c).toFixed(1) : 0, rc ? (r / rc).toFixed(1) : 0],
-                    backgroundColor: [CONFIG.COLORS.green, CONFIG.COLORS.blue],
-                    borderRadius: 8
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
-                    y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' }, suggestedMin: 30, suggestedMax: 60 }
-                }
-            }
-        });
-    }
-
-    // ========== COLLAPSIBLE SECTIONS ==========
-    toggleSection(headerEl) {
-        const section = headerEl.closest('.section-collapsible');
-        if (section) {
-            section.classList.toggle('collapsed');
-        }
-    }
-
-    // ========== MOMENTUM & ROLLING AVERAGE ==========
-    renderMomentumAnalysis() {
-        if (!this.currentMyTurns || this.currentMyTurns.length < 3) return;
-
-        const points = this.currentMyTurns.map(t => t.points || 0);
-        const total = points.length;
-
-        // Calculate rates
-        const c60plus = points.filter(p => p >= 60).length;
-        const c100plus = points.filter(p => p >= 100).length;
-        const c140plus = points.filter(p => p >= 140).length;
-
-        document.getElementById('md-60plus-rate').textContent = ((c60plus / total) * 100).toFixed(1) + '%';
-        document.getElementById('md-100plus-rate').textContent = ((c100plus / total) * 100).toFixed(1) + '%';
-        document.getElementById('md-140plus-rate').textContent = ((c140plus / total) * 100).toFixed(1) + '%';
-
-        // Calculate standard deviation (consistency)
-        const avg = points.reduce((a, b) => a + b, 0) / total;
-        const variance = points.reduce((s, p) => s + Math.pow(p - avg, 2), 0) / total;
-        const stdDev = Math.sqrt(variance);
-
-        const stdEl = document.getElementById('md-std-dev');
-        stdEl.textContent = '±' + stdDev.toFixed(1);
-        if (stdDev < 25) {
-            stdEl.className = 'stat-value consistency-good';
-        } else if (stdDev < 35) {
-            stdEl.className = 'stat-value consistency-medium';
-        } else {
-            stdEl.className = 'stat-value consistency-bad';
-        }
-
-        // Find best and worst streaks (consecutive 60+ or 100+)
-        let currentStreak = 0, bestStreak = 0, worstStreak = 0, currentBadStreak = 0;
-        points.forEach(p => {
-            if (p >= 60) {
-                currentStreak++;
-                bestStreak = Math.max(bestStreak, currentStreak);
-                currentBadStreak = 0;
-            } else {
-                currentStreak = 0;
-                currentBadStreak++;
-                worstStreak = Math.max(worstStreak, currentBadStreak);
-            }
-        });
-
-        document.getElementById('md-best-streak').textContent = bestStreak + 'x 60+';
-        document.getElementById('md-worst-streak').textContent = worstStreak + 'x <60';
-
-        // Rolling average chart
-        this.renderRollingAverageChart(points);
-    }
-
-    renderRollingAverageChart(points) {
-        const ctx = document.getElementById('chart-rolling-avg');
-        if (!ctx) return;
-
-        const windowSize = 5;
-        const rollingAvg = [];
-        const labels = [];
-
-        for (let i = 0; i < points.length; i++) {
-            const start = Math.max(0, i - windowSize + 1);
-            const window = points.slice(start, i + 1);
-            const avg = window.reduce((a, b) => a + b, 0) / window.length;
-            rollingAvg.push(avg.toFixed(1));
-            labels.push('V' + (i + 1));
-        }
-
-        // Calculate match average line
-        const matchAvg = points.reduce((a, b) => a + b, 0) / points.length;
-
-        if (this.rollingAvgChart) this.rollingAvgChart.destroy();
-        this.rollingAvgChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [
                     {
-                        label: 'Rolling Avg (5)',
-                        data: rollingAvg,
-                        borderColor: CONFIG.COLORS.green,
-                        backgroundColor: 'rgba(16,185,129,0.1)',
-                        fill: true,
+                        label: name1,
+                        data: data1,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        fill: false,
                         tension: 0.3
                     },
                     {
-                        label: 'Match Avg',
-                        data: new Array(points.length).fill(matchAvg.toFixed(1)),
-                        borderColor: CONFIG.COLORS.yellow,
-                        borderDash: [5, 5],
+                        label: name2,
+                        data: data2,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
                         fill: false,
-                        pointRadius: 0
-                    },
-                    {
-                        label: 'Einzelwürfe',
-                        data: points,
-                        borderColor: 'rgba(148,163,184,0.3)',
-                        backgroundColor: 'rgba(148,163,184,0.1)',
-                        fill: false,
-                        tension: 0,
-                        pointRadius: 3,
-                        pointBackgroundColor: points.map(p => p >= 100 ? CONFIG.COLORS.green : p >= 60 ? CONFIG.COLORS.blue : CONFIG.COLORS.red)
+                        tension: 0.3
                     }
                 ]
             },
@@ -2278,421 +841,88 @@ class AutodartsStats {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { position: 'top', labels: { color: '#94a3b8' } }
+                    legend: {
+                        position: 'top',
+                        labels: { color: '#888' }
+                    }
                 },
                 scales: {
-                    x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8', maxRotation: 0, autoSkip: true, maxTicksLimit: 20 } },
-                    y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' }, suggestedMin: 0, suggestedMax: 180 }
+                    x: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    },
+                    y: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    }
                 }
             }
         });
     }
 
-    // ========== DOUBLES ANALYSIS ==========
-    async renderDoublesAnalysis() {
-        if (!this.currentMyThrows || this.currentMyThrows.length === 0) return;
-
-        // Find checkout turns (score_remaining = 0)
-        const checkoutTurns = this.currentMyTurns.filter(t => t.score_remaining === 0);
-        const checkoutTurnIds = new Set(checkoutTurns.map(t => t.id));
-
-        // Get double throws
-        const doubleThrows = this.currentMyThrows.filter(t => t.segment_bed === 'Double');
-        const doubleAttempts = {};
-        const doubleHits = {};
-
-        // Track attempts and hits by segment
-        doubleThrows.forEach(t => {
-            const name = 'D' + t.segment_number;
-            doubleAttempts[name] = (doubleAttempts[name] || 0) + 1;
-
-            // A hit is when it's in a checkout turn
-            if (checkoutTurnIds.has(t.turn_id)) {
-                doubleHits[name] = (doubleHits[name] || 0) + 1;
-            }
-        });
-
-        // Calculate stats
-        const totalAttempts = Object.values(doubleAttempts).reduce((a, b) => a + b, 0);
-        const totalHits = checkoutTurns.length;
-
-        document.getElementById('md-checkout-attempts').textContent = totalAttempts || '-';
-        document.getElementById('md-checkout-hits').textContent = totalHits || '-';
-        document.getElementById('md-checkout-rate-calc').textContent = totalAttempts > 0
-            ? ((totalHits / totalAttempts) * 100).toFixed(1) + '%'
-            : '-';
-
-        // First dart checkouts (approximate - checkout in turn with only 1-2 doubles attempted)
-        // This is a simplification; true first-dart CO would need dart-by-dart analysis
-        const firstDartCO = checkoutTurns.filter(t => {
-            const throwsInTurn = this.currentMyThrows.filter(th => th.turn_id === t.id);
-            const doublesInTurn = throwsInTurn.filter(th => th.segment_bed === 'Double');
-            return doublesInTurn.length === 1;
-        }).length;
-
-        document.getElementById('md-first-dart-co').textContent = firstDartCO || '0';
-
-        // Render doubles chart
-        this.renderMatchDoublesChart(doubleHits);
-
-        // Render doubles heatmap
-        this.renderDoublesHeatmap(doubleAttempts, doubleHits);
-    }
-
-    renderMatchDoublesChart(doubleHits) {
-        const ctx = document.getElementById('chart-match-doubles');
-        if (!ctx) return;
-
-        const sorted = Object.entries(doubleHits)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 8);
-
-        if (sorted.length === 0) {
-            // No checkouts - show empty state
-            if (this.matchDoublesChart) this.matchDoublesChart.destroy();
-            return;
-        }
-
-        if (this.matchDoublesChart) this.matchDoublesChart.destroy();
-        this.matchDoublesChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: sorted.map(d => d[0]),
-                datasets: [{
-                    data: sorted.map(d => d[1]),
-                    backgroundColor: CONFIG.COLORS.green,
-                    borderRadius: 6
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                indexAxis: 'y',
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
-                    y: { grid: { display: false }, ticks: { color: '#94a3b8' } }
-                }
-            }
-        });
-    }
-
-    renderDoublesHeatmap(attempts, hits) {
-        const container = document.getElementById('doubles-heatmap');
+    renderH2HMatches(matches, name1, name2) {
+        const container = document.getElementById('h2h-matches');
         if (!container) return;
 
-        // Standard doubles order (like on a dartboard)
-        const doubles = [
-            'D20', 'D1', 'D18', 'D4', 'D13',
-            'D6', 'D10', 'D15', 'D2', 'D17',
-            'D3', 'D19', 'D7', 'D16', 'D8',
-            'D11', 'D14', 'D9', 'D12', 'D5',
-            'D25' // Bull
-        ];
+        container.innerHTML = matches.slice().reverse().slice(0, 10).map(h => {
+            const date = new Date(h.match.finished_at).toLocaleDateString('de-DE');
+            const winner = h.match.winner === h.p1.player_index ? name1 : name2;
+            const isP1Win = h.match.winner === h.p1.player_index;
 
-        const maxAttempts = Math.max(...Object.values(attempts), 1);
+            const turns1 = this.turns.filter(t => t.match_player_id === h.p1.id && t.points != null);
+            const turns2 = this.turns.filter(t => t.match_player_id === h.p2.id && t.points != null);
+            const avg1 = turns1.length > 0 ? (turns1.reduce((sum, t) => sum + t.points, 0) / turns1.length).toFixed(1) : '--';
+            const avg2 = turns2.length > 0 ? (turns2.reduce((sum, t) => sum + t.points, 0) / turns2.length).toFixed(1) : '--';
 
-        container.innerHTML = doubles.map(d => {
-            const att = attempts[d] || 0;
-            const hit = hits[d] || 0;
-            const intensity = att / maxAttempts;
-            const heatClass = att === 0 ? 'heat-0'
-                : intensity < 0.2 ? 'heat-1'
-                : intensity < 0.4 ? 'heat-2'
-                : intensity < 0.6 ? 'heat-3'
-                : intensity < 0.8 ? 'heat-4'
-                : 'heat-5';
-
-            return `<div class="double-cell ${heatClass}" title="${d}: ${hit}/${att}">
-                <span class="double-name">${d}</span>
-                <span class="double-stats">${hit}/${att}</span>
-            </div>`;
-        }).join('');
-    }
-
-    // ========== EXTENDED LEG STATS ==========
-    renderLegOverviewExtended() {
-        const grid = document.getElementById('leg-overview-grid');
-        if (!grid || !this.currentMatchLegs) return;
-
-        // Group throws by turn_id to count actual darts per turn
-        const dartsByTurn = {};
-        if (this.currentMyThrows) {
-            this.currentMyThrows.forEach(th => {
-                dartsByTurn[th.turn_id] = (dartsByTurn[th.turn_id] || 0) + 1;
-            });
-        }
-
-        grid.innerHTML = this.currentMatchLegs.map((leg, i) => {
-            const myTurns = this.currentMyTurns.filter(t => t.leg_id === leg.id);
-            const points = myTurns.map(t => t.points || 0);
-            const totalPoints = points.reduce((s, p) => s + p, 0);
-
-            // Calculate actual darts thrown
-            let totalDarts = 0;
-            myTurns.forEach(t => {
-                totalDarts += dartsByTurn[t.id] || 3;
-            });
-
-            // 3-Dart-Average
-            const avg = totalDarts > 0 ? (totalPoints / totalDarts) * 3 : 0;
-
-            // Extended stats for this leg
-            const c60plus = points.filter(p => p >= 60).length;
-            const c100plus = points.filter(p => p >= 100).length;
-            const rate60 = points.length > 0 ? ((c60plus / points.length) * 100).toFixed(0) : 0;
-
-            const won = leg.winner_player_id === this.currentMp?.id;
-            const rankInfo = this.getLegRank(leg.id);
-            const rankHtml = rankInfo ? this.getLegRankBadge(rankInfo.rank, rankInfo.total) : '';
-
-            return `<div class="leg-card ${won ? 'won' : 'lost'}" data-leg-id="${leg.id}" onclick="window.app.selectLeg('${leg.id}')">
-                <div class="leg-number">Leg ${leg.leg_number + 1}</div>
-                <div class="leg-avg">${avg.toFixed(1)}</div>
-                <div class="leg-darts">${totalDarts} Darts</div>
-                <div class="leg-extra-stats">
-                    <span>${rate60}% 60+</span>
-                    <span>${c100plus}x 100+</span>
+            return `
+                <div class="match-item">
+                    <div class="match-date">${date}</div>
+                    <div class="match-opponent">${name1} vs ${name2}</div>
+                    <div class="match-result ${isP1Win ? 'win' : 'loss'}">${winner}</div>
+                    <div class="match-avg">${avg1} - ${avg2}</div>
+                    <div></div>
                 </div>
-                <div class="leg-rank">${rankHtml}</div>
-                <div class="leg-result">${won ? '✅' : '❌'}</div>
-            </div>`;
+            `;
         }).join('');
     }
 
-    // ========== STICKY HEADER ==========
-    enableStickyHeader() {
-        const header = document.getElementById('match-detail-header');
-        if (header) {
-            header.classList.add('sticky');
+    showPage(page) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+
+        document.getElementById('page-' + page)?.classList.add('active');
+        document.querySelector(`.nav-tab[data-page="${page}"]`)?.classList.add('active');
+
+        if (page === 'h2h') {
+            this.updateH2H();
         }
     }
 
-    // ========== LEG FILTER SYSTEM ==========
-    renderLegFilterTabs() {
-        const container = document.getElementById('leg-filter-tabs');
-        if (!container || !this.currentMatchLegs) return;
-
-        // Group throws by turn_id for dart counting
-        const dartsByTurn = {};
-        if (this.currentMyThrows) {
-            this.currentMyThrows.forEach(th => {
-                dartsByTurn[th.turn_id] = (dartsByTurn[th.turn_id] || 0) + 1;
-            });
-        }
-
-        // Build leg tabs
-        const legTabs = this.currentMatchLegs.map((leg, i) => {
-            const myTurns = this.currentMyTurns.filter(t => t.leg_id === leg.id);
-            const totalPoints = myTurns.reduce((s, t) => s + (t.points || 0), 0);
-            let totalDarts = 0;
-            myTurns.forEach(t => { totalDarts += dartsByTurn[t.id] || 3; });
-            const avg = totalDarts > 0 ? (totalPoints / totalDarts) * 3 : 0;
-            const won = leg.winner_player_id === this.currentMp?.id;
-
-            return `<button class="leg-filter-tab ${won ? 'won' : 'lost'}" data-leg="${leg.id}" onclick="window.app.selectView('${leg.id}')">
-                Leg ${leg.leg_number + 1} <small>(${avg.toFixed(0)})</small> ${won ? '✅' : '❌'}
-            </button>`;
-        }).join('');
-
-        container.innerHTML = `
-            <button class="leg-filter-tab active" data-leg="match" onclick="window.app.selectView('match')">
-                📊 Gesamtes Match
-            </button>
-            ${legTabs}
-        `;
+    showLogin() {
+        document.getElementById('login-screen').classList.remove('hidden');
+        document.getElementById('dashboard-screen').classList.add('hidden');
     }
 
-    selectView(viewId) {
-        this.currentView = viewId;
+    showDashboard() {
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('dashboard-screen').classList.remove('hidden');
+    }
 
-        // Update tab active states
-        document.querySelectorAll('.leg-filter-tab').forEach(tab => {
-            tab.classList.toggle('active', tab.dataset.leg === viewId);
-        });
-
-        const isMatchView = viewId === 'match';
-        const matchOnlySection = document.getElementById('match-only-charts');
-        const legOnlySection = document.getElementById('leg-only-charts');
-
-        // Toggle sections
-        if (matchOnlySection) matchOnlySection.classList.toggle('hidden', !isMatchView);
-        if (legOnlySection) legOnlySection.classList.toggle('hidden', isMatchView);
-
-        // Update view indicators
-        const viewLabel = isMatchView ? 'Match' : `Leg ${this.currentMatchLegs.find(l => l.id === viewId)?.leg_number + 1 || ''}`;
-        document.querySelectorAll('.view-indicator').forEach(el => {
-            el.textContent = viewLabel;
-        });
-
-        if (isMatchView) {
-            // Render match-level charts
-            this.renderMatchView();
+    showLoading(show) {
+        const overlay = document.getElementById('loading-overlay');
+        if (show) {
+            overlay.classList.remove('hidden');
         } else {
-            // Render leg-specific charts
-            this.renderLegView(viewId);
+            overlay.classList.add('hidden');
         }
     }
 
-    renderMatchView() {
-        // Match-level charts
-        this.renderLegAveragesChart();
-        this.renderMatchFirst9Chart();
-
-        // Shared charts with full match data
-        this.renderMomentumAnalysis();
-        this.renderDoublesAnalysis();
-        this.renderMatchScoringChart();
-        this.renderT20Analysis(this.currentMyThrows);
-    }
-
-    renderLegView(legId) {
-        const leg = this.currentMatchLegs.find(l => l.id === legId);
-        if (!leg) return;
-
-        // Update title
-        document.getElementById('score-chart-title').textContent = `- Leg ${leg.leg_number + 1}`;
-        document.getElementById('leg-detail-title').textContent = `- Leg ${leg.leg_number + 1}`;
-
-        // Get turns for this leg
-        const myTurns = this.currentMyTurns.filter(t => t.leg_id === legId).sort((a,b) => a.turn - b.turn);
-        const oppTurns = this.currentOppTurns.filter(t => t.leg_id === legId).sort((a,b) => a.turn - b.turn);
-
-        // Get throws for this leg
-        const turnIds = new Set(myTurns.map(t => t.id));
-        const legThrows = this.currentMyThrows.filter(t => turnIds.has(t.turn_id));
-
-        // Render leg-specific charts
-        this.renderLegProgressionChart(myTurns, oppTurns, leg);
-        this.renderLegDetailTable(myTurns, oppTurns);
-
-        // Render shared charts with leg-filtered data
-        this.renderMomentumAnalysisForData(myTurns);
-        this.renderDoublesAnalysisForData(myTurns, legThrows);
-        this.renderMatchScoringChartForData(myTurns);
-        this.renderT20Analysis(legThrows);
-    }
-
-    // ========== LEG-FILTERED CHART METHODS ==========
-    renderMomentumAnalysisForData(turns) {
-        if (!turns || turns.length < 3) {
-            document.getElementById('md-best-streak').textContent = '-';
-            document.getElementById('md-worst-streak').textContent = '-';
-            document.getElementById('md-std-dev').textContent = '-';
-            document.getElementById('md-60plus-rate').textContent = '-';
-            document.getElementById('md-100plus-rate').textContent = '-';
-            document.getElementById('md-140plus-rate').textContent = '-';
-            return;
-        }
-
-        const points = turns.map(t => t.points || 0);
-        const total = points.length;
-
-        // Calculate rates
-        const c60plus = points.filter(p => p >= 60).length;
-        const c100plus = points.filter(p => p >= 100).length;
-        const c140plus = points.filter(p => p >= 140).length;
-
-        document.getElementById('md-60plus-rate').textContent = ((c60plus / total) * 100).toFixed(1) + '%';
-        document.getElementById('md-100plus-rate').textContent = ((c100plus / total) * 100).toFixed(1) + '%';
-        document.getElementById('md-140plus-rate').textContent = ((c140plus / total) * 100).toFixed(1) + '%';
-
-        // Calculate standard deviation (consistency)
-        const avg = points.reduce((a, b) => a + b, 0) / total;
-        const variance = points.reduce((s, p) => s + Math.pow(p - avg, 2), 0) / total;
-        const stdDev = Math.sqrt(variance);
-
-        const stdEl = document.getElementById('md-std-dev');
-        stdEl.textContent = '±' + stdDev.toFixed(1);
-        stdEl.className = stdDev < 25 ? 'stat-value consistency-good' : stdDev < 35 ? 'stat-value consistency-medium' : 'stat-value consistency-bad';
-
-        // Find streaks
-        let currentStreak = 0, bestStreak = 0, worstStreak = 0, currentBadStreak = 0;
-        points.forEach(p => {
-            if (p >= 60) { currentStreak++; bestStreak = Math.max(bestStreak, currentStreak); currentBadStreak = 0; }
-            else { currentStreak = 0; currentBadStreak++; worstStreak = Math.max(worstStreak, currentBadStreak); }
-        });
-
-        document.getElementById('md-best-streak').textContent = bestStreak + 'x 60+';
-        document.getElementById('md-worst-streak').textContent = worstStreak + 'x <60';
-
-        this.renderRollingAverageChart(points);
-    }
-
-    renderDoublesAnalysisForData(turns, throws) {
-        if (!throws || throws.length === 0) {
-            document.getElementById('md-checkout-attempts').textContent = '-';
-            document.getElementById('md-checkout-hits').textContent = '-';
-            document.getElementById('md-checkout-rate-calc').textContent = '-';
-            document.getElementById('md-first-dart-co').textContent = '-';
-            return;
-        }
-
-        const checkoutTurns = turns.filter(t => t.score_remaining === 0);
-        const checkoutTurnIds = new Set(checkoutTurns.map(t => t.id));
-        const doubleThrows = throws.filter(t => t.segment_bed === 'Double');
-        const doubleAttempts = {}, doubleHits = {};
-
-        doubleThrows.forEach(t => {
-            const name = 'D' + t.segment_number;
-            doubleAttempts[name] = (doubleAttempts[name] || 0) + 1;
-            if (checkoutTurnIds.has(t.turn_id)) { doubleHits[name] = (doubleHits[name] || 0) + 1; }
-        });
-
-        const totalAttempts = Object.values(doubleAttempts).reduce((a, b) => a + b, 0);
-        const totalHits = checkoutTurns.length;
-
-        document.getElementById('md-checkout-attempts').textContent = totalAttempts || '-';
-        document.getElementById('md-checkout-hits').textContent = totalHits || '-';
-        document.getElementById('md-checkout-rate-calc').textContent = totalAttempts > 0 ? ((totalHits / totalAttempts) * 100).toFixed(1) + '%' : '-';
-
-        const firstDartCO = checkoutTurns.filter(t => {
-            const throwsInTurn = throws.filter(th => th.turn_id === t.id);
-            const doublesInTurn = throwsInTurn.filter(th => th.segment_bed === 'Double');
-            return doublesInTurn.length === 1;
-        }).length;
-        document.getElementById('md-first-dart-co').textContent = firstDartCO || '0';
-
-        this.renderMatchDoublesChart(doubleHits);
-        this.renderDoublesHeatmap(doubleAttempts, doubleHits);
-    }
-
-    renderMatchScoringChartForData(turns) {
-        const ctx = document.getElementById('chart-match-scoring');
-        if (!ctx) return;
-
-        let u40 = 0, s40 = 0, s60 = 0, s100 = 0, s140 = 0, s180 = 0;
-        turns.forEach(t => {
-            if (t.points === null) return;
-            if (t.points === 180) s180++;
-            else if (t.points >= 140) s140++;
-            else if (t.points >= 100) s100++;
-            else if (t.points >= 60) s60++;
-            else if (t.points >= 40) s40++;
-            else u40++;
-        });
-
-        if (this.matchScoreChart) this.matchScoreChart.destroy();
-        this.matchScoreChart = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['<40', '40-59', '60-99', '100-139', '140-179', '180'],
-                datasets: [{
-                    data: [u40, s40, s60, s100, s140, s180],
-                    backgroundColor: ['#64748b', '#94a3b8', '#3b82f6', '#8b5cf6', '#f59e0b', '#10b981'],
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 10 } } } },
-                cutout: '50%'
-            }
-        });
+    async logout() {
+        await window.db.auth.signOut();
+        this.showLogin();
     }
 }
 
-// Global reference for onclick handlers
-window.app = null;
-document.addEventListener('DOMContentLoaded', () => { window.app = new AutodartsStats(); });
+// Initialize app
+const app = new AutodartsStats();
+window.app = app;
