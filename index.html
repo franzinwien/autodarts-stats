@@ -3,47 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎯 Autodarts Stats Pro</title>
-    
+    <title>Autodarts Stats</title>
+
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    
+
     <!-- Supabase JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
-    <link rel="stylesheet" href="styles.css?v=5">
+
+    <link rel="stylesheet" href="styles.css?v=6">
 </head>
 <body>
     <!-- Login Screen -->
     <div id="login-screen" class="screen">
         <div class="login-container">
-            <div class="login-header">
-                <span class="logo">🎯</span>
-                <h1>Autodarts Stats</h1>
-                <p>Deine persönliche Dart-Statistik</p>
+            <div class="login-logo">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="12" cy="12" r="10"/>
+                    <circle cx="12" cy="12" r="6"/>
+                    <circle cx="12" cy="12" r="2"/>
+                </svg>
             </div>
-            
+            <h1>Autodarts Stats</h1>
+            <p class="login-subtitle">Deine persoenliche Dart-Statistik</p>
+
             <div class="login-form">
-                <div id="login-form-email">
-                    <input type="email" id="email-input" placeholder="Email Adresse" autocomplete="email">
-                    <button id="send-magic-link" class="btn btn-primary">
-                        <span>Magic Link senden</span>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
-                        </svg>
-                    </button>
-                </div>
-                
+                <input type="email" id="email-input" placeholder="Email Adresse" autocomplete="email">
+                <button id="send-magic-link" class="btn btn-primary">
+                    Magic Link senden
+                </button>
                 <div id="login-message" class="login-message"></div>
-            </div>
-            
-            <div class="login-footer">
-                <p>Kein Account? Kontaktiere den Admin.</p>
             </div>
         </div>
     </div>
@@ -53,8 +47,12 @@
         <!-- Header -->
         <header class="header">
             <div class="header-left">
-                <span class="logo">🎯</span>
-                <h1>Autodarts Stats <span class="pro-badge">PRO</span></h1>
+                <svg class="header-logo" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <circle cx="12" cy="12" r="6"/>
+                    <circle cx="12" cy="12" r="2"/>
+                </svg>
+                <span class="header-title">Autodarts Stats</span>
             </div>
             <div class="header-right">
                 <span id="user-name" class="user-name"></span>
@@ -62,1098 +60,242 @@
             </div>
         </header>
 
-        <!-- Global Filters -->
-        <div class="global-filters">
+        <!-- Filters -->
+        <div class="filters-bar">
             <div class="filter-group">
-                <label>Spieler:</label>
-                <select id="global-filter-player">
-                    <!-- Dynamisch befüllt -->
+                <label>Spieler</label>
+                <select id="filter-player">
+                    <!-- Dynamisch befuellt -->
                 </select>
             </div>
             <div class="filter-group">
-                <label>Zeitraum:</label>
-                <select id="global-filter-time">
+                <label>Zeitraum</label>
+                <select id="filter-time">
                     <option value="all">Alle Zeit</option>
-                    <option value="7">Letzte 7 Tage</option>
-                    <option value="30">Letzte 30 Tage</option>
-                    <option value="90">Letzte 3 Monate</option>
-                    <option value="365">Letztes Jahr</option>
+                    <option value="7">7 Tage</option>
+                    <option value="30" selected>30 Tage</option>
+                    <option value="90">3 Monate</option>
+                    <option value="365">1 Jahr</option>
                 </select>
             </div>
             <div class="filter-group">
-                <label>Match-Typ:</label>
-                <select id="global-filter-type">
-                    <option value="">Alle Typen</option>
+                <label>Match-Typ</label>
+                <select id="filter-type">
+                    <option value="">Alle</option>
                     <option value="Online">Online</option>
                     <option value="Local">Local</option>
-                    <option value="Tournament">Tournament</option>
                 </select>
             </div>
             <div class="filter-group">
-                <label>Variante:</label>
-                <select id="global-filter-variant">
-                    <option value="">Alle Varianten</option>
-                    <option value="X01" selected>X01</option>
-                    <option value="Bob's 27">Bob's 27</option>
-                    <option value="Cricket">Cricket</option>
+                <label>Gegner</label>
+                <select id="filter-opponent">
+                    <option value="">Alle Gegner</option>
+                    <!-- Dynamisch befuellt -->
                 </select>
             </div>
-            <div class="filter-group view-toggle">
-                <label>Ansicht:</label>
-                <div class="toggle-buttons">
-                    <button type="button" class="toggle-btn active" data-view="legs">🎯 Legs</button>
-                    <button type="button" class="toggle-btn" data-view="matches">🎮 Matches</button>
-                </div>
-            </div>
-            <button id="apply-filters" class="btn btn-primary btn-sm">Filter anwenden</button>
+            <button id="apply-filters" class="btn btn-primary">Anwenden</button>
         </div>
 
         <!-- Navigation -->
-        <nav class="nav">
-            <button class="nav-btn active" data-page="overview">📊 Dashboard</button>
-            <button class="nav-btn" data-page="legs">🎯 Legs</button>
-            <button class="nav-btn" data-page="heatmap">🔥 Heatmap</button>
-            <button class="nav-btn" data-page="opponents">👥 Gegner</button>
-            <button class="nav-btn h2h" data-page="headtohead">🆚 H2H</button>
+        <nav class="nav-tabs">
+            <button class="nav-tab active" data-page="overview">Dashboard</button>
+            <button class="nav-tab" data-page="matches">Matches</button>
+            <button class="nav-tab" data-page="h2h">Head-to-Head</button>
         </nav>
 
         <!-- Main Content -->
-        <main class="main">
+        <main class="main-content">
+
             <!-- Overview Page -->
             <div id="page-overview" class="page active">
-                <!-- Section: Meine Performance (Gesamt) -->
-                <div class="stats-section">
-                    <div class="stats-section-header">
-                        <h3>📊 Meine Performance <span class="section-badge">Gesamt</span></h3>
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">3-Dart Average</div>
+                        <div class="stat-value" id="stat-average">--</div>
+                        <div class="stat-trend" id="stat-average-trend"></div>
                     </div>
-                    <div class="stats-grid stats-grid-5">
-                        <div class="stat-card">
-                            <div class="stat-icon">📈</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-total-average">-</div>
-                                <div class="stat-label">3-Dart Avg</div>
-                            </div>
+                    <div class="stat-card highlight">
+                        <div class="stat-label">First 9 Average</div>
+                        <div class="stat-value" id="stat-first9">--</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Checkout Rate</div>
+                        <div class="stat-value" id="stat-checkout">--</div>
+                    </div>
+                    <div class="stat-card gold">
+                        <div class="stat-label">180s</div>
+                        <div class="stat-value" id="stat-180s">--</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Win Rate</div>
+                        <div class="stat-value" id="stat-winrate">--</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Matches</div>
+                        <div class="stat-value" id="stat-matches">--</div>
+                    </div>
+                </div>
+
+                <!-- Highscores -->
+                <div class="highscores-section">
+                    <h3>Highscores</h3>
+                    <div class="highscores-grid">
+                        <div class="highscore-card">
+                            <div class="highscore-label">Bestes Leg</div>
+                            <div class="highscore-value" id="hs-best-leg">--</div>
                         </div>
-                        <div class="stat-card highlight">
-                            <div class="stat-icon">⚡</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-total-first9">-</div>
-                                <div class="stat-label">First 9 Avg</div>
-                            </div>
+                        <div class="highscore-card">
+                            <div class="highscore-label">Bestes Match</div>
+                            <div class="highscore-value" id="hs-best-match">--</div>
                         </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">✅</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-total-checkout">-</div>
-                                <div class="stat-label">Checkout %</div>
-                            </div>
+                        <div class="highscore-card">
+                            <div class="highscore-label">Hoechster Checkout</div>
+                            <div class="highscore-value" id="hs-highest-checkout">--</div>
                         </div>
-                        <div class="stat-card highlight-gold">
-                            <div class="stat-icon">💎</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-total-180s">-</div>
-                                <div class="stat-label">180s</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">🏆</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-total-winrate">-</div>
-                                <div class="stat-label">Gewonnen</div>
-                            </div>
+                        <div class="highscore-card">
+                            <div class="highscore-label">Wenigste Darts</div>
+                            <div class="highscore-value" id="hs-min-darts">--</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Section: Aktuelle Form (gefiltert) -->
-                <div class="stats-section">
-                    <div class="stats-section-header">
-                        <h3>🔥 Aktuelle Form <span class="section-badge filter-badge" id="filter-badge">Filter</span></h3>
-                    </div>
-                    <div class="stats-grid stats-grid-5">
-                        <div class="stat-card">
-                            <div class="stat-icon">📈</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-average">-</div>
-                                <div class="stat-label">3-Dart Avg</div>
-                            </div>
-                        </div>
-                        <div class="stat-card highlight">
-                            <div class="stat-icon">⚡</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-first9">-</div>
-                                <div class="stat-label">First 9 Avg</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">📊</div>
-                            <div class="stat-content">
-                                <div class="stat-value trend-up" id="stat-trend">-</div>
-                                <div class="stat-label">Trend (7 Tage)</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">🚀</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-best-leg">-</div>
-                                <div class="stat-label" id="stat-best-label">Bestes Leg</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">🎚️</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-consistency">-</div>
-                                <div class="stat-label">Konstanz</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Charts Row 1 -->
-                <div class="charts-grid">
-                    <div class="chart-card large">
-                        <h3>📈 Average-Entwicklung (Scoring vs Checkout)</h3>
-                        <div class="chart-container chart-container-large">
-                            <canvas id="chart-avg-comparison"></canvas>
+                <!-- Charts -->
+                <div class="charts-section">
+                    <div class="chart-card wide">
+                        <h3>Average Trend</h3>
+                        <div class="chart-container">
+                            <canvas id="chart-trend"></canvas>
                         </div>
                     </div>
                     <div class="chart-card">
-                        <h3>🏆 Match-Ergebnisse</h3>
+                        <h3>Match Ergebnisse</h3>
                         <div class="chart-container">
                             <canvas id="chart-results"></canvas>
                         </div>
                     </div>
-                </div>
-
-                <!-- Charts Row 2 -->
-                <div class="charts-grid charts-grid-3">
                     <div class="chart-card">
-                        <h3>💪 First 9 vs Match Avg</h3>
+                        <h3>Scoring Verteilung</h3>
                         <div class="chart-container">
-                            <canvas id="chart-first9-comparison"></canvas>
-                        </div>
-                    </div>
-                    <div class="chart-card">
-                        <h3>🎯 Scoring Verteilung</h3>
-                        <div class="chart-container">
-                            <canvas id="chart-scoring-distribution"></canvas>
-                        </div>
-                    </div>
-                    <div class="chart-card">
-                        <h3>🔥 180s & High Scores / Monat</h3>
-                        <div class="chart-container">
-                            <canvas id="chart-high-scores"></canvas>
+                            <canvas id="chart-scoring"></canvas>
                         </div>
                     </div>
                 </div>
 
-                <!-- Recent Matches -->
-                <div class="recent-matches">
-                    <h3>🕐 Letzte Matches</h3>
-                    <div class="table-container">
-                        <table id="recent-matches-table">
-                            <thead>
-                                <tr>
-                                    <th>Datum</th>
-                                    <th>Gegner</th>
-                                    <th>Ergebnis</th>
-                                    <th>Avg</th>
-                                    <th>Performance</th>
-                                    <th>🏆 Rang</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
+                <!-- Recent Matches Preview -->
+                <div class="recent-section">
+                    <div class="section-header">
+                        <h3>Letzte Matches</h3>
+                        <button class="btn btn-ghost btn-sm" onclick="app.showPage('matches')">Alle anzeigen</button>
+                    </div>
+                    <div class="matches-list" id="recent-matches">
+                        <!-- Dynamisch befuellt -->
                     </div>
                 </div>
             </div>
 
-            <!-- Legs Page (NEU - ersetzt Matches + Match Detail) -->
-            <div id="page-legs" class="page">
-                <div class="page-header">
-                    <h2 id="legs-page-title">🎯 Legs</h2>
-                    <div class="page-header-right">
-                        <div class="grouping-toggle">
-                            <label>Gruppierung:</label>
-                            <select id="legs-grouping">
-                                <option value="single">Einzeln</option>
-                                <option value="match">Nach Match</option>
-                            </select>
-                        </div>
+            <!-- Matches Page -->
+            <div id="page-matches" class="page">
+                <div class="matches-header">
+                    <h2>Alle Matches</h2>
+                    <div class="matches-sort">
+                        <label>Sortierung:</label>
+                        <select id="matches-sort">
+                            <option value="date-desc">Neueste zuerst</option>
+                            <option value="date-asc">Aelteste zuerst</option>
+                            <option value="avg-desc">Hoechster Avg</option>
+                            <option value="avg-asc">Niedrigster Avg</option>
+                        </select>
                     </div>
                 </div>
-
-                <!-- Legs Table -->
-                <div class="table-container">
-                    <table id="legs-table">
+                <div class="matches-table-container">
+                    <table class="matches-table" id="matches-table">
                         <thead>
                             <tr>
-                                <th>#</th>
                                 <th>Datum</th>
                                 <th>Gegner</th>
-                                <th id="legs-col-leg">Leg</th>
-                                <th>Avg</th>
-                                <th>Darts</th>
+                                <th>Ergebnis</th>
+                                <th>Average</th>
+                                <th>First 9</th>
                                 <th>Checkout</th>
-                                <th>Rang</th>
-                                <th></th>
+                                <th>180s</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
                     </table>
                 </div>
-                <div class="pagination" id="legs-pagination"></div>
-
-                <!-- Leg Detail Panel (slides in) -->
-                <div id="leg-detail-panel" class="detail-panel hidden">
-                    <div class="detail-panel-header">
-                        <h3 id="leg-detail-title">Leg Details</h3>
-                        <button class="btn btn-ghost btn-sm" onclick="window.app.closeLegDetail()">✕ Schließen</button>
-                    </div>
-                    <div class="detail-panel-content">
-                        <!-- Stats Row -->
-                        <div class="stats-grid stats-grid-5">
-                            <div class="stat-card small">
-                                <div class="stat-value" id="ld-average">-</div>
-                                <div class="stat-label">Average</div>
-                            </div>
-                            <div class="stat-card small highlight">
-                                <div class="stat-value" id="ld-first9">-</div>
-                                <div class="stat-label">First 9</div>
-                            </div>
-                            <div class="stat-card small">
-                                <div class="stat-value" id="ld-darts">-</div>
-                                <div class="stat-label">Darts</div>
-                            </div>
-                            <div class="stat-card small">
-                                <div class="stat-value" id="ld-checkout">-</div>
-                                <div class="stat-label">Checkout</div>
-                            </div>
-                            <div class="stat-card small">
-                                <div class="stat-value" id="ld-rank">-</div>
-                                <div class="stat-label">Rang</div>
-                            </div>
-                        </div>
-
-                        <!-- Visits Table -->
-                        <div class="visits-section">
-                            <h4>📋 Aufnahmen</h4>
-                            <div class="table-container compact">
-                                <table id="ld-visits-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Visit</th>
-                                            <th>Punkte</th>
-                                            <th>Rest</th>
-                                            <th>Würfe</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody></tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <!-- Charts Row -->
-                        <div class="detail-charts-row">
-                            <div class="chart-card compact">
-                                <h4>📈 Score-Verlauf</h4>
-                                <div class="chart-container chart-container-small">
-                                    <canvas id="ld-chart-progression"></canvas>
-                                </div>
-                            </div>
-                            <div class="chart-card compact">
-                                <h4>🎯 Scoring-Verteilung</h4>
-                                <div class="chart-container chart-container-small">
-                                    <canvas id="ld-chart-scoring"></canvas>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Doubles Section -->
-                        <div class="doubles-section">
-                            <h4>✅ Doppel-Versuche</h4>
-                            <div class="doubles-heatmap compact" id="ld-doubles-heatmap"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- DEPRECATED PAGES REMOVED: Scoring, Checkout, Matches -->
-            <!-- Their functionality is now in Legs page and Heatmap -->
-
-            <!-- Match Detail Page (kept for backward compatibility, to be removed later) -->
-            <div id="page-matchdetail" class="page">
-                <div class="page-header">
-                    <h2>📋 Match Detail</h2>
-                    <div class="match-selector">
-                        <select id="match-detail-select">
-                            <option value="">Match auswählen...</option>
-                        </select>
-                        <button id="match-detail-prev" class="btn btn-ghost btn-sm">← Vorheriges</button>
-                        <button id="match-detail-next" class="btn btn-ghost btn-sm">Nächstes →</button>
-                    </div>
-                </div>
-
-                <!-- Match Header -->
-                <div id="match-detail-header" class="match-detail-header hidden">
-                    <div class="match-info-bar">
-                        <span class="match-date" id="md-date"></span>
-                        <span class="match-opponent" id="md-opponent"></span>
-                        <span class="match-result" id="md-result"></span>
-                        <span class="match-legs" id="md-legs"></span>
-                        <span class="match-ranking" id="md-match-rank"></span>
-                    </div>
-                </div>
-
-                <!-- Match Stats -->
-                <div id="match-detail-content" class="hidden">
-                    <div class="stats-grid stats-grid-6">
-                        <div class="stat-card">
-                            <div class="stat-icon">📈</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="md-average">-</div>
-                                <div class="stat-label">Match Average</div>
-                            </div>
-                        </div>
-                        <div class="stat-card highlight">
-                            <div class="stat-icon">⚡</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="md-first9">-</div>
-                                <div class="stat-label">First 9 Avg</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">✅</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="md-checkout">-</div>
-                                <div class="stat-label">Checkout %</div>
-                            </div>
-                        </div>
-                        <div class="stat-card highlight-gold">
-                            <div class="stat-icon">💎</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="md-180s">-</div>
-                                <div class="stat-label">180s</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">🎪</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="md-darts">-</div>
-                                <div class="stat-label">Darts geworfen</div>
-                            </div>
-                        </div>
-                        <div class="stat-card highlight">
-                            <div class="stat-icon">🎯</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="md-t20-count">-</div>
-                                <div class="stat-label">Triple 20</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">📊</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="md-t20-rate">-</div>
-                                <div class="stat-label">T20 Rate</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">🏆</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="md-highest">-</div>
-                                <div class="stat-label">Höchste Aufnahme</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Leg Filter/Selector -->
-                    <div class="leg-filter-section">
-                        <h3>🎯 Ansicht wählen</h3>
-                        <div class="leg-filter-tabs" id="leg-filter-tabs">
-                            <button class="leg-filter-tab active" data-leg="match" onclick="window.app.selectView('match')">
-                                📊 Gesamtes Match
-                            </button>
-                            <!-- Leg buttons will be added dynamically -->
-                        </div>
-                        <div class="leg-overview-grid compact" id="leg-overview-grid"></div>
-                    </div>
-
-                    <!-- MATCH-ONLY Charts -->
-                    <div class="match-only-section" id="match-only-charts">
-                        <div class="charts-grid charts-grid-compact">
-                            <div class="chart-card">
-                                <h4>📊 Leg Averages</h4>
-                                <div class="chart-container">
-                                    <canvas id="chart-leg-averages"></canvas>
-                                </div>
-                            </div>
-                            <div class="chart-card">
-                                <h4>⚡ First 9 vs Rest</h4>
-                                <div class="chart-container">
-                                    <canvas id="chart-match-first9"></canvas>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- LEG-ONLY Charts -->
-                    <div class="leg-only-section hidden" id="leg-only-charts">
-                        <div class="chart-card large">
-                            <h3>📈 Score-Verlauf <span id="score-chart-title"></span></h3>
-                            <div class="chart-container chart-container-large">
-                                <canvas id="chart-leg-progression"></canvas>
-                            </div>
-                        </div>
-
-                        <!-- Leg Detail Table -->
-                        <div class="leg-detail-compact">
-                            <h4>📋 Aufnahmen <span id="leg-detail-title"></span></h4>
-                            <div class="table-container compact">
-                                <table id="leg-detail-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Visit</th>
-                                            <th>Punkte</th>
-                                            <th>Rest</th>
-                                            <th>Gegner</th>
-                                            <th>Gegner Rest</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody></tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- SHARED Charts (both Match & Leg) -->
-                    <div class="shared-charts-section">
-                        <!-- Rolling Average Chart -->
-                        <div class="section-collapsible">
-                            <div class="section-header" onclick="window.app.toggleSection(this)">
-                                <h3>📈 Momentum & Konsistenz <span class="view-indicator" id="momentum-view-indicator"></span></h3>
-                                <span class="section-toggle">▼</span>
-                            </div>
-                            <div class="section-content">
-                                <div class="momentum-stats-grid">
-                                    <div class="stat-card small">
-                                        <div class="stat-value" id="md-best-streak">-</div>
-                                        <div class="stat-label">Beste Serie</div>
-                                    </div>
-                                    <div class="stat-card small">
-                                        <div class="stat-value" id="md-worst-streak">-</div>
-                                        <div class="stat-label">Schlechteste Serie</div>
-                                    </div>
-                                    <div class="stat-card small">
-                                        <div class="stat-value" id="md-std-dev">-</div>
-                                        <div class="stat-label">Konsistenz (σ)</div>
-                                    </div>
-                                    <div class="stat-card small">
-                                        <div class="stat-value" id="md-60plus-rate">-</div>
-                                        <div class="stat-label">60+ Rate</div>
-                                    </div>
-                                    <div class="stat-card small">
-                                        <div class="stat-value" id="md-100plus-rate">-</div>
-                                        <div class="stat-label">100+ Rate</div>
-                                    </div>
-                                    <div class="stat-card small">
-                                        <div class="stat-value" id="md-140plus-rate">-</div>
-                                        <div class="stat-label">140+ Rate</div>
-                                    </div>
-                                </div>
-                                <div class="chart-card">
-                                    <div class="chart-container">
-                                        <canvas id="chart-rolling-avg"></canvas>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Scoring Analysis - Compact -->
-                        <div class="section-collapsible">
-                            <div class="section-header" onclick="window.app.toggleSection(this)">
-                                <h3>🎯 Scoring & Doppel <span class="view-indicator" id="scoring-view-indicator"></span></h3>
-                                <span class="section-toggle">▼</span>
-                            </div>
-                            <div class="section-content">
-                                <div class="charts-grid charts-grid-3">
-                                    <div class="chart-card compact">
-                                        <h4>Scoring Verteilung</h4>
-                                        <div class="chart-container chart-container-small">
-                                            <canvas id="chart-match-scoring"></canvas>
-                                        </div>
-                                    </div>
-                                    <div class="chart-card compact">
-                                        <h4>Checkout Doppel</h4>
-                                        <div class="chart-container chart-container-small">
-                                            <canvas id="chart-match-doubles"></canvas>
-                                        </div>
-                                    </div>
-                                    <div class="chart-card compact">
-                                        <h4>Doppel-Versuche</h4>
-                                        <div class="doubles-heatmap compact" id="doubles-heatmap"></div>
-                                    </div>
-                                </div>
-                                <div class="doubles-stats-inline">
-                                    <span><strong>Checkout:</strong> <span id="md-checkout-rate-calc">-</span></span>
-                                    <span><strong>Versuche:</strong> <span id="md-checkout-attempts">-</span></span>
-                                    <span><strong>Hits:</strong> <span id="md-checkout-hits">-</span></span>
-                                    <span><strong>1. Dart CO:</strong> <span id="md-first-dart-co">-</span></span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- T20 Streuungsanalyse -->
-                    <div class="section-collapsible">
-                        <div class="section-header" onclick="window.app.toggleSection(this)">
-                            <h3>🎯 T20 Streuungsanalyse</h3>
-                            <span class="section-toggle">▼</span>
-                        </div>
-                    <div class="section-content t20-analysis-section">
-                        <!-- Row 1: Scatter Plot + Heatmap Grid 50/50 -->
-                        <div class="t20-main-row">
-                            <div class="t20-scatter-section">
-                                <h4>📍 Wurfverteilung</h4>
-                                <canvas id="t20-scatter-canvas" width="280" height="280"></canvas>
-                                <div class="dartboard-legend">
-                                    <span class="legend-item"><span class="dot green"></span> T20</span>
-                                    <span class="legend-item"><span class="dot yellow"></span> ≤1cm</span>
-                                    <span class="legend-item"><span class="dot orange"></span> 1-2cm</span>
-                                    <span class="legend-item"><span class="dot red"></span> 2-3cm</span>
-                                </div>
-                            </div>
-                            <div class="t20-heatmap-section">
-                                <h4>🎯 Richtungsanalyse</h4>
-                                <div class="t20-direction-grid-8">
-                                    <div class="direction-card" id="t20-miss-links-oben">
-                                        <div class="direction-label">↖ Links-Oben</div>
-                                        <div class="direction-value">-</div>
-                                        <div class="direction-detail"></div>
-                                    </div>
-                                    <div class="direction-card" id="t20-miss-oben">
-                                        <div class="direction-label">↑ Oben (Bull)</div>
-                                        <div class="direction-value">-</div>
-                                        <div class="direction-detail"></div>
-                                    </div>
-                                    <div class="direction-card" id="t20-miss-rechts-oben">
-                                        <div class="direction-label">↗ Rechts-Oben</div>
-                                        <div class="direction-value">-</div>
-                                        <div class="direction-detail"></div>
-                                    </div>
-                                    <div class="direction-card" id="t20-miss-links-mitte">
-                                        <div class="direction-label">← Links (5)</div>
-                                        <div class="direction-value">-</div>
-                                        <div class="direction-detail"></div>
-                                    </div>
-                                    <div class="direction-card center" id="t20-miss-center">
-                                        <div class="direction-label">T20</div>
-                                        <div class="direction-value">-</div>
-                                    </div>
-                                    <div class="direction-card" id="t20-miss-rechts-mitte">
-                                        <div class="direction-label">→ Rechts (1)</div>
-                                        <div class="direction-value">-</div>
-                                        <div class="direction-detail"></div>
-                                    </div>
-                                    <div class="direction-card" id="t20-miss-links-unten">
-                                        <div class="direction-label">↙ Links-Unten</div>
-                                        <div class="direction-value">-</div>
-                                        <div class="direction-detail"></div>
-                                    </div>
-                                    <div class="direction-card" id="t20-miss-unten">
-                                        <div class="direction-label">↓ Unten (Draht)</div>
-                                        <div class="direction-value">-</div>
-                                        <div class="direction-detail"></div>
-                                    </div>
-                                    <div class="direction-card" id="t20-miss-rechts-unten">
-                                        <div class="direction-label">↘ Rechts-Unten</div>
-                                        <div class="direction-value">-</div>
-                                        <div class="direction-detail"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Row 2: Stats + Distance + Trend -->
-                        <div class="t20-details-row">
-                            <div class="t20-stats-compact">
-                                <div class="stat-item">
-                                    <span class="stat-label">Trefferquote</span>
-                                    <span class="stat-value" id="t20-hit-rate">-</span>
-                                </div>
-                                <div class="stat-item">
-                                    <span class="stat-label">T20-Bereich</span>
-                                    <span class="stat-value" id="t20-total-attempts">-</span>
-                                </div>
-                                <div class="stat-item">
-                                    <span class="stat-label">Ø Fehlwurf</span>
-                                    <span class="stat-value" id="t20-avg-miss-dist">-</span>
-                                </div>
-                            </div>
-                            <div class="t20-distance-breakdown">
-                                <div class="distance-bars" id="t20-distance-bars">
-                                    <div class="distance-row">
-                                        <span class="dist-label">0-1cm</span>
-                                        <div class="dist-bar"><div class="dist-fill dist-close" id="dist-0-1"></div></div>
-                                        <span class="dist-count" id="dist-count-0-1">0</span>
-                                    </div>
-                                    <div class="distance-row">
-                                        <span class="dist-label">1-2cm</span>
-                                        <div class="dist-bar"><div class="dist-fill dist-medium" id="dist-1-2"></div></div>
-                                        <span class="dist-count" id="dist-count-1-2">0</span>
-                                    </div>
-                                    <div class="distance-row">
-                                        <span class="dist-label">2-3cm</span>
-                                        <div class="dist-bar"><div class="dist-fill dist-far" id="dist-2-3"></div></div>
-                                        <span class="dist-count" id="dist-count-2-3">0</span>
-                                    </div>
-                                    <div class="distance-row">
-                                        <span class="dist-label">&gt;3cm</span>
-                                        <div class="dist-bar"><div class="dist-fill dist-veryfar" id="dist-3plus"></div></div>
-                                        <span class="dist-count" id="dist-count-3plus">0</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="t20-fatigue-compact">
-                                <div class="stat-item">
-                                    <span class="stat-label">1. Hälfte</span>
-                                    <span class="stat-value" id="t20-first-half">-</span>
-                                </div>
-                                <div class="stat-item">
-                                    <span class="stat-label">2. Hälfte</span>
-                                    <span class="stat-value" id="t20-second-half">-</span>
-                                </div>
-                                <div class="stat-item">
-                                    <span class="stat-label">Trend</span>
-                                    <span class="stat-value" id="t20-fatigue">-</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Text Analysis -->
-                        <div class="t20-text-analysis" id="t20-text-analysis">
-                            Analyse wird geladen...
-                        </div>
-
-                        <!-- T20 Trend Chart (Match view only) -->
-                        <div class="t20-trend-chart-section" id="t20-trend-section">
-                            <h4>📈 T20-Trend (letzte 100 Matches)</h4>
-                            <div class="chart-container chart-container-small">
-                                <canvas id="chart-t20-trend"></canvas>
-                            </div>
-                        </div>
-                        </div>
-                    </div>
-                    </div><!-- /shared-charts-section -->
-                </div>
-
-                <!-- Empty State -->
-                <div id="match-detail-empty" class="empty-state">
-                    <div class="empty-icon">📋</div>
-                    <p>Wähle ein Match aus der Liste oben aus, um Details zu sehen.</p>
-                </div>
-            </div>
-
-            <!-- Heatmap Page (erweitert mit T20-Analyse) -->
-            <div id="page-heatmap" class="page">
-                <div class="page-header">
-                    <h2>🔥 Wurfanalyse</h2>
-                    <div class="heatmap-filters">
-                        <select id="heatmap-target">
-                            <option value="all">Alle Würfe</option>
-                            <option value="20">T20 Bereich</option>
-                            <option value="19">T19 Bereich</option>
-                            <option value="18">T18 Bereich</option>
-                            <option value="doubles">Doppel</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="stats-grid stats-grid-6">
-                    <div class="stat-card">
-                        <div class="stat-icon">🎯</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-grouping-score">-</div>
-                            <div class="stat-label">Gruppierung (mm)</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">↔️</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-drift-x">-</div>
-                            <div class="stat-label">Drift Horizontal</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">↕️</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-drift-y">-</div>
-                            <div class="stat-label">Drift Vertikal</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">📊</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-total-throws">-</div>
-                            <div class="stat-label">Würfe analysiert</div>
-                        </div>
-                    </div>
-                    <div class="stat-card highlight">
-                        <div class="stat-icon">🎯</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-t20-hitrate">-</div>
-                            <div class="stat-label">T20 Hit Rate</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">🎯</div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="stat-t19-hitrate">-</div>
-                            <div class="stat-label">T19 Hit Rate</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="heatmap-container">
-                    <div class="dartboard-wrapper">
-                        <canvas id="dartboard-canvas" width="500" height="500"></canvas>
-                    </div>
-                    <div class="heatmap-stats">
-                        <h3>📊 Top Segmente</h3>
-                        <div id="segment-stats"></div>
-                        <div class="heatmap-legend">
-                            <h4>Legende</h4>
-                            <div class="legend-item"><span class="legend-color high"></span> Viele Treffer</div>
-                            <div class="legend-item"><span class="legend-color medium"></span> Mittel</div>
-                            <div class="legend-item"><span class="legend-color low"></span> Wenige Treffer</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- T20 Analyse Sektion -->
-                <div class="t20-analysis-section">
-                    <h3>🎯 T20 Präzisions-Analyse</h3>
-                    <div class="t20-grid">
-                        <div class="t20-scatter-card">
-                            <h4>Streuung im T20-Bereich</h4>
-                            <canvas id="t20-scatter-canvas" width="300" height="300"></canvas>
-                        </div>
-                        <div class="t20-direction-card">
-                            <h4>Richtungs-Heatmap</h4>
-                            <div class="direction-grid" id="t20-direction-grid">
-                                <div class="dir-cell" data-dir="nw">↖</div>
-                                <div class="dir-cell" data-dir="n">↑</div>
-                                <div class="dir-cell" data-dir="ne">↗</div>
-                                <div class="dir-cell" data-dir="w">←</div>
-                                <div class="dir-cell center" data-dir="c">●</div>
-                                <div class="dir-cell" data-dir="e">→</div>
-                                <div class="dir-cell" data-dir="sw">↙</div>
-                                <div class="dir-cell" data-dir="s">↓</div>
-                                <div class="dir-cell" data-dir="se">↘</div>
-                            </div>
-                        </div>
-                        <div class="t20-distance-card">
-                            <h4>Distanz-Verteilung</h4>
-                            <div class="distance-bars" id="t20-distance-bars">
-                                <div class="dist-row"><span class="dist-label">0-1cm</span><div class="dist-bar"><div class="dist-fill" id="dist-0-1"></div></div><span class="dist-pct" id="dist-pct-0-1">-</span></div>
-                                <div class="dist-row"><span class="dist-label">1-2cm</span><div class="dist-bar"><div class="dist-fill" id="dist-1-2"></div></div><span class="dist-pct" id="dist-pct-1-2">-</span></div>
-                                <div class="dist-row"><span class="dist-label">2-3cm</span><div class="dist-bar"><div class="dist-fill" id="dist-2-3"></div></div><span class="dist-pct" id="dist-pct-2-3">-</span></div>
-                                <div class="dist-row"><span class="dist-label">>3cm</span><div class="dist-bar"><div class="dist-fill" id="dist-3-plus"></div></div><span class="dist-pct" id="dist-pct-3-plus">-</span></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- T20 Trend Chart -->
-                <div class="charts-grid">
-                    <div class="chart-card large">
-                        <h3>📈 Average Trend</h3>
-                        <div class="chart-container chart-container-large">
-                            <canvas id="chart-t20-trend"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Opponents Page (konsolidiert: Gegner + Zeitanalyse) -->
-            <div id="page-opponents" class="page">
-                <div class="page-header">
-                    <h2>👥 Gegner & Analyse</h2>
-                </div>
-
-                <!-- Tabs -->
-                <div class="page-tabs">
-                    <button class="page-tab active" data-tab="opponents-tab">👥 Gegner</button>
-                    <button class="page-tab" data-tab="time-analysis-tab">🕐 Zeitanalyse</button>
-                </div>
-
-                <!-- Tab: Gegner -->
-                <div id="opponents-tab" class="tab-content active">
-                    <div class="stats-grid stats-grid-6">
-                        <div class="stat-card">
-                            <div class="stat-icon">👥</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-unique-opponents">-</div>
-                                <div class="stat-label">Verschiedene Gegner</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">🤖</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-vs-bots">-</div>
-                                <div class="stat-label">vs. Bots Win %</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">👤</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-vs-humans">-</div>
-                                <div class="stat-label">vs. Menschen Win %</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">😈</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-nemesis">-</div>
-                                <div class="stat-label">Nemesis</div>
-                            </div>
-                        </div>
-                        <div class="stat-card highlight">
-                            <div class="stat-icon">🎯</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-favorite-victim">-</div>
-                                <div class="stat-label">Lieblingsgegner</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">📈</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-avg-vs-opponents">-</div>
-                                <div class="stat-label">Avg vs Gegner-Avg</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="charts-grid">
-                        <div class="chart-card">
-                            <h3>📊 Win Rate nach Bot-Level</h3>
-                            <div class="chart-container">
-                                <canvas id="chart-winrate-by-bot-level"></canvas>
-                            </div>
-                        </div>
-                        <div class="chart-card">
-                            <h3>🏆 Top Gegner (Matches)</h3>
-                            <div class="chart-container">
-                                <canvas id="chart-top-opponents"></canvas>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="table-container">
-                        <table id="opponents-table">
-                            <thead>
-                                <tr>
-                                    <th>Gegner</th>
-                                    <th>Matches</th>
-                                    <th>Siege</th>
-                                    <th>Niederlagen</th>
-                                    <th>Win %</th>
-                                    <th>Mein Avg</th>
-                                    <th>Gegner Avg</th>
-                                    <th>Letzte Begegnung</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Tab: Zeitanalyse -->
-                <div id="time-analysis-tab" class="tab-content">
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-icon">🕐</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-best-time">-</div>
-                                <div class="stat-label">Beste Tageszeit</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">📅</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-best-day">-</div>
-                                <div class="stat-label">Bester Wochentag</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">🔄</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-avg-legs">-</div>
-                                <div class="stat-label">Ø Legs pro Match</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">⏱️</div>
-                            <div class="stat-content">
-                                <div class="stat-value" id="stat-total-playtime">-</div>
-                                <div class="stat-label">Spielzeit gesamt</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="charts-grid">
-                        <div class="chart-card">
-                            <h3>🕐 Performance nach Tageszeit</h3>
-                            <div class="chart-container">
-                                <canvas id="chart-by-time"></canvas>
-                            </div>
-                        </div>
-                        <div class="chart-card">
-                            <h3>📅 Performance nach Wochentag</h3>
-                            <div class="chart-container">
-                                <canvas id="chart-by-weekday"></canvas>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="charts-grid">
-                        <div class="chart-card">
-                            <h3>📊 Legs pro Match Trend</h3>
-                            <div class="chart-container">
-                                <canvas id="chart-legs-trend"></canvas>
-                            </div>
-                        </div>
-                        <div class="chart-card">
-                            <h3>🎯 Konstanz-Entwicklung</h3>
-                            <div class="chart-container">
-                                <canvas id="chart-consistency-trend"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <div class="pagination" id="matches-pagination"></div>
             </div>
 
             <!-- Head-to-Head Page -->
-            <div id="page-headtohead" class="page">
-                <div class="h2h-header">
-                    <div class="h2h-player h2h-player-left">
-                        <div class="h2h-avatar">🎯</div>
-                        <div class="h2h-name" id="h2h-player1-name">franzinwien</div>
+            <div id="page-h2h" class="page">
+                <div class="h2h-selector">
+                    <select id="h2h-player1">
+                        <!-- Dynamisch befuellt -->
+                    </select>
+                    <span class="h2h-vs">VS</span>
+                    <select id="h2h-player2">
+                        <!-- Dynamisch befuellt -->
+                    </select>
+                </div>
+
+                <div class="h2h-score-display">
+                    <div class="h2h-player">
+                        <div class="h2h-player-name" id="h2h-name1">Spieler 1</div>
+                        <div class="h2h-player-wins" id="h2h-wins1">0</div>
                     </div>
-                    <div class="h2h-vs">
-                        <span class="vs-text">VS</span>
-                        <div class="h2h-score">
-                            <span id="h2h-wins1" class="h2h-wins">0</span>
-                            <span class="h2h-divider">:</span>
-                            <span id="h2h-wins2" class="h2h-wins">0</span>
-                        </div>
-                    </div>
-                    <div class="h2h-player h2h-player-right">
-                        <div class="h2h-avatar">🎯</div>
-                        <div class="h2h-name" id="h2h-player2-name">bellaciao</div>
+                    <div class="h2h-divider">:</div>
+                    <div class="h2h-player">
+                        <div class="h2h-player-wins" id="h2h-wins2">0</div>
+                        <div class="h2h-player-name" id="h2h-name2">Spieler 2</div>
                     </div>
                 </div>
 
-                <!-- Side-by-side comparison layout -->
-                <div class="h2h-comparison">
-                    <div class="h2h-comparison-header">
-                        <div class="h2h-col-left">franzinwien</div>
-                        <div class="h2h-col-center">Statistik</div>
-                        <div class="h2h-col-right">bellaciao</div>
+                <div class="h2h-stats-comparison">
+                    <div class="h2h-stat-row">
+                        <div class="h2h-stat-value left" id="h2h-avg1">--</div>
+                        <div class="h2h-stat-label">Avg</div>
+                        <div class="h2h-stat-value right" id="h2h-avg2">--</div>
                     </div>
-                    <div class="h2h-comparison-row">
-                        <div class="h2h-value left" id="h2h-avg-p1">-</div>
-                        <div class="h2h-stat-label">📊 Ø Average</div>
-                        <div class="h2h-value right" id="h2h-avg-p2">-</div>
+                    <div class="h2h-stat-row">
+                        <div class="h2h-stat-value left" id="h2h-first9-1">--</div>
+                        <div class="h2h-stat-label">First 9</div>
+                        <div class="h2h-stat-value right" id="h2h-first9-2">--</div>
                     </div>
-                    <div class="h2h-comparison-row">
-                        <div class="h2h-value left" id="h2h-best-avg-p1">-</div>
-                        <div class="h2h-stat-label">⭐ Best Average</div>
-                        <div class="h2h-value right" id="h2h-best-avg-p2">-</div>
+                    <div class="h2h-stat-row">
+                        <div class="h2h-stat-value left" id="h2h-checkout1">--</div>
+                        <div class="h2h-stat-label">Checkout %</div>
+                        <div class="h2h-stat-value right" id="h2h-checkout2">--</div>
                     </div>
-                    <div class="h2h-comparison-row">
-                        <div class="h2h-value left" id="h2h-legs-p1">-</div>
-                        <div class="h2h-stat-label">🦵 Legs gewonnen</div>
-                        <div class="h2h-value right" id="h2h-legs-p2">-</div>
+                    <div class="h2h-stat-row">
+                        <div class="h2h-stat-value left" id="h2h-180s1">--</div>
+                        <div class="h2h-stat-label">180s</div>
+                        <div class="h2h-stat-value right" id="h2h-180s2">--</div>
                     </div>
-                    <div class="h2h-comparison-row">
-                        <div class="h2h-value left" id="h2h-180s-p1">-</div>
-                        <div class="h2h-stat-label">💎 180s</div>
-                        <div class="h2h-value right" id="h2h-180s-p2">-</div>
-                    </div>
-                    <div class="h2h-comparison-row highlight-row">
-                        <div class="h2h-value left" id="h2h-winrate-p1">-</div>
-                        <div class="h2h-stat-label">🏆 Win Rate</div>
-                        <div class="h2h-value right" id="h2h-winrate-p2">-</div>
+                    <div class="h2h-stat-row">
+                        <div class="h2h-stat-value left" id="h2h-legs1">--</div>
+                        <div class="h2h-stat-label">Legs</div>
+                        <div class="h2h-stat-value right" id="h2h-legs2">--</div>
                     </div>
                 </div>
 
-                <!-- Summary stats row -->
-                <div class="h2h-summary-stats">
-                    <div class="h2h-summary-card">
-                        <div class="h2h-summary-value" id="h2h-total-matches">-</div>
-                        <div class="h2h-summary-label">🎮 Matches</div>
-                    </div>
-                    <div class="h2h-summary-card">
-                        <div class="h2h-summary-value" id="h2h-last10">-</div>
-                        <div class="h2h-summary-label">📈 Letzte 10</div>
-                    </div>
-                    <div class="h2h-summary-card highlight">
-                        <div class="h2h-summary-value" id="h2h-streak">-</div>
-                        <div class="h2h-summary-label">🔥 Aktuelle Serie</div>
-                    </div>
-                    <div class="h2h-summary-card">
-                        <div class="h2h-summary-value" id="h2h-avg-diff">-</div>
-                        <div class="h2h-summary-label">🎯 Ø Avg-Differenz</div>
-                    </div>
-                </div>
-
-                <div class="charts-grid">
-                    <div class="chart-card">
-                        <h3>📈 Siege-Verlauf</h3>
+                <div class="h2h-chart-section">
+                    <div class="chart-card wide">
+                        <h3>Average Vergleich pro Match</h3>
                         <div class="chart-container">
-                            <canvas id="chart-h2h-wins"></canvas>
-                        </div>
-                    </div>
-                    <div class="chart-card">
-                        <h3>📊 Average-Vergleich pro Match</h3>
-                        <div class="chart-container">
-                            <canvas id="chart-h2h-avg"></canvas>
+                            <canvas id="chart-h2h"></canvas>
                         </div>
                     </div>
                 </div>
 
-                <div class="charts-grid">
-                    <div class="chart-card">
-                        <h3>📊 Form-Trend (letzte 20 Matches)</h3>
-                        <div class="chart-container">
-                            <canvas id="chart-h2h-form"></canvas>
-                        </div>
+                <div class="h2h-matches-section">
+                    <h3>Match Historie</h3>
+                    <div class="matches-list" id="h2h-matches">
+                        <!-- Dynamisch befuellt -->
                     </div>
-                    <div class="chart-card">
-                        <h3>🏆 Siege-Verteilung</h3>
-                        <div class="chart-container chart-container-small">
-                            <canvas id="chart-h2h-pie"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="table-container">
-                    <h3>📋 Match-Historie (klicken für Details)</h3>
-                    <table id="h2h-matches-table">
-                        <thead>
-                            <tr>
-                                <th>Datum</th>
-                                <th>Ergebnis</th>
-                                <th>Avg Franz</th>
-                                <th>Avg Bella</th>
-                                <th>+/-</th>
-                                <th>Legs</th>
-                                <th>🏆 Rang</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
                 </div>
             </div>
+
         </main>
     </div>
 
@@ -1163,7 +305,7 @@
         <p>Lade Daten...</p>
     </div>
 
-    <script src="config.js?v=5"></script>
-    <script src="app.js?v=5"></script>
+    <script src="config.js?v=6"></script>
+    <script src="app.js?v=6"></script>
 </body>
 </html>
