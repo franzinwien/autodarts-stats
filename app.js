@@ -254,12 +254,21 @@ class AutodartsStats {
             return { ...mp, match };
         }).filter(d => d.match);
 
+        console.log(`Before time filter: ${data.length} matches, time filter: ${this.filters.time}`);
+
         // Time filter
-        if (this.filters.time !== 'all') {
+        if (this.filters.time && this.filters.time !== 'all') {
             const days = parseInt(this.filters.time);
             const cutoff = new Date();
             cutoff.setDate(cutoff.getDate() - days);
-            data = data.filter(d => new Date(d.match.finished_at) >= cutoff);
+
+            data = data.filter(d => {
+                if (!d.match.finished_at) return false;
+                const matchDate = new Date(d.match.finished_at);
+                return matchDate >= cutoff;
+            });
+
+            console.log(`After time filter (${days} days): ${data.length} matches`);
         }
 
         // Type filter
