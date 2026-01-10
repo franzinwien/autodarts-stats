@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            width: 320px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+        }
+        
+        .header {
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .header h1 span {
+            font-size: 24px;
+        }
+        
+        .content {
+            padding: 20px;
+        }
+        
+        .stat-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        
+        .stat-card h3 {
+            font-size: 12px;
+            color: rgba(255,255,255,0.6);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #10b981;
+        }
+        
+        .instructions {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 13px;
+            line-height: 1.5;
+            color: rgba(255,255,255,0.8);
+        }
+        
+        .instructions strong {
+            color: #3b82f6;
+        }
+        
+        .footer {
+            padding: 16px 20px;
+            text-align: center;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            font-size: 11px;
+            color: rgba(255,255,255,0.4);
+        }
+        
+        .footer a {
+            color: #10b981;
+            text-decoration: none;
+        }
+        
+        #status {
+            padding: 10px;
+            text-align: center;
+            font-size: 13px;
+        }
+        
+        #status.loading {
+            color: #f59e0b;
+        }
+        
+        #status.success {
+            color: #10b981;
+        }
+        
+        #status.error {
+            color: #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><span>🎯</span> Autodarts Stats</h1>
+    </div>
+    
+    <div class="content">
+        <div class="stat-card">
+            <h3>Matches Synced</h3>
+            <div class="value" id="match-count">-</div>
+        </div>
+        
+        <div class="instructions">
+            <strong>How to sync:</strong><br>
+            1. Go to <strong>play.autodarts.io</strong><br>
+            2. Navigate to <strong>Match History</strong><br>
+            3. Click the green <strong>"Sync Stats"</strong> button
+        </div>
+        
+        <div id="status"></div>
+    </div>
+    
+    <div class="footer">
+        Connected to Supabase ✓
+    </div>
+    
+    <script src="supabase.js"></script>
+    <script src="popup.js"></script>
+</body>
+</html>
