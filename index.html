@@ -356,18 +356,32 @@
                     }
                 });
 
-                // Trend data (last 30 matches for chart)
-                const trendData = enriched.slice(0, 30).reverse().map((d, i) => {
+                // Trend data - group by date for cleaner chart
+                const byDate = {};
+                enriched.forEach(d => {
+                    const dateKey = new Date(d.match.finished_at).toISOString().split('T')[0];
+                    if (!byDate[dateKey]) {
+                        byDate[dateKey] = { turns: [], matches: 0 };
+                    }
                     const mTurns = validTurns.filter(t => t.match_player_id === d.id);
-                    const avg = mTurns.length > 0 
-                        ? mTurns.reduce((sum, t) => sum + t.points, 0) / mTurns.length 
-                        : 0;
-                    return {
-                        name: `M${i + 1}`,
-                        avg: Math.round(avg * 10) / 10,
-                        date: new Date(d.match.finished_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
-                    };
+                    byDate[dateKey].turns.push(...mTurns);
+                    byDate[dateKey].matches++;
                 });
+
+                const trendData = Object.entries(byDate)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .slice(-20) // Last 20 days with matches
+                    .map(([dateKey, data]) => {
+                        const avg = data.turns.length > 0
+                            ? data.turns.reduce((sum, t) => sum + t.points, 0) / data.turns.length
+                            : 0;
+                        const dateObj = new Date(dateKey);
+                        return {
+                            date: dateObj.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
+                            avg: Math.round(avg * 10) / 10,
+                            matches: data.matches
+                        };
+                    });
 
                 return {
                     matches: enriched,
