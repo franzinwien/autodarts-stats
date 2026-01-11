@@ -381,38 +381,59 @@
                     }
                 });
 
-                // Trend data - group by date for cleaner chart
-                const byDate = {};
-                enriched.forEach(d => {
-                    const dateKey = new Date(d.match.finished_at).toISOString().split('T')[0];
-                    if (!byDate[dateKey]) {
-                        byDate[dateKey] = { turns: [], matches: 0 };
+                // Trend data - aggregate based on time filter
+                const trendData = (() => {
+                    if (enriched.length === 0) return [];
+
+                    // Determine aggregation level based on filter
+                    let aggregation = 'day'; // day, week, month
+                    if (filters.timeRange === 'all' || filters.timeRange === '365') {
+                        aggregation = 'month';
+                    } else if (filters.timeRange === '90') {
+                        aggregation = 'week';
                     }
-                    const mTurns = validTurns.filter(t => t.match_player_id === d.id);
-                    byDate[dateKey].turns.push(...mTurns);
-                    byDate[dateKey].matches++;
-                });
 
-                // Determine how many data points to show based on filter
-                let maxDataPoints = 20;
-                if (filters.timeRange === 'all') maxDataPoints = 50;
-                else if (filters.timeRange === '365') maxDataPoints = 40;
-                else if (filters.timeRange === '90') maxDataPoints = 30;
-
-                const trendData = Object.entries(byDate)
-                    .sort(([a], [b]) => a.localeCompare(b))
-                    .slice(-maxDataPoints)
-                    .map(([dateKey, dateData]) => {
-                        const avg = dateData.turns.length > 0
-                            ? dateData.turns.reduce((sum, t) => sum + t.points, 0) / dateData.turns.length
-                            : 0;
-                        const dateObj = new Date(dateKey);
-                        return {
-                            date: dateObj.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
-                            avg: Math.round(avg * 10) / 10,
-                            matches: dateData.matches
-                        };
+                    // Group data by aggregation period
+                    const grouped = {};
+                    
+                    enriched.forEach(d => {
+                        const date = new Date(d.match.finished_at);
+                        let key, label;
+                        
+                        if (aggregation === 'month') {
+                            key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                            label = date.toLocaleDateString('de-DE', { month: 'short', year: '2-digit' });
+                        } else if (aggregation === 'week') {
+                            // Get ISO week
+                            const startOfYear = new Date(date.getFullYear(), 0, 1);
+                            const weekNum = Math.ceil(((date - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
+                            key = `${date.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+                            label = `KW${weekNum}`;
+                        } else {
+                            key = date.toISOString().split('T')[0];
+                            label = date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+                        }
+                        
+                        if (!grouped[key]) {
+                            grouped[key] = { label, turns: [], matches: 0, sortKey: key };
+                        }
+                        
+                        const mTurns = validTurns.filter(t => t.match_player_id === d.id);
+                        grouped[key].turns.push(...mTurns);
+                        grouped[key].matches++;
                     });
+
+                    // Convert to array and sort chronologically
+                    return Object.values(grouped)
+                        .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+                        .map(g => ({
+                            date: g.label,
+                            avg: g.turns.length > 0 
+                                ? Math.round((g.turns.reduce((sum, t) => sum + t.points, 0) / g.turns.length) * 10) / 10
+                                : 0,
+                            matches: g.matches
+                        }));
+                })();
 
                 return {
                     matches: enriched,
@@ -774,36 +795,49 @@
                     {/* Trend Chart */}
                     {stats.trendData.length > 0 && (
                         <div style={styles.section}>
-                            <h3 style={styles.sectionTitle}>Average Trend</h3>
+                            <h3 style={styles.sectionTitle}>
+                                Average Trend 
+                                <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '14px', marginLeft: '8px' }}>
+                                    ({stats.trendData.length} {filters.timeRange === 'all' || filters.timeRange === '365' ? 'Monate' : filters.timeRange === '90' ? 'Wochen' : 'Tage'})
+                                </span>
+                            </h3>
                             <div style={styles.chartCard}>
-                                <ResponsiveContainer width="100%" height={250}>
-                                    <LineChart data={stats.trendData}>
+                                <ResponsiveContainer width="100%" height={280}>
+                                    <LineChart data={stats.trendData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                                         <XAxis 
                                             dataKey="date" 
                                             stroke="var(--text-muted)" 
-                                            fontSize={12}
+                                            fontSize={11}
                                             tickLine={false}
+                                            interval="preserveStartEnd"
+                                            angle={stats.trendData.length > 20 ? -45 : 0}
+                                            textAnchor={stats.trendData.length > 20 ? "end" : "middle"}
+                                            height={stats.trendData.length > 20 ? 60 : 30}
                                         />
                                         <YAxis 
                                             stroke="var(--text-muted)" 
                                             fontSize={12}
                                             tickLine={false}
                                             domain={['dataMin - 5', 'dataMax + 5']}
+                                            width={40}
                                         />
                                         <Tooltip 
                                             contentStyle={{
                                                 background: 'var(--bg-card)',
                                                 border: '1px solid var(--border)',
-                                                borderRadius: 8
+                                                borderRadius: 8,
+                                                padding: '8px 12px'
                                             }}
+                                            formatter={(value, name) => [`${value} Avg`, '']}
+                                            labelFormatter={(label) => label}
                                         />
                                         <Line 
                                             type="monotone" 
                                             dataKey="avg" 
                                             stroke="var(--accent)" 
                                             strokeWidth={2}
-                                            dot={{ fill: 'var(--accent)', strokeWidth: 0, r: 4 }}
+                                            dot={{ fill: 'var(--accent)', strokeWidth: 0, r: 3 }}
                                             activeDot={{ r: 6 }}
                                         />
                                     </LineChart>
