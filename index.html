@@ -4,10 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Autodarts Stats</title>
-    <meta name="description" content="Personal Darts Statistics Dashboard">
-    <meta name="theme-color" content="#0a0a0b">
-    
-    <!-- Favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
     
     <!-- Fonts -->
@@ -15,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- React & Dependencies -->
+    <!-- Dependencies -->
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
@@ -38,1665 +34,512 @@
             --accent-dim: #16a34a;
             --accent-glow: rgba(34, 197, 94, 0.15);
             --red: #ef4444;
-            --red-dim: #dc2626;
             --gold: #eab308;
             --blue: #3b82f6;
             --purple: #a855f7;
             --radius: 12px;
             --radius-sm: 8px;
-            --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
             --font-display: 'Outfit', sans-serif;
             --font-mono: 'JetBrains Mono', monospace;
         }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        html {
-            font-size: 16px;
-            -webkit-tap-highlight-color: transparent;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { font-size: 16px; -webkit-tap-highlight-color: transparent; }
         body {
             font-family: var(--font-display);
             background: var(--bg-primary);
             color: var(--text-primary);
             min-height: 100vh;
-            min-height: 100dvh;
             line-height: 1.5;
-            overflow-x: hidden;
             -webkit-font-smoothing: antialiased;
         }
-
-        /* Scrollbar */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: var(--border);
-            border-radius: 3px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: var(--border-light);
-        }
-
-        /* Loading Animation */
-        @keyframes pulse {
-            0%, 100% { opacity: 0.4; }
-            50% { opacity: 1; }
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        @keyframes slideUp {
-            from { 
-                opacity: 0; 
-                transform: translateY(10px); 
-            }
-            to { 
-                opacity: 1; 
-                transform: translateY(0); 
-            }
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        .animate-in {
-            animation: slideUp 0.4s ease-out forwards;
-        }
-
-        /* Root container */
-        #root {
-            min-height: 100vh;
-            min-height: 100dvh;
-        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .animate-in { animation: fadeIn 0.3s ease-out; }
     </style>
 </head>
 <body>
     <div id="root"></div>
     
-    <script type="text/babel" data-type="module">
-        const { useState, useEffect, useMemo, useCallback, createContext, useContext } = React;
-        const { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } = window.Recharts;
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+        const { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } = window.Recharts;
 
-        // ============================================
-        // CONFIGURATION
-        // ============================================
-        const CONFIG = {
-            SUPABASE_URL: 'https://znjiemoatvezhquukbvd.supabase.co',
-            SUPABASE_KEY: 'sb_publishable_o0cAwiHv7KsuKAYgSDCePw_jpmDOX-S',
-        };
+        // Config
+        const supabase = window.supabase.createClient(
+            'https://znjiemoatvezhquukbvd.supabase.co',
+            'sb_publishable_o0cAwiHv7KsuKAYgSDCePw_jpmDOX-S'
+        );
 
-        const supabase = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
-
-        // ============================================
-        // CONTEXT
-        // ============================================
-        const AppContext = createContext(null);
-
-        // ============================================
-        // HOOKS
-        // ============================================
-        function useAuth() {
-            const [user, setUser] = useState(null);
-            const [loading, setLoading] = useState(true);
-            const [allowedUsers, setAllowedUsers] = useState([]);
-
-            useEffect(() => {
-                const checkSession = async () => {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    if (session) {
-                        const { data: allowed } = await supabase.from('allowed_users').select('*');
-                        setAllowedUsers(allowed || []);
-                        
-                        const userMatch = allowed?.find(u => 
-                            u.email.toLowerCase() === session.user.email.toLowerCase()
-                        );
-                        
-                        if (userMatch) {
-                            setUser({
-                                ...session.user,
-                                autodarts_user_id: userMatch.autodarts_user_id,
-                                autodarts_username: userMatch.autodarts_username
-                            });
-                        }
-                    }
-                    setLoading(false);
-                };
-
-                checkSession();
-
-                const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-                    if (event === 'SIGNED_IN' && session) {
-                        const { data: allowed } = await supabase.from('allowed_users').select('*');
-                        setAllowedUsers(allowed || []);
-                        
-                        const userMatch = allowed?.find(u => 
-                            u.email.toLowerCase() === session.user.email.toLowerCase()
-                        );
-                        
-                        if (userMatch) {
-                            setUser({
-                                ...session.user,
-                                autodarts_user_id: userMatch.autodarts_user_id,
-                                autodarts_username: userMatch.autodarts_username
-                            });
-                        }
-                    } else if (event === 'SIGNED_OUT') {
-                        setUser(null);
-                    }
-                });
-
-                return () => subscription.unsubscribe();
-            }, []);
-
-            const signIn = async (email) => {
-                const { error } = await supabase.auth.signInWithOtp({
-                    email,
-                    options: { emailRedirectTo: window.location.origin + window.location.pathname }
-                });
-                return { error };
-            };
-
-            const signOut = async () => {
-                await supabase.auth.signOut();
-                setUser(null);
-            };
-
-            return { user, loading, allowedUsers, signIn, signOut };
-        }
-
-        function useData(userId, filters, allowedUsers) {
-            const [data, setData] = useState({
-                matches: [],
-                matchPlayers: [],
-                turns: [],
-                loading: true
-            });
-
-            useEffect(() => {
-                if (!userId) return;
-
-                const loadData = async () => {
-                    setData(prev => ({ ...prev, loading: true }));
-
-                    try {
-                        // Step 1: Load matches and match_players
-                        const [matchesRes, matchPlayersRes] = await Promise.all([
-                            supabase.from('matches').select('*').eq('variant', 'X01').order('finished_at', { ascending: false }),
-                            supabase.from('match_players').select('*')
-                        ]);
-
-                        const matches = matchesRes.data || [];
-                        const matchPlayers = matchPlayersRes.data || [];
-
-                        // Step 2: Get ALL user IDs we need turns for (current user + all allowed users for H2H)
-                        const allUserIds = new Set([userId]);
-                        if (allowedUsers) {
-                            allowedUsers.forEach(u => allUserIds.add(u.autodarts_user_id));
-                        }
-
-                        // Step 3: Get match_player IDs for all relevant users
-                        const relevantMatchPlayerIds = matchPlayers
-                            .filter(mp => allUserIds.has(mp.user_id))
-                            .map(mp => mp.id);
-
-                        // Step 4: Load turns for all relevant match_players
-                        let allTurns = [];
-                        for (let i = 0; i < relevantMatchPlayerIds.length; i += 100) {
-                            const batch = relevantMatchPlayerIds.slice(i, i + 100);
-                            const turnsRes = await supabase
-                                .from('turns')
-                                .select('*')
-                                .in('match_player_id', batch);
-                            if (turnsRes.data) {
-                                allTurns = allTurns.concat(turnsRes.data);
-                            }
-                        }
-
-                        console.log(`Loaded: ${matches.length} matches, ${matchPlayers.length} match_players, ${allTurns.length} turns`);
-
-                        setData({
-                            matches,
-                            matchPlayers,
-                            turns: allTurns,
-                            loading: false
-                        });
-                    } catch (error) {
-                        console.error('Error loading data:', error);
-                        setData(prev => ({ ...prev, loading: false }));
-                    }
-                };
-
-                loadData();
-            }, [userId, allowedUsers]);
-
-            // Filter and compute stats
-            const stats = useMemo(() => {
-                if (data.loading || !userId) return null;
-
-                // Get player's match_player entries
-                let playerMatches = data.matchPlayers.filter(mp => mp.user_id === userId);
-                
-                // Join with match data
-                let enriched = playerMatches.map(mp => {
-                    const match = data.matches.find(m => m.id === mp.match_id);
-                    return { ...mp, match };
-                }).filter(d => d.match && d.match.variant === 'X01');
-
-                // Apply time filter
-                if (filters.timeRange !== 'all') {
-                    const days = parseInt(filters.timeRange);
-                    const cutoff = new Date();
-                    cutoff.setDate(cutoff.getDate() - days);
-                    enriched = enriched.filter(d => new Date(d.match.finished_at) >= cutoff);
-                }
-
-                // Apply type filter
-                if (filters.matchType) {
-                    enriched = enriched.filter(d => d.match.type === filters.matchType);
-                }
-
-                // Apply opponent filter
-                if (filters.opponent) {
-                    enriched = enriched.filter(d => {
-                        const opponents = data.matchPlayers.filter(
-                            mp => mp.match_id === d.match_id && mp.user_id !== userId
-                        );
-                        if (filters.opponent.startsWith('bot:')) {
-                            const botName = filters.opponent.replace('bot:', '');
-                            return opponents.some(o => o.is_bot && o.name === botName);
-                        }
-                        return opponents.some(o => o.user_id === filters.opponent);
-                    });
-                }
-
-                // Sort by date
-                enriched.sort((a, b) => new Date(b.match.finished_at) - new Date(a.match.finished_at));
-
-                // Get turns for these matches
-                const matchPlayerIds = new Set(enriched.map(d => d.id));
-                const playerTurns = data.turns.filter(t => matchPlayerIds.has(t.match_player_id));
-
-                // Calculate stats
-                const validTurns = playerTurns.filter(t => t.points != null);
-                const totalPoints = validTurns.reduce((sum, t) => sum + t.points, 0);
-                const average = validTurns.length > 0 ? totalPoints / validTurns.length : 0;
-
-                const first9Turns = validTurns.filter(t => t.round <= 3);
-                const first9Avg = first9Turns.length > 0 
-                    ? first9Turns.reduce((sum, t) => sum + t.points, 0) / first9Turns.length 
-                    : 0;
-
-                const wins = enriched.filter(d => d.match.winner === d.player_index).length;
-                const winRate = enriched.length > 0 ? (wins / enriched.length) * 100 : 0;
-
-                const count180 = validTurns.filter(t => t.points === 180).length;
-                const count140 = validTurns.filter(t => t.points >= 140 && t.points < 180).length;
-                const count100 = validTurns.filter(t => t.points >= 100 && t.points < 140).length;
-
-                // Checkout rate from match_players data
-                const totalCheckoutAttempts = enriched.reduce((sum, d) => {
-                    const rate = d.checkout_rate || 0;
-                    return sum + (rate > 0 ? 1 : 0);
-                }, 0);
-                const avgCheckoutRate = enriched.length > 0
-                    ? enriched.reduce((sum, d) => sum + (d.checkout_rate || 0), 0) / enriched.length
-                    : 0;
-
-                // Best leg average
-                const legTurns = {};
-                validTurns.forEach(t => {
-                    if (!legTurns[t.leg_id]) legTurns[t.leg_id] = [];
-                    legTurns[t.leg_id].push(t.points);
-                });
-
-                let bestLegAvg = 0;
-                let bestMatchAvg = 0;
-
-                Object.values(legTurns).forEach(turns => {
-                    if (turns.length >= 3) {
-                        const avg = turns.reduce((a, b) => a + b, 0) / turns.length;
-                        if (avg > bestLegAvg) bestLegAvg = avg;
-                    }
-                });
-
-                enriched.forEach(d => {
-                    const mTurns = validTurns.filter(t => t.match_player_id === d.id);
-                    if (mTurns.length > 0) {
-                        const avg = mTurns.reduce((sum, t) => sum + t.points, 0) / mTurns.length;
-                        if (avg > bestMatchAvg) bestMatchAvg = avg;
-                    }
-                });
-
-                // Trend data - aggregate based on time filter
-                const trendData = (() => {
-                    if (enriched.length === 0) return [];
-
-                    // Determine aggregation level based on filter
-                    let aggregation = 'day'; // day, week, month
-                    if (filters.timeRange === 'all' || filters.timeRange === '365') {
-                        aggregation = 'month';
-                    } else if (filters.timeRange === '90') {
-                        aggregation = 'week';
-                    }
-
-                    // Group data by aggregation period
-                    const grouped = {};
-                    
-                    enriched.forEach(d => {
-                        const date = new Date(d.match.finished_at);
-                        let key, label;
-                        
-                        if (aggregation === 'month') {
-                            key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-                            label = date.toLocaleDateString('de-DE', { month: 'short', year: '2-digit' });
-                        } else if (aggregation === 'week') {
-                            // Get ISO week
-                            const startOfYear = new Date(date.getFullYear(), 0, 1);
-                            const weekNum = Math.ceil(((date - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
-                            key = `${date.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
-                            label = `KW${weekNum}`;
-                        } else {
-                            key = date.toISOString().split('T')[0];
-                            label = date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-                        }
-                        
-                        if (!grouped[key]) {
-                            grouped[key] = { label, turns: [], matches: 0, sortKey: key };
-                        }
-                        
-                        const mTurns = validTurns.filter(t => t.match_player_id === d.id);
-                        grouped[key].turns.push(...mTurns);
-                        grouped[key].matches++;
-                    });
-
-                    // Convert to array and sort chronologically
-                    return Object.values(grouped)
-                        .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
-                        .map(g => ({
-                            date: g.label,
-                            avg: g.turns.length > 0 
-                                ? Math.round((g.turns.reduce((sum, t) => sum + t.points, 0) / g.turns.length) * 10) / 10
-                                : 0,
-                            matches: g.matches
-                        }));
-                })();
-
-                return {
-                    matches: enriched,
-                    totalMatches: enriched.length,
-                    wins,
-                    losses: enriched.length - wins,
-                    winRate,
-                    average,
-                    first9Avg,
-                    checkoutRate: avgCheckoutRate,
-                    count180,
-                    count140,
-                    count100,
-                    bestLegAvg,
-                    bestMatchAvg,
-                    trendData,
-                    turns: validTurns
-                };
-            }, [data, userId, filters]);
-
-            return { ...data, stats };
-        }
-
-        // ============================================
-        // COMPONENTS
-        // ============================================
+        // ============== COMPONENTS ==============
         
-        // Loading Spinner
         function Spinner({ size = 24 }) {
             return (
-                <svg 
-                    width={size} 
-                    height={size} 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    style={{ animation: 'spin 1s linear infinite' }}
-                >
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
                     <circle cx="12" cy="12" r="10" stroke="var(--border)" strokeWidth="3" />
-                    <path 
-                        d="M12 2a10 10 0 0 1 10 10" 
-                        stroke="var(--accent)" 
-                        strokeWidth="3" 
-                        strokeLinecap="round"
-                    />
+                    <path d="M12 2a10 10 0 0 1 10 10" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round"/>
                 </svg>
             );
         }
 
-        // Icon Components
-        function Icon({ name, size = 20 }) {
-            const icons = {
-                target: <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8zm0-14a6 6 0 1 0 6 6 6 6 0 0 0-6-6zm0 10a4 4 0 1 1 4-4 4 4 0 0 1-4 4zm0-6a2 2 0 1 0 2 2 2 2 0 0 0-2-2z"/>,
-                trophy: <path d="M12 8.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM6 4h12v2a6 6 0 0 1-12 0V4zm0-2a2 2 0 0 0-2 2v2a8 8 0 0 0 5.5 7.6V16H8v2h8v-2h-1.5v-2.4A8 8 0 0 0 20 6V4a2 2 0 0 0-2-2H6z"/>,
-                chart: <path d="M3 3v18h18M9 17V9m4 8v-5m4 5V6"/>,
-                users: <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m18 0v-2a4 4 0 0 0-3-3.87M13 3.13a4 4 0 0 1 0 7.75M9 7a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/>,
-                home: <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>,
-                logout: <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5m5 5H9"/>,
-                filter: <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>,
-                calendar: <path d="M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>,
-                chevronDown: <path d="m6 9 6 6 6-6"/>,
-                x: <path d="M18 6 6 18M6 6l12 12"/>,
-                menu: <path d="M3 12h18M3 6h18M3 18h18"/>,
-            };
-
+        function StatCard({ label, value, sub, highlight }) {
             return (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    {icons[name]}
-                </svg>
+                <div style={{
+                    padding: '20px 16px',
+                    background: highlight ? 'linear-gradient(135deg, var(--accent-glow) 0%, var(--bg-card) 100%)' : 'var(--bg-card)',
+                    borderRadius: 'var(--radius)',
+                    border: `1px solid ${highlight ? 'var(--accent-dim)' : 'var(--border)'}`,
+                }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>{label}</div>
+                    <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{value}</div>
+                    {sub && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>{sub}</div>}
+                </div>
             );
         }
 
-        // Login Screen
         function LoginScreen({ onLogin }) {
             const [email, setEmail] = useState('');
-            const [status, setStatus] = useState({ type: '', message: '' });
+            const [status, setStatus] = useState({ type: '', msg: '' });
             const [loading, setLoading] = useState(false);
 
             const handleSubmit = async (e) => {
                 e.preventDefault();
-                if (!email.trim()) {
-                    setStatus({ type: 'error', message: 'Bitte Email eingeben' });
-                    return;
-                }
-
+                if (!email.trim()) { setStatus({ type: 'error', msg: 'Bitte Email eingeben' }); return; }
                 setLoading(true);
                 const { error } = await onLogin(email);
                 setLoading(false);
-
-                if (error) {
-                    setStatus({ type: 'error', message: error.message });
-                } else {
-                    setStatus({ type: 'success', message: 'Magic Link gesendet! Check deine Emails.' });
-                }
+                setStatus(error ? { type: 'error', msg: error.message } : { type: 'success', msg: 'Magic Link gesendet!' });
             };
 
             return (
-                <div style={styles.loginContainer}>
-                    <div style={styles.loginCard}>
-                        <div style={styles.loginLogo}>🎯</div>
-                        <h1 style={styles.loginTitle}>Autodarts Stats</h1>
-                        <p style={styles.loginSubtitle}>Deine persönliche Dart-Statistik</p>
-                        
-                        <form onSubmit={handleSubmit} style={styles.loginForm}>
-                            <input
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                placeholder="Email Adresse"
-                                style={styles.input}
-                                autoComplete="email"
-                            />
-                            <button type="submit" style={styles.buttonPrimary} disabled={loading}>
+                <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                    <div style={{ width: '100%', maxWidth: 380, padding: '40px 32px', background: 'var(--bg-card)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', textAlign: 'center' }}>
+                        <div style={{ fontSize: 56, marginBottom: 16 }}>🎯</div>
+                        <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Autodarts Stats</h1>
+                        <p style={{ color: 'var(--text-secondary)', marginBottom: 32 }}>Deine persönliche Dart-Statistik</p>
+                        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email Adresse"
+                                style={{ width: '100%', padding: '14px 16px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 16, outline: 'none' }} />
+                            <button type="submit" disabled={loading}
+                                style={{ padding: '14px 24px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', color: '#000', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
                                 {loading ? <Spinner size={20} /> : 'Magic Link senden'}
                             </button>
                         </form>
-
-                        {status.message && (
-                            <div style={{
-                                ...styles.statusMessage,
-                                background: status.type === 'error' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)',
-                                color: status.type === 'error' ? 'var(--red)' : 'var(--accent)'
-                            }}>
-                                {status.message}
-                            </div>
-                        )}
+                        {status.msg && <div style={{ marginTop: 16, padding: 12, borderRadius: 'var(--radius-sm)', background: status.type === 'error' ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)', color: status.type === 'error' ? 'var(--red)' : 'var(--accent)' }}>{status.msg}</div>}
                     </div>
                 </div>
             );
         }
 
-        // Stat Card Component
-        function StatCard({ label, value, subValue, highlight, icon }) {
+        function Navigation({ page, setPage, onLogout, username }) {
             return (
-                <div style={{
-                    ...styles.statCard,
-                    ...(highlight ? styles.statCardHighlight : {})
-                }}>
-                    <div style={styles.statLabel}>{label}</div>
-                    <div style={styles.statValue}>{value}</div>
-                    {subValue && <div style={styles.statSub}>{subValue}</div>}
-                </div>
-            );
-        }
-
-        // Filter Bar
-        function FilterBar({ filters, setFilters, opponents }) {
-            const [isOpen, setIsOpen] = useState(false);
-
-            return (
-                <div style={styles.filterBar}>
-                    <button 
-                        style={styles.filterToggle}
-                        onClick={() => setIsOpen(!isOpen)}
-                    >
-                        <Icon name="filter" size={18} />
-                        <span>Filter</span>
-                        <Icon name="chevronDown" size={16} />
-                    </button>
-
-                    {isOpen && (
-                        <div style={styles.filterPanel}>
-                            <div style={styles.filterGroup}>
-                                <label style={styles.filterLabel}>Zeitraum</label>
-                                <select 
-                                    value={filters.timeRange}
-                                    onChange={(e) => setFilters({ ...filters, timeRange: e.target.value })}
-                                    style={styles.select}
-                                >
-                                    <option value="all">Alle Zeit</option>
-                                    <option value="7">7 Tage</option>
-                                    <option value="30">30 Tage</option>
-                                    <option value="90">3 Monate</option>
-                                    <option value="365">1 Jahr</option>
-                                </select>
-                            </div>
-
-                            <div style={styles.filterGroup}>
-                                <label style={styles.filterLabel}>Match-Typ</label>
-                                <select 
-                                    value={filters.matchType}
-                                    onChange={(e) => setFilters({ ...filters, matchType: e.target.value })}
-                                    style={styles.select}
-                                >
-                                    <option value="">Alle</option>
-                                    <option value="Local">Local</option>
-                                    <option value="Online">Online</option>
-                                    <option value="Tournament">Tournament</option>
-                                </select>
-                            </div>
-
-                            <div style={styles.filterGroup}>
-                                <label style={styles.filterLabel}>Gegner</label>
-                                <select 
-                                    value={filters.opponent}
-                                    onChange={(e) => setFilters({ ...filters, opponent: e.target.value })}
-                                    style={styles.select}
-                                >
-                                    <option value="">Alle Gegner</option>
-                                    {opponents.map(o => (
-                                        <option key={o.id} value={o.id}>{o.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            );
-        }
-
-        // Navigation
-        function Navigation({ currentPage, setPage, onLogout, username }) {
-            const [menuOpen, setMenuOpen] = useState(false);
-
-            const navItems = [
-                { id: 'dashboard', label: 'Dashboard', icon: 'home' },
-                { id: 'matches', label: 'Matches', icon: 'chart' },
-                { id: 'h2h', label: 'Head-to-Head', icon: 'users' },
-            ];
-
-            return (
-                <nav style={styles.nav}>
-                    <div style={styles.navBrand}>
-                        <span style={styles.navLogo}>🎯</span>
-                        <span style={styles.navTitle}>Autodarts</span>
+                <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 100 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 24 }}>🎯</span>
+                        <span style={{ fontSize: 18, fontWeight: 600 }}>Autodarts</span>
                     </div>
-
-                    {/* Desktop Nav */}
-                    <div style={styles.navLinks}>
-                        {navItems.map(item => (
-                            <button
-                                key={item.id}
-                                onClick={() => setPage(item.id)}
-                                style={{
-                                    ...styles.navLink,
-                                    ...(currentPage === item.id ? styles.navLinkActive : {})
-                                }}
-                            >
-                                <Icon name={item.icon} size={18} />
-                                <span>{item.label}</span>
-                            </button>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                        {['dashboard', 'matches', 'h2h'].map(p => (
+                            <button key={p} onClick={() => setPage(p)} style={{
+                                padding: '8px 14px', background: page === p ? 'var(--accent-glow)' : 'transparent',
+                                border: 'none', borderRadius: 'var(--radius-sm)', color: page === p ? 'var(--accent)' : 'var(--text-secondary)',
+                                fontSize: 14, fontWeight: 500, cursor: 'pointer', textTransform: 'capitalize'
+                            }}>{p === 'h2h' ? 'H2H' : p}</button>
                         ))}
                     </div>
-
-                    <div style={styles.navRight}>
-                        <span style={styles.navUser}>{username}</span>
-                        <button onClick={onLogout} style={styles.navLogout}>
-                            <Icon name="logout" size={18} />
-                        </button>
-                    </div>
-
-                    {/* Mobile Menu Button */}
-                    <button 
-                        style={styles.mobileMenuBtn}
-                        onClick={() => setMenuOpen(!menuOpen)}
-                    >
-                        <Icon name={menuOpen ? 'x' : 'menu'} size={24} />
-                    </button>
-
-                    {/* Mobile Menu */}
-                    {menuOpen && (
-                        <div style={styles.mobileMenu}>
-                            {navItems.map(item => (
-                                <button
-                                    key={item.id}
-                                    onClick={() => { setPage(item.id); setMenuOpen(false); }}
-                                    style={{
-                                        ...styles.mobileNavLink,
-                                        ...(currentPage === item.id ? styles.mobileNavLinkActive : {})
-                                    }}
-                                >
-                                    <Icon name={item.icon} size={20} />
-                                    <span>{item.label}</span>
-                                </button>
-                            ))}
-                            <button onClick={onLogout} style={styles.mobileNavLink}>
-                                <Icon name="logout" size={20} />
-                                <span>Logout</span>
-                            </button>
-                        </div>
-                    )}
+                    <button onClick={onLogout} style={{ padding: '8px 12px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Logout</button>
                 </nav>
             );
         }
 
-        // Dashboard Page
-        function DashboardPage({ stats, filters }) {
-            if (!stats) {
-                return (
-                    <div style={styles.loadingContainer}>
-                        <Spinner size={40} />
-                        <p style={{ color: 'var(--text-secondary)', marginTop: 16 }}>Lade Statistiken...</p>
-                    </div>
-                );
+        function FilterBar({ filters, setFilters }) {
+            return (
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+                    <select value={filters.timeRange} onChange={(e) => setFilters({ ...filters, timeRange: e.target.value })}
+                        style={{ padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 14, cursor: 'pointer' }}>
+                        <option value="all">Alle Zeit</option>
+                        <option value="7">7 Tage</option>
+                        <option value="30">30 Tage</option>
+                        <option value="90">3 Monate</option>
+                        <option value="365">1 Jahr</option>
+                    </select>
+                    <select value={filters.matchType} onChange={(e) => setFilters({ ...filters, matchType: e.target.value })}
+                        style={{ padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 14, cursor: 'pointer' }}>
+                        <option value="">Alle Typen</option>
+                        <option value="Local">Local</option>
+                        <option value="Online">Online</option>
+                        <option value="Tournament">Tournament</option>
+                    </select>
+                </div>
+            );
+        }
+
+        function DashboardPage({ userId, filters }) {
+            const [stats, setStats] = useState(null);
+            const [monthly, setMonthly] = useState([]);
+            const [daily, setDaily] = useState([]);
+            const [bestLeg, setBestLeg] = useState(null);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                if (!userId) return;
+                loadStats();
+            }, [userId, filters]);
+
+            const loadStats = async () => {
+                setLoading(true);
+                try {
+                    // Build date filter
+                    let dateFilter = null;
+                    if (filters.timeRange !== 'all') {
+                        const d = new Date();
+                        d.setDate(d.getDate() - parseInt(filters.timeRange));
+                        dateFilter = d.toISOString();
+                    }
+
+                    // Load match stats
+                    let query = supabase.from('player_match_stats').select('*').eq('user_id', userId);
+                    if (dateFilter) query = query.gte('finished_at', dateFilter);
+                    if (filters.matchType) query = query.eq('match_type', filters.matchType);
+                    const { data: matchStats } = await query;
+
+                    if (matchStats && matchStats.length > 0) {
+                        // Calculate aggregated stats
+                        const totalMatches = matchStats.length;
+                        const wins = matchStats.filter(m => m.is_win === 1).length;
+                        const totalTurns = matchStats.reduce((s, m) => s + parseInt(m.total_turns || 0), 0);
+                        const avgPoints = totalTurns > 0 ? matchStats.reduce((s, m) => s + parseFloat(m.avg_points || 0) * parseInt(m.total_turns || 0), 0) / totalTurns : 0;
+                        const first9Avg = totalTurns > 0 ? matchStats.reduce((s, m) => s + parseFloat(m.first9_avg || 0) * parseInt(m.total_turns || 0), 0) / totalTurns : 0;
+                        const count180 = matchStats.reduce((s, m) => s + parseInt(m.count_180 || 0), 0);
+                        const count140 = matchStats.reduce((s, m) => s + parseInt(m.count_140 || 0), 0);
+                        const count100 = matchStats.reduce((s, m) => s + parseInt(m.count_100 || 0), 0);
+                        const bestMatchAvg = Math.max(...matchStats.map(m => parseFloat(m.avg_points || 0)));
+
+                        setStats({
+                            totalMatches,
+                            wins,
+                            losses: totalMatches - wins,
+                            winRate: totalMatches > 0 ? (wins / totalMatches * 100) : 0,
+                            avgPoints,
+                            first9Avg,
+                            count180,
+                            count140,
+                            count100,
+                            bestMatchAvg
+                        });
+
+                        // Group by month for trend
+                        const byMonth = {};
+                        matchStats.forEach(m => {
+                            const month = m.finished_at.substring(0, 7);
+                            if (!byMonth[month]) byMonth[month] = { turns: 0, points: 0, matches: 0 };
+                            byMonth[month].turns += parseInt(m.total_turns || 0);
+                            byMonth[month].points += parseFloat(m.avg_points || 0) * parseInt(m.total_turns || 0);
+                            byMonth[month].matches++;
+                        });
+                        const monthlyData = Object.entries(byMonth)
+                            .sort(([a], [b]) => a.localeCompare(b))
+                            .map(([month, data]) => ({
+                                month: new Date(month + '-01').toLocaleDateString('de-DE', { month: 'short', year: '2-digit' }),
+                                avg: data.turns > 0 ? Math.round(data.points / data.turns * 10) / 10 : 0,
+                                matches: data.matches
+                            }));
+                        setMonthly(monthlyData);
+
+                        // Group by day for short periods
+                        if (filters.timeRange !== 'all' && parseInt(filters.timeRange) <= 90) {
+                            const byDay = {};
+                            matchStats.forEach(m => {
+                                const day = m.finished_at.substring(0, 10);
+                                if (!byDay[day]) byDay[day] = { turns: 0, points: 0, matches: 0 };
+                                byDay[day].turns += parseInt(m.total_turns || 0);
+                                byDay[day].points += parseFloat(m.avg_points || 0) * parseInt(m.total_turns || 0);
+                                byDay[day].matches++;
+                            });
+                            const dailyData = Object.entries(byDay)
+                                .sort(([a], [b]) => a.localeCompare(b))
+                                .map(([day, data]) => ({
+                                    day: new Date(day).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
+                                    avg: data.turns > 0 ? Math.round(data.points / data.turns * 10) / 10 : 0,
+                                    matches: data.matches
+                                }));
+                            setDaily(dailyData);
+                        } else {
+                            setDaily([]);
+                        }
+                    } else {
+                        setStats(null);
+                        setMonthly([]);
+                        setDaily([]);
+                    }
+
+                    // Best leg
+                    const { data: bestLegs } = await supabase.from('player_best_legs')
+                        .select('leg_avg').eq('user_id', userId).order('leg_avg', { ascending: false }).limit(1);
+                    setBestLeg(bestLegs?.[0]?.leg_avg || null);
+
+                } catch (err) {
+                    console.error('Load error:', err);
+                }
+                setLoading(false);
+            };
+
+            if (loading) {
+                return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}><Spinner size={40} /></div>;
             }
 
+            if (!stats) {
+                return <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>Keine Daten für diesen Zeitraum</div>;
+            }
+
+            const trendData = daily.length > 0 ? daily : monthly;
+            const trendKey = daily.length > 0 ? 'day' : 'month';
+
             return (
-                <div style={styles.page} className="animate-in">
-
+                <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                     {/* Main Stats */}
-                    <div style={styles.statsGrid}>
-                        <StatCard 
-                            label="3-Dart Average" 
-                            value={stats.average.toFixed(1)}
-                            highlight
-                        />
-                        <StatCard 
-                            label="First 9 Avg" 
-                            value={stats.first9Avg.toFixed(1)}
-                        />
-                        <StatCard 
-                            label="Checkout %" 
-                            value={stats.checkoutRate.toFixed(1) + '%'}
-                        />
-                        <StatCard 
-                            label="Win Rate" 
-                            value={stats.winRate.toFixed(0) + '%'}
-                            subValue={`${stats.wins}W - ${stats.losses}L`}
-                        />
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                        <StatCard label="3-Dart Average" value={stats.avgPoints.toFixed(1)} highlight />
+                        <StatCard label="First 9 Avg" value={stats.first9Avg.toFixed(1)} />
+                        <StatCard label="Win Rate" value={`${stats.winRate.toFixed(0)}%`} sub={`${stats.wins}W - ${stats.losses}L`} />
+                        <StatCard label="Matches" value={stats.totalMatches} />
                     </div>
 
-                    {/* Scoring Stats */}
-                    <div style={styles.section}>
-                        <h3 style={styles.sectionTitle}>Scoring</h3>
-                        <div style={styles.scoringGrid}>
-                            <div style={styles.scoringCard}>
-                                <div style={styles.scoringValue}>{stats.count180}</div>
-                                <div style={styles.scoringLabel}>180s</div>
-                            </div>
-                            <div style={styles.scoringCard}>
-                                <div style={styles.scoringValue}>{stats.count140}</div>
-                                <div style={styles.scoringLabel}>140+</div>
-                            </div>
-                            <div style={styles.scoringCard}>
-                                <div style={styles.scoringValue}>{stats.count100}</div>
-                                <div style={styles.scoringLabel}>100+</div>
-                            </div>
-                            <div style={styles.scoringCard}>
-                                <div style={styles.scoringValue}>{stats.totalMatches}</div>
-                                <div style={styles.scoringLabel}>Matches</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Highscores */}
-                    <div style={styles.section}>
-                        <h3 style={styles.sectionTitle}>Highscores</h3>
-                        <div style={styles.highscoreGrid}>
-                            <div style={styles.highscoreCard}>
-                                <div style={styles.highscoreLabel}>Bestes Leg</div>
-                                <div style={styles.highscoreValue}>{stats.bestLegAvg.toFixed(1)}</div>
-                            </div>
-                            <div style={styles.highscoreCard}>
-                                <div style={styles.highscoreLabel}>Bestes Match</div>
-                                <div style={styles.highscoreValue}>{stats.bestMatchAvg.toFixed(1)}</div>
-                            </div>
+                    {/* Scoring */}
+                    <div>
+                        <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12 }}>Scoring</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                            {[['180s', stats.count180, 'var(--gold)'], ['140+', stats.count140, 'var(--purple)'], ['100+', stats.count100, 'var(--blue)'], ['Best Leg', bestLeg || '--', 'var(--accent)']].map(([label, value, color]) => (
+                                <div key={label} style={{ padding: 16, background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', textAlign: 'center' }}>
+                                    <div style={{ fontSize: 24, fontWeight: 700, fontFamily: 'var(--font-mono)', color }}>{value}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: 4 }}>{label}</div>
+                                </div>
+                            ))}
                         </div>
                     </div>
 
                     {/* Trend Chart */}
-                    {stats.trendData.length > 0 && (
-                        <div style={styles.section}>
-                            <h3 style={styles.sectionTitle}>
-                                Average Trend 
-                                <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '14px', marginLeft: '8px' }}>
-                                    ({stats.trendData.length} {filters.timeRange === 'all' || filters.timeRange === '365' ? 'Monate' : filters.timeRange === '90' ? 'Wochen' : 'Tage'})
-                                </span>
+                    {trendData.length > 0 && (
+                        <div>
+                            <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12 }}>
+                                Average Trend <span style={{ fontWeight: 400, fontSize: 14, color: 'var(--text-muted)' }}>({trendData.length} {trendKey === 'day' ? 'Tage' : 'Monate'})</span>
                             </h3>
-                            <div style={styles.chartCard}>
-                                <ResponsiveContainer width="100%" height={280}>
-                                    <LineChart data={stats.trendData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
+                            <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: 16 }}>
+                                <ResponsiveContainer width="100%" height={250}>
+                                    <LineChart data={trendData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                                        <XAxis 
-                                            dataKey="date" 
-                                            stroke="var(--text-muted)" 
-                                            fontSize={11}
-                                            tickLine={false}
-                                            interval="preserveStartEnd"
-                                            angle={stats.trendData.length > 20 ? -45 : 0}
-                                            textAnchor={stats.trendData.length > 20 ? "end" : "middle"}
-                                            height={stats.trendData.length > 20 ? 60 : 30}
-                                        />
-                                        <YAxis 
-                                            stroke="var(--text-muted)" 
-                                            fontSize={12}
-                                            tickLine={false}
-                                            domain={['dataMin - 5', 'dataMax + 5']}
-                                            width={40}
-                                        />
-                                        <Tooltip 
-                                            contentStyle={{
-                                                background: 'var(--bg-card)',
-                                                border: '1px solid var(--border)',
-                                                borderRadius: 8,
-                                                padding: '8px 12px'
-                                            }}
-                                            formatter={(value, name) => [`${value} Avg`, '']}
-                                            labelFormatter={(label) => label}
-                                        />
-                                        <Line 
-                                            type="monotone" 
-                                            dataKey="avg" 
-                                            stroke="var(--accent)" 
-                                            strokeWidth={2}
-                                            dot={{ fill: 'var(--accent)', strokeWidth: 0, r: 3 }}
-                                            activeDot={{ r: 6 }}
-                                        />
+                                        <XAxis dataKey={trendKey} stroke="var(--text-muted)" fontSize={11} tickLine={false} />
+                                        <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} domain={['dataMin - 5', 'dataMax + 5']} />
+                                        <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8 }} />
+                                        <Line type="monotone" dataKey="avg" stroke="var(--accent)" strokeWidth={2} dot={{ fill: 'var(--accent)', r: 3 }} />
                                     </LineChart>
                                 </ResponsiveContainer>
                             </div>
                         </div>
                     )}
-
-                    {/* Recent Matches */}
-                    <div style={styles.section}>
-                        <h3 style={styles.sectionTitle}>Letzte Matches</h3>
-                        <div style={styles.matchList}>
-                            {stats.matches.slice(0, 5).map((m, i) => (
-                                <MatchCard key={m.id} match={m} turns={stats.turns} />
-                            ))}
-                        </div>
-                    </div>
                 </div>
             );
         }
 
-        // Match Card Component
-        function MatchCard({ match, turns }) {
-            const matchTurns = turns.filter(t => t.match_player_id === match.id);
-            const avg = matchTurns.length > 0 
-                ? (matchTurns.reduce((s, t) => s + t.points, 0) / matchTurns.length).toFixed(1)
-                : '--';
-            const isWin = match.match.winner === match.player_index;
-            const date = new Date(match.match.finished_at).toLocaleDateString('de-DE', {
-                day: '2-digit',
-                month: '2-digit'
-            });
+        function MatchesPage({ userId, filters }) {
+            const [matches, setMatches] = useState([]);
+            const [loading, setLoading] = useState(true);
 
-            return (
-                <div style={styles.matchCard}>
-                    <div style={styles.matchDate}>{date}</div>
-                    <div style={styles.matchInfo}>
-                        <div style={styles.matchType}>{match.match.type}</div>
-                    </div>
-                    <div style={{
-                        ...styles.matchResult,
-                        color: isWin ? 'var(--accent)' : 'var(--red)'
-                    }}>
-                        {isWin ? 'Sieg' : 'Niederlage'}
-                    </div>
-                    <div style={styles.matchAvg}>{avg}</div>
-                </div>
-            );
-        }
+            useEffect(() => {
+                if (!userId) return;
+                loadMatches();
+            }, [userId, filters]);
 
-        // Matches Page
-        function MatchesPage({ stats, filters }) {
-            const [sortBy, setSortBy] = useState('date');
-
-            if (!stats) return <div style={styles.loadingContainer}><Spinner size={40} /></div>;
-
-            const sortedMatches = [...stats.matches].sort((a, b) => {
-                if (sortBy === 'date') {
-                    return new Date(b.match.finished_at) - new Date(a.match.finished_at);
+            const loadMatches = async () => {
+                setLoading(true);
+                let query = supabase.from('player_match_stats').select('*').eq('user_id', userId).order('finished_at', { ascending: false });
+                
+                if (filters.timeRange !== 'all') {
+                    const d = new Date();
+                    d.setDate(d.getDate() - parseInt(filters.timeRange));
+                    query = query.gte('finished_at', d.toISOString());
                 }
-                // Sort by average
-                const aTurns = stats.turns.filter(t => t.match_player_id === a.id);
-                const bTurns = stats.turns.filter(t => t.match_player_id === b.id);
-                const aAvg = aTurns.length > 0 ? aTurns.reduce((s, t) => s + t.points, 0) / aTurns.length : 0;
-                const bAvg = bTurns.length > 0 ? bTurns.reduce((s, t) => s + t.points, 0) / bTurns.length : 0;
-                return bAvg - aAvg;
-            });
+                if (filters.matchType) query = query.eq('match_type', filters.matchType);
 
-            // Build filter description
-            const filterParts = [];
-            if (filters.timeRange !== 'all') filterParts.push(`${filters.timeRange} Tage`);
-            if (filters.matchType) filterParts.push(filters.matchType);
-            const filterText = filterParts.length > 0 ? ` (${filterParts.join(', ')})` : '';
+                const { data } = await query;
+                setMatches(data || []);
+                setLoading(false);
+            };
+
+            if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner size={40} /></div>;
 
             return (
-                <div style={styles.page} className="animate-in">
-                    <div style={styles.pageHeader}>
-                        <h2 style={styles.pageTitle}>
-                            {sortedMatches.length} Matches{filterText}
-                        </h2>
-                        <select 
-                            value={sortBy} 
-                            onChange={(e) => setSortBy(e.target.value)}
-                            style={styles.select}
-                        >
-                            <option value="date">Neueste zuerst</option>
-                            <option value="avg">Höchster Avg</option>
-                        </select>
-                    </div>
-
-                    <div style={styles.matchList}>
-                        {sortedMatches.map(m => (
-                            <MatchCard key={m.id} match={m} turns={stats.turns} />
+                <div className="animate-in">
+                    <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 16 }}>{matches.length} Matches</h2>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {matches.map(m => (
+                            <div key={m.match_player_id} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 70px 50px', alignItems: 'center', gap: 12, padding: '14px 16px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                                <div style={{ fontSize: 13, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{new Date(m.finished_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</div>
+                                <div style={{ fontSize: 14 }}>{m.match_type}</div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: m.is_win ? 'var(--accent)' : 'var(--red)', textAlign: 'right' }}>{m.is_win ? 'Sieg' : 'Niederlage'}</div>
+                                <div style={{ fontSize: 16, fontWeight: 600, fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{m.avg_points}</div>
+                            </div>
                         ))}
                     </div>
                 </div>
             );
         }
 
-        // Head-to-Head Page
-        function H2HPage({ allowedUsers, data }) {
+        function H2HPage({ allowedUsers }) {
             const [player1, setPlayer1] = useState(allowedUsers[0]?.autodarts_user_id || '');
             const [player2, setPlayer2] = useState(allowedUsers[1]?.autodarts_user_id || '');
+            const [h2hData, setH2hData] = useState(null);
+            const [loading, setLoading] = useState(false);
 
-            const h2hStats = useMemo(() => {
-                if (!player1 || !player2 || !data.matches.length) return null;
+            useEffect(() => {
+                if (player1 && player2 && player1 !== player2) loadH2H();
+            }, [player1, player2]);
 
-                // Find matches where both players participated
-                const h2hMatches = [];
-                data.matches.forEach(match => {
-                    const players = data.matchPlayers.filter(mp => mp.match_id === match.id);
-                    const p1 = players.find(p => p.user_id === player1);
-                    const p2 = players.find(p => p.user_id === player2);
-                    if (p1 && p2) {
-                        h2hMatches.push({ match, p1, p2 });
-                    }
-                });
+            const loadH2H = async () => {
+                setLoading(true);
+                // Query h2h_matches view
+                const { data } = await supabase.from('h2h_matches').select('*')
+                    .or(`and(player1_id.eq.${player1},player2_id.eq.${player2}),and(player1_id.eq.${player2},player2_id.eq.${player1})`)
+                    .order('finished_at', { ascending: false });
 
-                if (h2hMatches.length === 0) return { matches: [], wins1: 0, wins2: 0 };
+                if (data && data.length > 0) {
+                    let wins1 = 0, wins2 = 0, totalAvg1 = 0, totalAvg2 = 0, legs1 = 0, legs2 = 0;
+                    
+                    data.forEach(m => {
+                        const isP1First = m.player1_id === player1;
+                        const p1Avg = isP1First ? parseFloat(m.player1_avg) : parseFloat(m.player2_avg);
+                        const p2Avg = isP1First ? parseFloat(m.player2_avg) : parseFloat(m.player1_avg);
+                        const p1Legs = isP1First ? m.player1_legs : m.player2_legs;
+                        const p2Legs = isP1First ? m.player2_legs : m.player1_legs;
+                        const p1Index = isP1First ? m.player1_index : m.player2_index;
+                        
+                        if (m.match_winner === p1Index) wins1++;
+                        else wins2++;
+                        
+                        totalAvg1 += p1Avg;
+                        totalAvg2 += p2Avg;
+                        legs1 += p1Legs || 0;
+                        legs2 += p2Legs || 0;
+                    });
 
-                let wins1 = 0, wins2 = 0;
-                let totalAvg1 = 0, totalAvg2 = 0;
-                let legs1 = 0, legs2 = 0;
-
-                h2hMatches.forEach(h => {
-                    if (h.match.winner === h.p1.player_index) wins1++;
-                    else if (h.match.winner === h.p2.player_index) wins2++;
-
-                    legs1 += h.p1.legs_won || 0;
-                    legs2 += h.p2.legs_won || 0;
-
-                    const turns1 = data.turns.filter(t => t.match_player_id === h.p1.id && t.points != null);
-                    const turns2 = data.turns.filter(t => t.match_player_id === h.p2.id && t.points != null);
-
-                    if (turns1.length > 0) {
-                        totalAvg1 += turns1.reduce((s, t) => s + t.points, 0) / turns1.length;
-                    }
-                    if (turns2.length > 0) {
-                        totalAvg2 += turns2.reduce((s, t) => s + t.points, 0) / turns2.length;
-                    }
-                });
-
-                return {
-                    matches: h2hMatches,
-                    wins1,
-                    wins2,
-                    avg1: h2hMatches.length > 0 ? totalAvg1 / h2hMatches.length : 0,
-                    avg2: h2hMatches.length > 0 ? totalAvg2 / h2hMatches.length : 0,
-                    legs1,
-                    legs2
-                };
-            }, [player1, player2, data]);
+                    setH2hData({
+                        matches: data.length,
+                        wins1, wins2,
+                        avg1: totalAvg1 / data.length,
+                        avg2: totalAvg2 / data.length,
+                        legs1, legs2
+                    });
+                } else {
+                    setH2hData(null);
+                }
+                setLoading(false);
+            };
 
             const name1 = allowedUsers.find(u => u.autodarts_user_id === player1)?.autodarts_username || 'Player 1';
             const name2 = allowedUsers.find(u => u.autodarts_user_id === player2)?.autodarts_username || 'Player 2';
 
             return (
-                <div style={styles.page} className="animate-in">
-                    <div style={styles.h2hSelector}>
-                        <select 
-                            value={player1} 
-                            onChange={(e) => setPlayer1(e.target.value)}
-                            style={styles.h2hSelect}
-                        >
-                            {allowedUsers.map(u => (
-                                <option key={u.autodarts_user_id} value={u.autodarts_user_id}>
-                                    {u.autodarts_username}
-                                </option>
-                            ))}
+                <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                    {/* Player Selector */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+                        <select value={player1} onChange={(e) => setPlayer1(e.target.value)} style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 16, minWidth: 140 }}>
+                            {allowedUsers.map(u => <option key={u.autodarts_user_id} value={u.autodarts_user_id}>{u.autodarts_username}</option>)}
                         </select>
-                        <span style={styles.h2hVs}>VS</span>
-                        <select 
-                            value={player2} 
-                            onChange={(e) => setPlayer2(e.target.value)}
-                            style={styles.h2hSelect}
-                        >
-                            {allowedUsers.map(u => (
-                                <option key={u.autodarts_user_id} value={u.autodarts_user_id}>
-                                    {u.autodarts_username}
-                                </option>
-                            ))}
+                        <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-muted)' }}>VS</span>
+                        <select value={player2} onChange={(e) => setPlayer2(e.target.value)} style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 16, minWidth: 140 }}>
+                            {allowedUsers.map(u => <option key={u.autodarts_user_id} value={u.autodarts_user_id}>{u.autodarts_username}</option>)}
                         </select>
                     </div>
 
-                    {h2hStats && (
+                    {loading && <div style={{ textAlign: 'center', padding: 40 }}><Spinner size={40} /></div>}
+
+                    {!loading && h2hData && (
                         <>
-                            <div style={styles.h2hScore}>
-                                <div style={styles.h2hPlayer}>
-                                    <div style={styles.h2hName}>{name1}</div>
-                                    <div style={styles.h2hWins}>{h2hStats.wins1}</div>
+                            {/* Score */}
+                            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 24 }}>
+                                <div style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>{name1}</div>
+                                    <div style={{ fontSize: 48, fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--accent)' }}>{h2hData.wins1}</div>
                                 </div>
-                                <div style={styles.h2hDivider}>:</div>
-                                <div style={styles.h2hPlayer}>
-                                    <div style={styles.h2hWins}>{h2hStats.wins2}</div>
-                                    <div style={styles.h2hName}>{name2}</div>
-                                </div>
-                            </div>
-
-                            <div style={styles.h2hStats}>
-                                <div style={styles.h2hStatRow}>
-                                    <span style={{
-                                        ...styles.h2hStatValue,
-                                        color: h2hStats.avg1 > h2hStats.avg2 ? 'var(--accent)' : 'var(--text-primary)'
-                                    }}>{h2hStats.avg1.toFixed(1)}</span>
-                                    <span style={styles.h2hStatLabel}>Avg</span>
-                                    <span style={{
-                                        ...styles.h2hStatValue,
-                                        color: h2hStats.avg2 > h2hStats.avg1 ? 'var(--accent)' : 'var(--text-primary)'
-                                    }}>{h2hStats.avg2.toFixed(1)}</span>
-                                </div>
-                                <div style={styles.h2hStatRow}>
-                                    <span style={{
-                                        ...styles.h2hStatValue,
-                                        color: h2hStats.legs1 > h2hStats.legs2 ? 'var(--accent)' : 'var(--text-primary)'
-                                    }}>{h2hStats.legs1}</span>
-                                    <span style={styles.h2hStatLabel}>Legs</span>
-                                    <span style={{
-                                        ...styles.h2hStatValue,
-                                        color: h2hStats.legs2 > h2hStats.legs1 ? 'var(--accent)' : 'var(--text-primary)'
-                                    }}>{h2hStats.legs2}</span>
+                                <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--text-muted)' }}>:</div>
+                                <div style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: 48, fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--accent)' }}>{h2hData.wins2}</div>
+                                    <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>{name2}</div>
                                 </div>
                             </div>
 
-                            <div style={styles.section}>
-                                <h3 style={styles.sectionTitle}>Match Historie ({h2hStats.matches.length} Spiele)</h3>
-                                <div style={styles.matchList}>
-                                    {h2hStats.matches.slice(0, 10).map((h, i) => {
-                                        const isP1Win = h.match.winner === h.p1.player_index;
-                                        const date = new Date(h.match.finished_at).toLocaleDateString('de-DE');
-                                        return (
-                                            <div key={h.match.id} style={styles.matchCard}>
-                                                <div style={styles.matchDate}>{date}</div>
-                                                <div style={styles.matchInfo}>
-                                                    <span style={{ color: isP1Win ? 'var(--accent)' : 'var(--text-secondary)' }}>{name1}</span>
-                                                    <span style={{ color: 'var(--text-muted)', margin: '0 8px' }}>vs</span>
-                                                    <span style={{ color: !isP1Win ? 'var(--accent)' : 'var(--text-secondary)' }}>{name2}</span>
-                                                </div>
-                                                <div style={{ ...styles.matchResult, color: isP1Win ? 'var(--accent)' : 'var(--red)' }}>
-                                                    {isP1Win ? name1 : name2}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                            {/* Stats Comparison */}
+                            <div style={{ maxWidth: 400, margin: '0 auto', width: '100%' }}>
+                                {[['Avg', h2hData.avg1.toFixed(1), h2hData.avg2.toFixed(1)], ['Legs', h2hData.legs1, h2hData.legs2], ['Matches', h2hData.matches, h2hData.matches]].map(([label, v1, v2]) => (
+                                    <div key={label} style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 16, padding: '12px 0', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
+                                        <span style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', textAlign: 'right', color: parseFloat(v1) > parseFloat(v2) ? 'var(--accent)' : 'var(--text-primary)' }}>{v1}</span>
+                                        <span style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{label}</span>
+                                        <span style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', color: parseFloat(v2) > parseFloat(v1) ? 'var(--accent)' : 'var(--text-primary)' }}>{v2}</span>
+                                    </div>
+                                ))}
                             </div>
                         </>
                     )}
+
+                    {!loading && !h2hData && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>Keine gemeinsamen Matches gefunden</div>}
                 </div>
             );
         }
 
-        // Main App
+        // ============== MAIN APP ==============
+        
         function App() {
-            const { user, loading: authLoading, allowedUsers, signIn, signOut } = useAuth();
-            const [currentPage, setCurrentPage] = useState('dashboard');
-            const [filters, setFilters] = useState({
-                timeRange: '30',
-                matchType: '',
-                opponent: ''
-            });
+            const [user, setUser] = useState(null);
+            const [allowedUsers, setAllowedUsers] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [page, setPage] = useState('dashboard');
+            const [filters, setFilters] = useState({ timeRange: '30', matchType: '' });
 
-            const { stats, loading: dataLoading, matchPlayers, matches, turns } = useData(
-                user?.autodarts_user_id,
-                filters,
-                allowedUsers
-            );
-
-            // Get unique opponents for filter
-            const opponents = useMemo(() => {
-                if (!user || !matchPlayers.length) return [];
-                
-                const opponentMap = new Map();
-                matchPlayers.forEach(mp => {
-                    if (mp.user_id && mp.user_id !== user.autodarts_user_id) {
-                        if (!opponentMap.has(mp.user_id)) {
-                            opponentMap.set(mp.user_id, mp.name);
-                        }
-                    }
-                    if (mp.is_bot && mp.name) {
-                        const key = 'bot:' + mp.name;
-                        if (!opponentMap.has(key)) {
-                            opponentMap.set(key, mp.name + ' (Bot)');
-                        }
-                    }
+            useEffect(() => {
+                checkAuth();
+                const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+                    if (event === 'SIGNED_IN') checkAuth();
+                    else if (event === 'SIGNED_OUT') { setUser(null); setLoading(false); }
                 });
+                return () => subscription.unsubscribe();
+            }, []);
 
-                return Array.from(opponentMap.entries()).map(([id, name]) => ({ id, name }));
-            }, [user, matchPlayers]);
+            const checkAuth = async () => {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session) {
+                    const { data: allowed } = await supabase.from('allowed_users').select('*');
+                    setAllowedUsers(allowed || []);
+                    const match = allowed?.find(u => u.email.toLowerCase() === session.user.email.toLowerCase());
+                    if (match) setUser({ ...session.user, autodarts_user_id: match.autodarts_user_id, autodarts_username: match.autodarts_username });
+                }
+                setLoading(false);
+            };
 
-            if (authLoading) {
-                return (
-                    <div style={styles.loadingContainer}>
-                        <Spinner size={48} />
-                    </div>
-                );
-            }
+            const signIn = async (email) => {
+                const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
+                return { error };
+            };
 
-            if (!user) {
-                return <LoginScreen onLogin={signIn} />;
-            }
+            const signOut = async () => { await supabase.auth.signOut(); setUser(null); };
+
+            if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}><Spinner size={48} /></div>;
+            if (!user) return <LoginScreen onLogin={signIn} />;
 
             return (
-                <div style={styles.appContainer}>
-                    <Navigation 
-                        currentPage={currentPage}
-                        setPage={setCurrentPage}
-                        onLogout={signOut}
-                        username={user.autodarts_username}
-                    />
-
-                    <main style={styles.main}>
-                        {/* Global FilterBar for Dashboard and Matches */}
-                        {(currentPage === 'dashboard' || currentPage === 'matches') && (
-                            <FilterBar filters={filters} setFilters={setFilters} opponents={opponents} />
-                        )}
-                        
-                        {currentPage === 'dashboard' && (
-                            <DashboardPage 
-                                stats={stats}
-                                filters={filters}
-                            />
-                        )}
-                        {currentPage === 'matches' && (
-                            <MatchesPage stats={stats} filters={filters} />
-                        )}
-                        {currentPage === 'h2h' && (
-                            <H2HPage 
-                                allowedUsers={allowedUsers}
-                                data={{ matches, matchPlayers, turns }}
-                            />
-                        )}
+                <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+                    <Navigation page={page} setPage={setPage} onLogout={signOut} username={user.autodarts_username} />
+                    <main style={{ flex: 1, padding: 16, maxWidth: 800, margin: '0 auto', width: '100%' }}>
+                        {(page === 'dashboard' || page === 'matches') && <FilterBar filters={filters} setFilters={setFilters} />}
+                        {page === 'dashboard' && <DashboardPage userId={user.autodarts_user_id} filters={filters} />}
+                        {page === 'matches' && <MatchesPage userId={user.autodarts_user_id} filters={filters} />}
+                        {page === 'h2h' && <H2HPage allowedUsers={allowedUsers} />}
                     </main>
                 </div>
             );
         }
 
-        // ============================================
-        // STYLES
-        // ============================================
-        const styles = {
-            // Layout
-            appContainer: {
-                minHeight: '100vh',
-                display: 'flex',
-                flexDirection: 'column',
-            },
-            main: {
-                flex: 1,
-                padding: '16px',
-                maxWidth: '1200px',
-                margin: '0 auto',
-                width: '100%',
-            },
-            page: {
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '24px',
-            },
-            loadingContainer: {
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '60vh',
-            },
-
-            // Navigation
-            nav: {
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 16px',
-                background: 'var(--bg-secondary)',
-                borderBottom: '1px solid var(--border)',
-                position: 'sticky',
-                top: 0,
-                zIndex: 100,
-            },
-            navBrand: {
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-            },
-            navLogo: {
-                fontSize: '24px',
-            },
-            navTitle: {
-                fontSize: '18px',
-                fontWeight: 600,
-                color: 'var(--text-primary)',
-            },
-            navLinks: {
-                display: 'flex',
-                gap: '4px',
-                '@media (max-width: 768px)': {
-                    display: 'none',
-                },
-            },
-            navLink: {
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 14px',
-                background: 'transparent',
-                border: 'none',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--text-secondary)',
-                fontSize: '14px',
-                fontWeight: 500,
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-            },
-            navLinkActive: {
-                background: 'var(--accent-glow)',
-                color: 'var(--accent)',
-            },
-            navRight: {
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-            },
-            navUser: {
-                fontSize: '14px',
-                color: 'var(--text-secondary)',
-                display: 'none',
-            },
-            navLogout: {
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '36px',
-                height: '36px',
-                background: 'transparent',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--text-secondary)',
-                cursor: 'pointer',
-            },
-            mobileMenuBtn: {
-                display: 'none',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '40px',
-                height: '40px',
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-primary)',
-                cursor: 'pointer',
-            },
-            mobileMenu: {
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                background: 'var(--bg-secondary)',
-                borderBottom: '1px solid var(--border)',
-                padding: '8px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px',
-            },
-            mobileNavLink: {
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px 16px',
-                background: 'transparent',
-                border: 'none',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--text-secondary)',
-                fontSize: '16px',
-                fontWeight: 500,
-                cursor: 'pointer',
-                textAlign: 'left',
-            },
-            mobileNavLinkActive: {
-                background: 'var(--accent-glow)',
-                color: 'var(--accent)',
-            },
-
-            // Login
-            loginContainer: {
-                minHeight: '100vh',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '20px',
-                background: 'linear-gradient(135deg, var(--bg-primary) 0%, #111118 100%)',
-            },
-            loginCard: {
-                width: '100%',
-                maxWidth: '380px',
-                padding: '40px 32px',
-                background: 'var(--bg-card)',
-                borderRadius: 'var(--radius)',
-                border: '1px solid var(--border)',
-                textAlign: 'center',
-            },
-            loginLogo: {
-                fontSize: '56px',
-                marginBottom: '16px',
-            },
-            loginTitle: {
-                fontSize: '28px',
-                fontWeight: 700,
-                marginBottom: '8px',
-            },
-            loginSubtitle: {
-                color: 'var(--text-secondary)',
-                marginBottom: '32px',
-            },
-            loginForm: {
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-            },
-            input: {
-                width: '100%',
-                padding: '14px 16px',
-                background: 'var(--bg-secondary)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--text-primary)',
-                fontSize: '16px',
-                outline: 'none',
-                fontFamily: 'var(--font-display)',
-            },
-            buttonPrimary: {
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                padding: '14px 24px',
-                background: 'var(--accent)',
-                border: 'none',
-                borderRadius: 'var(--radius-sm)',
-                color: '#000',
-                fontSize: '15px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontFamily: 'var(--font-display)',
-            },
-            statusMessage: {
-                marginTop: '16px',
-                padding: '12px',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '14px',
-            },
-
-            // Filter Bar
-            filterBar: {
-                marginBottom: '8px',
-            },
-            filterToggle: {
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 16px',
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--text-secondary)',
-                fontSize: '14px',
-                fontWeight: 500,
-                cursor: 'pointer',
-                fontFamily: 'var(--font-display)',
-            },
-            filterPanel: {
-                marginTop: '12px',
-                padding: '16px',
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '16px',
-            },
-            filterGroup: {
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '6px',
-            },
-            filterLabel: {
-                fontSize: '12px',
-                fontWeight: 500,
-                color: 'var(--text-muted)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-            },
-            select: {
-                padding: '10px 14px',
-                background: 'var(--bg-secondary)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--text-primary)',
-                fontSize: '14px',
-                cursor: 'pointer',
-                fontFamily: 'var(--font-display)',
-                outline: 'none',
-            },
-
-            // Stats
-            statsGrid: {
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: '12px',
-            },
-            statCard: {
-                padding: '20px 16px',
-                background: 'var(--bg-card)',
-                borderRadius: 'var(--radius)',
-                border: '1px solid var(--border)',
-            },
-            statCardHighlight: {
-                background: 'linear-gradient(135deg, var(--accent-glow) 0%, var(--bg-card) 100%)',
-                borderColor: 'var(--accent-dim)',
-            },
-            statLabel: {
-                fontSize: '12px',
-                fontWeight: 500,
-                color: 'var(--text-muted)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                marginBottom: '8px',
-            },
-            statValue: {
-                fontSize: '28px',
-                fontWeight: 700,
-                fontFamily: 'var(--font-mono)',
-                color: 'var(--text-primary)',
-            },
-            statSub: {
-                fontSize: '13px',
-                color: 'var(--text-secondary)',
-                marginTop: '4px',
-            },
-
-            // Sections
-            section: {
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-            },
-            sectionTitle: {
-                fontSize: '16px',
-                fontWeight: 600,
-                color: 'var(--text-secondary)',
-            },
-
-            // Scoring Grid
-            scoringGrid: {
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: '8px',
-            },
-            scoringCard: {
-                padding: '16px 8px',
-                background: 'var(--bg-card)',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--border)',
-                textAlign: 'center',
-            },
-            scoringValue: {
-                fontSize: '24px',
-                fontWeight: 700,
-                fontFamily: 'var(--font-mono)',
-                color: 'var(--gold)',
-            },
-            scoringLabel: {
-                fontSize: '11px',
-                color: 'var(--text-muted)',
-                textTransform: 'uppercase',
-                marginTop: '4px',
-            },
-
-            // Highscores
-            highscoreGrid: {
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: '12px',
-            },
-            highscoreCard: {
-                padding: '16px',
-                background: 'var(--bg-card)',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--border)',
-                textAlign: 'center',
-            },
-            highscoreLabel: {
-                fontSize: '12px',
-                color: 'var(--text-muted)',
-                marginBottom: '8px',
-            },
-            highscoreValue: {
-                fontSize: '28px',
-                fontWeight: 700,
-                fontFamily: 'var(--font-mono)',
-                color: 'var(--purple)',
-            },
-
-            // Chart
-            chartCard: {
-                padding: '16px',
-                background: 'var(--bg-card)',
-                borderRadius: 'var(--radius)',
-                border: '1px solid var(--border)',
-            },
-
-            // Matches
-            pageHeader: {
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: '16px',
-                flexWrap: 'wrap',
-            },
-            pageTitle: {
-                fontSize: '24px',
-                fontWeight: 700,
-            },
-            matchList: {
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-            },
-            matchCard: {
-                display: 'grid',
-                gridTemplateColumns: '60px 1fr 80px 50px',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '14px 16px',
-                background: 'var(--bg-card)',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--border)',
-            },
-            matchDate: {
-                fontSize: '13px',
-                color: 'var(--text-muted)',
-                fontFamily: 'var(--font-mono)',
-            },
-            matchInfo: {
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                overflow: 'hidden',
-            },
-            matchType: {
-                fontSize: '14px',
-                fontWeight: 500,
-            },
-            matchResult: {
-                fontSize: '13px',
-                fontWeight: 600,
-                textAlign: 'right',
-            },
-            matchAvg: {
-                fontSize: '16px',
-                fontWeight: 600,
-                fontFamily: 'var(--font-mono)',
-                textAlign: 'right',
-            },
-
-            // H2H
-            h2hSelector: {
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '16px',
-                flexWrap: 'wrap',
-            },
-            h2hSelect: {
-                padding: '12px 16px',
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--text-primary)',
-                fontSize: '16px',
-                fontWeight: 500,
-                fontFamily: 'var(--font-display)',
-                cursor: 'pointer',
-                minWidth: '140px',
-            },
-            h2hVs: {
-                fontSize: '20px',
-                fontWeight: 800,
-                color: 'var(--text-muted)',
-            },
-            h2hScore: {
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '24px',
-                padding: '24px 0',
-            },
-            h2hPlayer: {
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '4px',
-            },
-            h2hName: {
-                fontSize: '14px',
-                color: 'var(--text-secondary)',
-            },
-            h2hWins: {
-                fontSize: '48px',
-                fontWeight: 800,
-                fontFamily: 'var(--font-mono)',
-                color: 'var(--accent)',
-            },
-            h2hDivider: {
-                fontSize: '36px',
-                fontWeight: 800,
-                color: 'var(--text-muted)',
-            },
-            h2hStats: {
-                maxWidth: '400px',
-                margin: '0 auto',
-                padding: '0 16px',
-            },
-            h2hStatRow: {
-                display: 'grid',
-                gridTemplateColumns: '1fr auto 1fr',
-                gap: '16px',
-                padding: '12px 0',
-                borderBottom: '1px solid var(--border)',
-                alignItems: 'center',
-            },
-            h2hStatValue: {
-                fontSize: '20px',
-                fontWeight: 700,
-                fontFamily: 'var(--font-mono)',
-            },
-            h2hStatLabel: {
-                fontSize: '12px',
-                color: 'var(--text-muted)',
-                textTransform: 'uppercase',
-                textAlign: 'center',
-            },
-        };
-
-        // Add responsive styles via CSS
-        const responsiveStyles = document.createElement('style');
-        responsiveStyles.textContent = `
-            @media (min-width: 768px) {
-                .nav-links { display: flex !important; }
-                .mobile-menu-btn { display: none !important; }
-                .nav-user { display: block !important; }
-                .stats-grid { grid-template-columns: repeat(4, 1fr) !important; }
-                .main { padding: 24px !important; }
-            }
-            @media (max-width: 767px) {
-                nav > div:nth-child(2) { display: none; }
-                nav button:last-child { display: flex !important; }
-            }
-        `;
-        document.head.appendChild(responsiveStyles);
-
-        // Render
         ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     </script>
 </body>
