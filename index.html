@@ -221,27 +221,33 @@
                     if (matchStats && matchStats.length > 0) {
                         const totalMatches = matchStats.length;
                         const wins = matchStats.filter(m => m.is_win === 1).length;
-                        const totalTurns = matchStats.reduce((s, m) => s + parseInt(m.total_turns || 0), 0);
-                        const avgPoints = totalTurns > 0 ? matchStats.reduce((s, m) => s + parseFloat(m.avg_points || 0) * parseInt(m.total_turns || 0), 0) / totalTurns : 0;
-                        const first9Avg = totalTurns > 0 ? matchStats.reduce((s, m) => s + parseFloat(m.first9_avg || 0) * parseInt(m.total_turns || 0), 0) / totalTurns : 0;
+                        // Korrekte Berechnung: Punkte / (Darts / 3)
+                        const totalDarts = matchStats.reduce((s, m) => s + parseInt(m.total_darts || 0), 0);
+                        const totalPoints = matchStats.reduce((s, m) => s + parseInt(m.total_points || 0), 0);
+                        const avgPoints = totalDarts > 0 ? totalPoints / (totalDarts / 3) : 0;
+                        
+                        const first9Darts = matchStats.reduce((s, m) => s + parseInt(m.first9_darts || 0), 0);
+                        const first9Points = matchStats.reduce((s, m) => s + parseInt(m.first9_points || 0), 0);
+                        const first9Avg = first9Darts > 0 ? first9Points / (first9Darts / 3) : 0;
+                        
                         const count180 = matchStats.reduce((s, m) => s + parseInt(m.count_180 || 0), 0);
                         const count140 = matchStats.reduce((s, m) => s + parseInt(m.count_140 || 0), 0);
                         const count100 = matchStats.reduce((s, m) => s + parseInt(m.count_100 || 0), 0);
 
                         setStats({ totalMatches, wins, losses: totalMatches - wins, winRate: totalMatches > 0 ? (wins / totalMatches * 100) : 0, avgPoints, first9Avg, count180, count140, count100 });
 
-                        // Monthly trend
+                        // Monthly trend - korrekt mit Darts
                         const byMonth = {};
                         matchStats.forEach(m => {
                             const month = m.finished_at.substring(0, 7);
-                            if (!byMonth[month]) byMonth[month] = { turns: 0, points: 0, matches: 0 };
-                            byMonth[month].turns += parseInt(m.total_turns || 0);
-                            byMonth[month].points += parseFloat(m.avg_points || 0) * parseInt(m.total_turns || 0);
+                            if (!byMonth[month]) byMonth[month] = { darts: 0, points: 0, matches: 0 };
+                            byMonth[month].darts += parseInt(m.total_darts || 0);
+                            byMonth[month].points += parseInt(m.total_points || 0);
                             byMonth[month].matches++;
                         });
                         setMonthly(Object.entries(byMonth).sort(([a], [b]) => a.localeCompare(b)).map(([month, data]) => ({
                             month: new Date(month + '-01').toLocaleDateString('de-DE', { month: 'short', year: '2-digit' }),
-                            avg: data.turns > 0 ? Math.round(data.points / data.turns * 10) / 10 : 0
+                            avg: data.darts > 0 ? Math.round(data.points / (data.darts / 3) * 10) / 10 : 0
                         })));
 
                         // Daily for short periods
@@ -249,13 +255,13 @@
                             const byDay = {};
                             matchStats.forEach(m => {
                                 const day = m.finished_at.substring(0, 10);
-                                if (!byDay[day]) byDay[day] = { turns: 0, points: 0 };
-                                byDay[day].turns += parseInt(m.total_turns || 0);
-                                byDay[day].points += parseFloat(m.avg_points || 0) * parseInt(m.total_turns || 0);
+                                if (!byDay[day]) byDay[day] = { darts: 0, points: 0 };
+                                byDay[day].darts += parseInt(m.total_darts || 0);
+                                byDay[day].points += parseInt(m.total_points || 0);
                             });
                             setDaily(Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([day, data]) => ({
                                 day: new Date(day).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
-                                avg: data.turns > 0 ? Math.round(data.points / data.turns * 10) / 10 : 0
+                                avg: data.darts > 0 ? Math.round(data.points / (data.darts / 3) * 10) / 10 : 0
                             })));
                         } else {
                             setDaily([]);
