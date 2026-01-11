@@ -140,12 +140,16 @@
                         dateFilter = d.toISOString();
                     }
 
-                    let query = supabase.from('match_stats').select('*, matches!inner(finished_at, type, base_score, out_mode)').eq('player_id', userId);
+                    // Query mit Join über match_players um user_id zu filtern
+                    let query = supabase.from('match_stats')
+                        .select('*, matches!inner(finished_at, type, base_score, out_mode), match_players!inner(user_id, player_index)')
+                        .eq('match_players.user_id', userId);
+                    
                     if (dateFilter) query = query.gte('matches.finished_at', dateFilter);
                     if (filters.matchType) query = query.eq('matches.type', filters.matchType);
 
                     const { data: matchStats, error } = await query;
-                    if (error) { console.error(error); setStats(null); setLoading(false); return; }
+                    if (error) { console.error('Query error:', error); setStats(null); setLoading(false); return; }
 
                     let filteredStats = matchStats || [];
                     if (filters.gameMode && filteredStats.length > 0) {
@@ -186,7 +190,7 @@
                         });
                         setMonthly(Object.entries(byMonth).sort(([a], [b]) => a.localeCompare(b)).map(([month, data]) => ({ month: month.substring(5), avg: data.darts > 0 ? data.weightedAvg / data.darts : 0 })));
                     } else { setStats(null); setMonthly([]); }
-                } catch (err) { console.error(err); setStats(null); }
+                } catch (err) { console.error('Error:', err); setStats(null); }
                 setLoading(false);
             };
 
@@ -252,7 +256,10 @@
                 let dateFilter = null;
                 if (filters.timeRange !== 'all') { const d = new Date(); d.setDate(d.getDate() - parseInt(filters.timeRange)); dateFilter = d.toISOString(); }
 
-                let query = supabase.from('match_stats').select('*, matches!inner(id, finished_at, type, base_score, out_mode, winner), match_players!inner(player_index)').eq('player_id', userId);
+                let query = supabase.from('match_stats')
+                    .select('*, matches!inner(id, finished_at, type, base_score, out_mode, winner), match_players!inner(user_id, player_index)')
+                    .eq('match_players.user_id', userId);
+                    
                 if (dateFilter) query = query.gte('matches.finished_at', dateFilter);
                 if (filters.matchType) query = query.eq('matches.type', filters.matchType);
 
@@ -304,28 +311,40 @@
             const loadMatchData = async () => {
                 setLoading(true);
                 try {
-                    const { data: stats } = await supabase.from('match_stats').select('*').eq('match_id', matchId);
+                    // Load stats with match_players join
+                    const { data: stats } = await supabase.from('match_stats')
+                        .select('*, match_players!inner(user_id, player_index, name)')
+                        .eq('match_id', matchId);
                     const { data: match } = await supabase.from('matches').select('*').eq('id', matchId).single();
-                    const { data: players } = await supabase.from('match_players').select('*').eq('match_id', matchId);
 
-                    if (stats && stats.length > 0 && match && players) {
+                    if (stats && stats.length > 0 && match) {
                         setMatchInfo(match);
-                        const me = stats.find(s => s.player_id === oderId);
-                        const opp = stats.find(s => s.player_id !== oderId);
-                        const myPlayer = players.find(p => p.id === me?.match_player_id || p.user_id === oderId);
-                        const oppPlayer = players.find(p => p.id !== me?.match_player_id && p.user_id !== oderId);
-                        if (me) { me.player_name = myPlayer?.name || 'Du'; me.player_index = myPlayer?.player_index; }
-                        if (opp) { opp.player_name = oppPlayer?.name || 'Gegner'; opp.player_index = oppPlayer?.player_index; }
+                        const me = stats.find(s => s.match_players?.user_id === oderId);
+                        const opp = stats.find(s => s.match_players?.user_id !== oderId);
+                        
+                        if (me) { me.player_name = me.match_players?.name || 'Du'; me.player_index = me.match_players?.player_index; }
+                        if (opp) { opp.player_name = opp.match_players?.name || 'Gegner'; opp.player_index = opp.match_players?.player_index; }
                         setMyStats(me);
                         setOppStats(opp);
 
-                        let rankQuery = supabase.from('match_stats').select('match_id, average, matches!inner(finished_at, type, base_score, out_mode)').eq('player_id', oderId);
-                        if (filters?.matchType) rankQuery = rankQuery.eq('matches.type', filters.matchType);
-                        if (filters?.timeRange && filters.timeRange !== 'all') { const d = new Date(); d.setDate(d.getDate() - parseInt(filters.timeRange)); rankQuery = rankQuery.gte('matches.finished_at', d.toISOString()); }
-                        const { data: allMatches } = await rankQuery;
+                        // Rank calculation
+                        const { data: allMatches } = await supabase.from('match_stats')
+                            .select('match_id, average, matches!inner(finished_at, type, base_score, out_mode), match_players!inner(user_id)')
+                            .eq('match_players.user_id', oderId);
+                            
                         if (allMatches) {
                             let filtered = allMatches;
-                            if (filters?.gameMode) { const parts = filters.gameMode.split(' '); const baseScore = parseInt(parts[0]); const outMode = parts[1] || ''; filtered = allMatches.filter(m => m.matches?.base_score === baseScore && (!outMode || m.matches?.out_mode === outMode)); }
+                            if (filters?.matchType) filtered = filtered.filter(m => m.matches?.type === filters.matchType);
+                            if (filters?.timeRange && filters.timeRange !== 'all') { 
+                                const d = new Date(); d.setDate(d.getDate() - parseInt(filters.timeRange)); 
+                                filtered = filtered.filter(m => new Date(m.matches?.finished_at) >= d);
+                            }
+                            if (filters?.gameMode) { 
+                                const parts = filters.gameMode.split(' '); 
+                                const baseScore = parseInt(parts[0]); 
+                                const outMode = parts[1] || ''; 
+                                filtered = filtered.filter(m => m.matches?.base_score === baseScore && (!outMode || m.matches?.out_mode === outMode)); 
+                            }
                             filtered.sort((a, b) => (b.average || 0) - (a.average || 0));
                             const idx = filtered.findIndex(m => m.match_id === matchId);
                             if (idx >= 0) setRank({ position: idx + 1, total: filtered.length });
@@ -336,7 +355,7 @@
             };
 
             if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner size={40} /></div>;
-            if (!myStats || !matchInfo) return <div><BackButton onClick={onBack} /><p>Match nicht gefunden</p></div>;
+            if (!myStats || !matchInfo) return <div><BackButton onClick={onBack} /><p>Match nicht gefunden oder keine Stats verfügbar</p></div>;
 
             const didWin = matchInfo.winner === myStats.player_index;
             const gameMode = (matchInfo.base_score + ' ' + (matchInfo.out_mode || '')).trim();
