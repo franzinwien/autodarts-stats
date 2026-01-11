@@ -58,7 +58,7 @@
     
     <script type="text/babel">
         const { useState, useEffect } = React;
-        const { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } = window.Recharts;
+        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } = window.Recharts;
 
         const supabase = window.supabase.createClient(
             'https://znjiemoatvezhquukbvd.supabase.co',
@@ -154,9 +154,19 @@
             );
         }
 
-        function FilterBar({ filters, setFilters }) {
+        function FilterBar({ filters, setFilters, gameModes }) {
             return (
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+                    {/* Game Mode Filter */}
+                    <select value={filters.gameMode} onChange={(e) => setFilters({ ...filters, gameMode: e.target.value })}
+                        style={{ padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 14, cursor: 'pointer', minWidth: 130 }}>
+                        <option value="">Alle Modi</option>
+                        {gameModes.map(gm => (
+                            <option key={gm.game_mode} value={gm.game_mode}>{gm.game_mode} ({gm.match_count})</option>
+                        ))}
+                    </select>
+                    
+                    {/* Time Filter */}
                     <select value={filters.timeRange} onChange={(e) => setFilters({ ...filters, timeRange: e.target.value })}
                         style={{ padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 14, cursor: 'pointer' }}>
                         <option value="all">Alle Zeit</option>
@@ -165,6 +175,8 @@
                         <option value="90">3 Monate</option>
                         <option value="365">1 Jahr</option>
                     </select>
+                    
+                    {/* Match Type Filter */}
                     <select value={filters.matchType} onChange={(e) => setFilters({ ...filters, matchType: e.target.value })}
                         style={{ padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 14, cursor: 'pointer' }}>
                         <option value="">Alle Typen</option>
@@ -201,6 +213,7 @@
                     }
 
                     let query = supabase.from('player_match_stats').select('*').eq('user_id', userId);
+                    if (filters.gameMode) query = query.eq('game_mode', filters.gameMode);
                     if (dateFilter) query = query.gte('finished_at', dateFilter);
                     if (filters.matchType) query = query.eq('match_type', filters.matchType);
                     const { data: matchStats } = await query;
@@ -251,14 +264,17 @@
                         setStats(null); setMonthly([]); setDaily([]);
                     }
 
-                    const { data: bestLegs } = await supabase.from('player_best_legs').select('leg_avg').eq('user_id', userId).order('leg_avg', { ascending: false }).limit(1);
+                    // Best leg for this game mode
+                    let bestQuery = supabase.from('player_best_legs').select('leg_avg').eq('user_id', userId);
+                    if (filters.gameMode) bestQuery = bestQuery.eq('game_mode', filters.gameMode);
+                    const { data: bestLegs } = await bestQuery.order('leg_avg', { ascending: false }).limit(1);
                     setBestLeg(bestLegs?.[0]?.leg_avg || null);
                 } catch (err) { console.error(err); }
                 setLoading(false);
             };
 
             if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}><Spinner size={40} /></div>;
-            if (!stats) return <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>Keine Daten</div>;
+            if (!stats) return <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>Keine Daten für diese Filter</div>;
 
             const trendData = daily.length > 0 ? daily : monthly;
             const trendKey = daily.length > 0 ? 'day' : 'month';
@@ -320,6 +336,7 @@
             const loadMatches = async () => {
                 setLoading(true);
                 let query = supabase.from('player_match_stats').select('*').eq('user_id', userId).order('finished_at', { ascending: false });
+                if (filters.gameMode) query = query.eq('game_mode', filters.gameMode);
                 if (filters.timeRange !== 'all') {
                     const d = new Date(); d.setDate(d.getDate() - parseInt(filters.timeRange));
                     query = query.gte('finished_at', d.toISOString());
@@ -338,13 +355,14 @@
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {matches.map(m => (
                             <div key={m.match_player_id} onClick={() => onSelectMatch(m.match_id)} 
-                                style={{ display: 'grid', gridTemplateColumns: '70px 1fr 70px 50px 30px', alignItems: 'center', gap: 12, padding: '14px 16px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', cursor: 'pointer', transition: 'background 0.2s' }}
+                                style={{ display: 'grid', gridTemplateColumns: '70px 80px 1fr 60px 50px 24px', alignItems: 'center', gap: 8, padding: '12px 14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', cursor: 'pointer', transition: 'background 0.2s' }}
                                 onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-card-hover)'}
                                 onMouseOut={(e) => e.currentTarget.style.background = 'var(--bg-card)'}>
-                                <div style={{ fontSize: 13, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{new Date(m.finished_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</div>
-                                <div style={{ fontSize: 14 }}>{m.match_type}</div>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: m.is_win ? 'var(--accent)' : 'var(--red)', textAlign: 'right' }}>{m.is_win ? 'Sieg' : 'Niederlage'}</div>
-                                <div style={{ fontSize: 16, fontWeight: 600, fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{m.avg_points}</div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{new Date(m.finished_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</div>
+                                <div style={{ fontSize: 11, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.game_mode}</div>
+                                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{m.match_type}</div>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: m.is_win ? 'var(--accent)' : 'var(--red)', textAlign: 'right' }}>{m.is_win ? 'Sieg' : 'Nied.'}</div>
+                                <div style={{ fontSize: 15, fontWeight: 600, fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{m.avg_points}</div>
                                 <div style={{ color: 'var(--text-muted)', textAlign: 'right' }}>→</div>
                             </div>
                         ))}
@@ -369,11 +387,8 @@
             const loadMatchData = async () => {
                 setLoading(true);
                 try {
-                    // Load match overview
                     const { data: matchData } = await supabase.from('match_overview').select('*').eq('match_id', matchId).single();
                     setMatch(matchData);
-
-                    // Load legs
                     const { data: legsData } = await supabase.from('leg_overview').select('*').eq('match_id', matchId).order('set_number').order('leg_number');
                     setLegs(legsData || []);
                 } catch (err) { console.error(err); }
@@ -389,7 +404,6 @@
             if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner size={40} /></div>;
             if (!match) return <div><BackButton onClick={onBack} /><p>Match nicht gefunden</p></div>;
 
-            // Determine which player is "me"
             const isPlayer1 = match.player1_user_id === userId;
             const myName = isPlayer1 ? match.player1_name : match.player2_name;
             const oppName = isPlayer1 ? match.player2_name : match.player1_name;
@@ -409,8 +423,11 @@
 
                     {/* Match Header */}
                     <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: 20, marginBottom: 20 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{new Date(match.finished_at).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                            <div>
+                                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{new Date(match.finished_at).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                <span style={{ marginLeft: 12, fontSize: 12, padding: '2px 8px', background: 'var(--bg-secondary)', borderRadius: 4, color: 'var(--text-secondary)' }}>{match.game_mode}</span>
+                            </div>
                             <span style={{ padding: '4px 12px', background: didWin ? 'var(--accent-glow)' : 'rgba(239,68,68,0.15)', color: didWin ? 'var(--accent)' : 'var(--red)', borderRadius: 20, fontSize: 13, fontWeight: 600 }}>{didWin ? 'Sieg' : 'Niederlage'}</span>
                         </div>
 
@@ -475,7 +492,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {turns.map((t, i) => (
+                                        {turns.map((t) => (
                                             <tr key={t.turn_id} style={{ borderTop: '1px solid var(--border)' }}>
                                                 <td style={{ padding: '10px 12px', color: 'var(--text-muted)' }}>{t.round}</td>
                                                 <td style={{ padding: '10px 12px', color: t.user_id === userId ? 'var(--accent)' : 'var(--text-secondary)' }}>{t.player_name}</td>
@@ -494,21 +511,26 @@
 
         // ============== H2H PAGE ==============
         
-        function H2HPage({ allowedUsers }) {
+        function H2HPage({ allowedUsers, filters, gameModes }) {
             const [player1, setPlayer1] = useState(allowedUsers[0]?.autodarts_user_id || '');
             const [player2, setPlayer2] = useState(allowedUsers[1]?.autodarts_user_id || '');
+            const [gameMode, setGameMode] = useState('501 SI-DO');
             const [h2hData, setH2hData] = useState(null);
             const [loading, setLoading] = useState(false);
 
             useEffect(() => {
                 if (player1 && player2 && player1 !== player2) loadH2H();
-            }, [player1, player2]);
+            }, [player1, player2, gameMode]);
 
             const loadH2H = async () => {
                 setLoading(true);
-                const { data } = await supabase.from('h2h_matches').select('*')
+                let query = supabase.from('h2h_matches').select('*')
                     .or(`and(player1_id.eq.${player1},player2_id.eq.${player2}),and(player1_id.eq.${player2},player2_id.eq.${player1})`)
                     .order('finished_at', { ascending: false });
+                
+                if (gameMode) query = query.eq('game_mode', gameMode);
+                
+                const { data } = await query;
 
                 if (data && data.length > 0) {
                     let wins1 = 0, wins2 = 0, totalAvg1 = 0, totalAvg2 = 0, legs1 = 0, legs2 = 0;
@@ -532,13 +554,21 @@
 
             return (
                 <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-                        <select value={player1} onChange={(e) => setPlayer1(e.target.value)} style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 16, minWidth: 140 }}>
+                    {/* Filters */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
+                        <select value={player1} onChange={(e) => setPlayer1(e.target.value)} style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 16, minWidth: 130 }}>
                             {allowedUsers.map(u => <option key={u.autodarts_user_id} value={u.autodarts_user_id}>{u.autodarts_username}</option>)}
                         </select>
                         <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-muted)' }}>VS</span>
-                        <select value={player2} onChange={(e) => setPlayer2(e.target.value)} style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 16, minWidth: 140 }}>
+                        <select value={player2} onChange={(e) => setPlayer2(e.target.value)} style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 16, minWidth: 130 }}>
                             {allowedUsers.map(u => <option key={u.autodarts_user_id} value={u.autodarts_user_id}>{u.autodarts_username}</option>)}
+                        </select>
+                    </div>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                        <select value={gameMode} onChange={(e) => setGameMode(e.target.value)} style={{ padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 14 }}>
+                            <option value="">Alle Modi</option>
+                            {gameModes.map(gm => <option key={gm.game_mode} value={gm.game_mode}>{gm.game_mode}</option>)}
                         </select>
                     </div>
 
@@ -580,13 +610,15 @@
         function App() {
             const [user, setUser] = useState(null);
             const [allowedUsers, setAllowedUsers] = useState([]);
+            const [gameModes, setGameModes] = useState([]);
             const [loading, setLoading] = useState(true);
             const [page, setPage] = useState('dashboard');
-            const [filters, setFilters] = useState({ timeRange: '30', matchType: '' });
+            const [filters, setFilters] = useState({ gameMode: '501 SI-DO', timeRange: 'all', matchType: '' });
             const [selectedMatch, setSelectedMatch] = useState(null);
 
             useEffect(() => {
                 checkAuth();
+                loadGameModes();
                 const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
                     if (event === 'SIGNED_IN') checkAuth();
                     else if (event === 'SIGNED_OUT') { setUser(null); setLoading(false); }
@@ -603,6 +635,11 @@
                     if (match) setUser({ ...session.user, autodarts_user_id: match.autodarts_user_id, autodarts_username: match.autodarts_username });
                 }
                 setLoading(false);
+            };
+
+            const loadGameModes = async () => {
+                const { data } = await supabase.from('available_game_modes').select('*').order('match_count', { ascending: false });
+                setGameModes(data || []);
             };
 
             const signIn = async (email) => {
@@ -629,11 +666,11 @@
                 <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
                     <Navigation page={page === 'match-detail' ? 'matches' : page} setPage={(p) => { setPage(p); setSelectedMatch(null); }} onLogout={signOut} />
                     <main style={{ flex: 1, padding: 16, maxWidth: 800, margin: '0 auto', width: '100%' }}>
-                        {(page === 'dashboard' || page === 'matches') && !selectedMatch && <FilterBar filters={filters} setFilters={setFilters} />}
+                        {(page === 'dashboard' || page === 'matches') && !selectedMatch && <FilterBar filters={filters} setFilters={setFilters} gameModes={gameModes} />}
                         {page === 'dashboard' && <DashboardPage userId={user.autodarts_user_id} filters={filters} />}
                         {page === 'matches' && !selectedMatch && <MatchesPage userId={user.autodarts_user_id} filters={filters} onSelectMatch={handleSelectMatch} />}
                         {page === 'match-detail' && selectedMatch && <MatchDetailPage matchId={selectedMatch} userId={user.autodarts_user_id} onBack={handleBackFromMatch} />}
-                        {page === 'h2h' && <H2HPage allowedUsers={allowedUsers} />}
+                        {page === 'h2h' && <H2HPage allowedUsers={allowedUsers} filters={filters} gameModes={gameModes} />}
                     </main>
                 </div>
             );
