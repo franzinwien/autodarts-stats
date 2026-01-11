@@ -218,11 +218,10 @@
             return { user, loading, allowedUsers, signIn, signOut };
         }
 
-        function useData(userId, filters) {
+        function useData(userId, filters, allowedUsers) {
             const [data, setData] = useState({
                 matches: [],
                 matchPlayers: [],
-                legs: [],
                 turns: [],
                 loading: true
             });
@@ -243,16 +242,21 @@
                         const matches = matchesRes.data || [];
                         const matchPlayers = matchPlayersRes.data || [];
 
-                        // Step 2: Get match_player IDs for the current user
-                        const userMatchPlayerIds = matchPlayers
-                            .filter(mp => mp.user_id === userId)
+                        // Step 2: Get ALL user IDs we need turns for (current user + all allowed users for H2H)
+                        const allUserIds = new Set([userId]);
+                        if (allowedUsers) {
+                            allowedUsers.forEach(u => allUserIds.add(u.autodarts_user_id));
+                        }
+
+                        // Step 3: Get match_player IDs for all relevant users
+                        const relevantMatchPlayerIds = matchPlayers
+                            .filter(mp => allUserIds.has(mp.user_id))
                             .map(mp => mp.id);
 
-                        // Step 3: Load turns only for this user's match_players
+                        // Step 4: Load turns for all relevant match_players
                         let allTurns = [];
-                        // Load in batches of 100 IDs to avoid query limits
-                        for (let i = 0; i < userMatchPlayerIds.length; i += 100) {
-                            const batch = userMatchPlayerIds.slice(i, i + 100);
+                        for (let i = 0; i < relevantMatchPlayerIds.length; i += 100) {
+                            const batch = relevantMatchPlayerIds.slice(i, i + 100);
                             const turnsRes = await supabase
                                 .from('turns')
                                 .select('*')
@@ -262,10 +266,11 @@
                             }
                         }
 
+                        console.log(`Loaded: ${matches.length} matches, ${matchPlayers.length} match_players, ${allTurns.length} turns`);
+
                         setData({
                             matches,
                             matchPlayers,
-                            legs: [],
                             turns: allTurns,
                             loading: false
                         });
@@ -276,7 +281,7 @@
                 };
 
                 loadData();
-            }, [userId]);
+            }, [userId, allowedUsers]);
 
             // Filter and compute stats
             const stats = useMemo(() => {
@@ -388,18 +393,24 @@
                     byDate[dateKey].matches++;
                 });
 
+                // Determine how many data points to show based on filter
+                let maxDataPoints = 20;
+                if (filters.timeRange === 'all') maxDataPoints = 50;
+                else if (filters.timeRange === '365') maxDataPoints = 40;
+                else if (filters.timeRange === '90') maxDataPoints = 30;
+
                 const trendData = Object.entries(byDate)
                     .sort(([a], [b]) => a.localeCompare(b))
-                    .slice(-20) // Last 20 days with matches
-                    .map(([dateKey, data]) => {
-                        const avg = data.turns.length > 0
-                            ? data.turns.reduce((sum, t) => sum + t.points, 0) / data.turns.length
+                    .slice(-maxDataPoints)
+                    .map(([dateKey, dateData]) => {
+                        const avg = dateData.turns.length > 0
+                            ? dateData.turns.reduce((sum, t) => sum + t.points, 0) / dateData.turns.length
                             : 0;
                         const dateObj = new Date(dateKey);
                         return {
                             date: dateObj.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
                             avg: Math.round(avg * 10) / 10,
-                            matches: data.matches
+                            matches: dateData.matches
                         };
                     });
 
@@ -687,7 +698,7 @@
         }
 
         // Dashboard Page
-        function DashboardPage({ stats, filters, setFilters, opponents }) {
+        function DashboardPage({ stats, filters }) {
             if (!stats) {
                 return (
                     <div style={styles.loadingContainer}>
@@ -699,7 +710,6 @@
 
             return (
                 <div style={styles.page} className="animate-in">
-                    <FilterBar filters={filters} setFilters={setFilters} opponents={opponents} />
 
                     {/* Main Stats */}
                     <div style={styles.statsGrid}>
@@ -845,7 +855,7 @@
         }
 
         // Matches Page
-        function MatchesPage({ stats }) {
+        function MatchesPage({ stats, filters }) {
             const [sortBy, setSortBy] = useState('date');
 
             if (!stats) return <div style={styles.loadingContainer}><Spinner size={40} /></div>;
@@ -855,17 +865,25 @@
                     return new Date(b.match.finished_at) - new Date(a.match.finished_at);
                 }
                 // Sort by average
-                const aAvg = stats.turns.filter(t => t.match_player_id === a.id)
-                    .reduce((s, t, _, arr) => s + t.points / arr.length, 0);
-                const bAvg = stats.turns.filter(t => t.match_player_id === b.id)
-                    .reduce((s, t, _, arr) => s + t.points / arr.length, 0);
+                const aTurns = stats.turns.filter(t => t.match_player_id === a.id);
+                const bTurns = stats.turns.filter(t => t.match_player_id === b.id);
+                const aAvg = aTurns.length > 0 ? aTurns.reduce((s, t) => s + t.points, 0) / aTurns.length : 0;
+                const bAvg = bTurns.length > 0 ? bTurns.reduce((s, t) => s + t.points, 0) / bTurns.length : 0;
                 return bAvg - aAvg;
             });
+
+            // Build filter description
+            const filterParts = [];
+            if (filters.timeRange !== 'all') filterParts.push(`${filters.timeRange} Tage`);
+            if (filters.matchType) filterParts.push(filters.matchType);
+            const filterText = filterParts.length > 0 ? ` (${filterParts.join(', ')})` : '';
 
             return (
                 <div style={styles.page} className="animate-in">
                     <div style={styles.pageHeader}>
-                        <h2 style={styles.pageTitle}>Alle Matches</h2>
+                        <h2 style={styles.pageTitle}>
+                            {sortedMatches.length} Matches{filterText}
+                        </h2>
                         <select 
                             value={sortBy} 
                             onChange={(e) => setSortBy(e.target.value)}
@@ -1047,9 +1065,10 @@
                 opponent: ''
             });
 
-            const { stats, loading: dataLoading, matchPlayers, matches, turns, legs } = useData(
+            const { stats, loading: dataLoading, matchPlayers, matches, turns } = useData(
                 user?.autodarts_user_id,
-                filters
+                filters,
+                allowedUsers
             );
 
             // Get unique opponents for filter
@@ -1096,21 +1115,24 @@
                     />
 
                     <main style={styles.main}>
+                        {/* Global FilterBar for Dashboard and Matches */}
+                        {(currentPage === 'dashboard' || currentPage === 'matches') && (
+                            <FilterBar filters={filters} setFilters={setFilters} opponents={opponents} />
+                        )}
+                        
                         {currentPage === 'dashboard' && (
                             <DashboardPage 
                                 stats={stats}
                                 filters={filters}
-                                setFilters={setFilters}
-                                opponents={opponents}
                             />
                         )}
                         {currentPage === 'matches' && (
-                            <MatchesPage stats={stats} />
+                            <MatchesPage stats={stats} filters={filters} />
                         )}
                         {currentPage === 'h2h' && (
                             <H2HPage 
                                 allowedUsers={allowedUsers}
-                                data={{ matches, matchPlayers, turns, legs }}
+                                data={{ matches, matchPlayers, turns }}
                             />
                         )}
                     </main>
