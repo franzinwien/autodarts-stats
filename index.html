@@ -11,7 +11,7 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/prop-types@15/prop-types.min.js" crossorigin></script>
-    <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.min.js" crossorigin></script>
+    <script src="https://unpkg.com/recharts@2.5.0/umd/Recharts.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -34,26 +34,26 @@
     <div id="root"></div>
     <script type="text/babel">
         const { useState, useEffect } = React;
-        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } = Recharts;
+        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } = window.Recharts;
         const supabase = window.supabase.createClient('https://znjiemoatvezhquukbvd.supabase.co', 'sb_publishable_o0cAwiHv7KsuKAYgSDCePw_jpmDOX-S');
 
         function Spinner({ size = 24 }) {
             return (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
-                <circle cx="12" cy="12" r="10" stroke="var(--border)" strokeWidth="3" />
-                <path d="M12 2a10 10 0 0 1 10 10" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round"/>
+                <circle cx="12" cy="12" r="10" stroke="#27272a" strokeWidth="3" />
+                <path d="M12 2a10 10 0 0 1 10 10" stroke="#22c55e" strokeWidth="3" strokeLinecap="round"/>
             </svg>);
         }
 
         function StatCard({ label, value, sub, highlight }) {
-            return (<div style={{ padding: '20px 16px', background: highlight ? 'linear-gradient(135deg, var(--accent-glow) 0%, var(--bg-card) 100%)' : 'var(--bg-card)', borderRadius: 'var(--radius)', border: '1px solid ' + (highlight ? 'var(--accent-dim)' : 'var(--border)') }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>{label}</div>
-                <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{value}</div>
-                {sub && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>{sub}</div>}
+            return (<div style={{ padding: '20px 16px', background: highlight ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, #18181b 100%)' : '#18181b', borderRadius: 12, border: highlight ? '1px solid #16a34a' : '1px solid #27272a' }}>
+                <div style={{ fontSize: 12, color: '#71717a', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>{label}</div>
+                <div style={{ fontSize: 28, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{value}</div>
+                {sub && <div style={{ fontSize: 13, color: '#a1a1aa', marginTop: 4 }}>{sub}</div>}
             </div>);
         }
 
         function BackButton({ onClick }) {
-            return (<button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14, marginBottom: 16 }}>
+            return (<button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'transparent', border: '1px solid #27272a', borderRadius: 8, color: '#a1a1aa', cursor: 'pointer', fontSize: 14, marginBottom: 16 }}>
                 <span>←</span> Zurück
             </button>);
         }
@@ -73,49 +73,49 @@
             };
 
             return (<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-                <div style={{ width: '100%', maxWidth: 380, padding: '40px 32px', background: 'var(--bg-card)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', textAlign: 'center' }}>
+                <div style={{ width: '100%', maxWidth: 380, padding: '40px 32px', background: '#18181b', borderRadius: 12, border: '1px solid #27272a', textAlign: 'center' }}>
                     <div style={{ fontSize: 56, marginBottom: 16 }}>🎯</div>
                     <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Autodarts Stats</h1>
-                    <p style={{ color: 'var(--text-secondary)', marginBottom: 32 }}>Deine persönliche Dart-Statistik</p>
+                    <p style={{ color: '#a1a1aa', marginBottom: 32 }}>Deine persönliche Dart-Statistik</p>
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email Adresse" style={{ width: '100%', padding: '14px 16px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 16, outline: 'none' }} />
-                        <button type="submit" disabled={loading} style={{ padding: '14px 24px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', color: '#000', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email Adresse" style={{ width: '100%', padding: '14px 16px', background: '#111113', border: '1px solid #27272a', borderRadius: 8, color: '#fafafa', fontSize: 16, outline: 'none' }} />
+                        <button type="submit" disabled={loading} style={{ padding: '14px 24px', background: '#22c55e', border: 'none', borderRadius: 8, color: '#000', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
                             {loading ? <Spinner size={20} /> : 'Magic Link senden'}
                         </button>
                     </form>
-                    {status.msg && <div style={{ marginTop: 16, padding: 12, borderRadius: 'var(--radius-sm)', background: status.type === 'error' ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)', color: status.type === 'error' ? 'var(--red)' : 'var(--accent)' }}>{status.msg}</div>}
+                    {status.msg && <div style={{ marginTop: 16, padding: 12, borderRadius: 8, background: status.type === 'error' ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)', color: status.type === 'error' ? '#ef4444' : '#22c55e' }}>{status.msg}</div>}
                 </div>
             </div>);
         }
 
         function Navigation({ page, setPage, onLogout }) {
-            return (<nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 100 }}>
+            return (<nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#111113', borderBottom: '1px solid #27272a', position: 'sticky', top: 0, zIndex: 100 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 24 }}>🎯</span>
                     <span style={{ fontSize: 18, fontWeight: 600 }}>Autodarts</span>
                 </div>
                 <div style={{ display: 'flex', gap: 4 }}>
                     {['dashboard', 'matches', 'h2h'].map(p => (
-                        <button key={p} onClick={() => setPage(p)} style={{ padding: '8px 14px', background: page === p ? 'var(--accent-glow)' : 'transparent', border: 'none', borderRadius: 'var(--radius-sm)', color: page === p ? 'var(--accent)' : 'var(--text-secondary)', fontSize: 14, fontWeight: 500, cursor: 'pointer', textTransform: 'capitalize' }}>{p === 'h2h' ? 'H2H' : p}</button>
+                        <button key={p} onClick={() => setPage(p)} style={{ padding: '8px 14px', background: page === p ? 'rgba(34, 197, 94, 0.15)' : 'transparent', border: 'none', borderRadius: 8, color: page === p ? '#22c55e' : '#a1a1aa', fontSize: 14, fontWeight: 500, cursor: 'pointer', textTransform: 'capitalize' }}>{p === 'h2h' ? 'H2H' : p}</button>
                     ))}
                 </div>
-                <button onClick={onLogout} style={{ padding: '8px 12px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Logout</button>
+                <button onClick={onLogout} style={{ padding: '8px 12px', background: 'transparent', border: '1px solid #27272a', borderRadius: 8, color: '#a1a1aa', cursor: 'pointer', fontSize: 13 }}>Logout</button>
             </nav>);
         }
 
         function FilterBar({ filters, setFilters, gameModes }) {
             return (<div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
-                <select value={filters.gameMode} onChange={(e) => setFilters({ ...filters, gameMode: e.target.value })} style={{ padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 14, cursor: 'pointer', minWidth: 130 }}>
+                <select value={filters.gameMode} onChange={(e) => setFilters({ ...filters, gameMode: e.target.value })} style={{ padding: '10px 14px', background: '#18181b', border: '1px solid #27272a', borderRadius: 8, color: '#fafafa', fontSize: 14, cursor: 'pointer', minWidth: 130 }}>
                     <option value="">Alle Modi</option>
                     {gameModes.map(gm => (<option key={gm.game_mode} value={gm.game_mode}>{gm.game_mode} ({gm.match_count})</option>))}
                 </select>
-                <select value={filters.timeRange} onChange={(e) => setFilters({ ...filters, timeRange: e.target.value })} style={{ padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 14, cursor: 'pointer' }}>
+                <select value={filters.timeRange} onChange={(e) => setFilters({ ...filters, timeRange: e.target.value })} style={{ padding: '10px 14px', background: '#18181b', border: '1px solid #27272a', borderRadius: 8, color: '#fafafa', fontSize: 14, cursor: 'pointer' }}>
                     <option value="all">Alle Zeit</option>
                     <option value="7">7 Tage</option>
                     <option value="30">30 Tage</option>
                     <option value="90">3 Monate</option>
                 </select>
-                <select value={filters.matchType} onChange={(e) => setFilters({ ...filters, matchType: e.target.value })} style={{ padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 14, cursor: 'pointer' }}>
+                <select value={filters.matchType} onChange={(e) => setFilters({ ...filters, matchType: e.target.value })} style={{ padding: '10px 14px', background: '#18181b', border: '1px solid #27272a', borderRadius: 8, color: '#fafafa', fontSize: 14, cursor: 'pointer' }}>
                     <option value="">Alle Typen</option>
                     <option value="Local">Local</option>
                     <option value="Online">Online</option>
@@ -191,7 +191,7 @@
             };
 
             if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner size={40} /></div>;
-            if (!stats) return <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>Keine Daten für diese Filter</div>;
+            if (!stats) return <div style={{ textAlign: 'center', padding: 40, color: '#a1a1aa' }}>Keine Daten für diese Filter</div>;
 
             return (<div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
@@ -201,32 +201,32 @@
                     <StatCard label="Matches" value={stats.totalMatches} sub={stats.totalDarts + ' Darts'} />
                 </div>
                 <div>
-                    <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12 }}>Scoring</h3>
+                    <h3 style={{ fontSize: 16, fontWeight: 600, color: '#a1a1aa', marginBottom: 12 }}>Scoring</h3>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                        {[['180s', stats.count180, 'var(--gold)'], ['140+', stats.count140, 'var(--purple)'], ['100+', stats.count100, 'var(--blue)'], ['60+', stats.count60, 'var(--accent)']].map(([label, value, color]) => (
-                            <div key={label} style={{ padding: 16, background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', textAlign: 'center' }}>
-                                <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)', color }}>{value}</div>
-                                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: 4 }}>{label}</div>
+                        {[['180s', stats.count180, '#eab308'], ['140+', stats.count140, '#a855f7'], ['100+', stats.count100, '#3b82f6'], ['60+', stats.count60, '#22c55e']].map(([label, value, color]) => (
+                            <div key={label} style={{ padding: 16, background: '#18181b', borderRadius: 8, border: '1px solid #27272a', textAlign: 'center' }}>
+                                <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", color }}>{value}</div>
+                                <div style={{ fontSize: 11, color: '#71717a', textTransform: 'uppercase', marginTop: 4 }}>{label}</div>
                             </div>
                         ))}
                     </div>
                 </div>
                 <div>
-                    <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12 }}>Highscores</h3>
+                    <h3 style={{ fontSize: 16, fontWeight: 600, color: '#a1a1aa', marginBottom: 12 }}>Highscores</h3>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                        <div style={{ padding: 16, background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', textAlign: 'center' }}>
-                            <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--accent)' }}>{stats.bestMatchAvg ? stats.bestMatchAvg.toFixed(2) : '--'}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: 4 }}>Bester Match Avg</div>
+                        <div style={{ padding: 16, background: '#18181b', borderRadius: 8, border: '1px solid #27272a', textAlign: 'center' }}>
+                            <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", color: '#22c55e' }}>{stats.bestMatchAvg ? stats.bestMatchAvg.toFixed(2) : '--'}</div>
+                            <div style={{ fontSize: 11, color: '#71717a', textTransform: 'uppercase', marginTop: 4 }}>Bester Match Avg</div>
                         </div>
-                        <div style={{ padding: 16, background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', textAlign: 'center' }}>
-                            <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--gold)' }}>{stats.bestCheckout || '--'}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: 4 }}>Best Checkout</div>
+                        <div style={{ padding: 16, background: '#18181b', borderRadius: 8, border: '1px solid #27272a', textAlign: 'center' }}>
+                            <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", color: '#eab308' }}>{stats.bestCheckout || '--'}</div>
+                            <div style={{ fontSize: 11, color: '#71717a', textTransform: 'uppercase', marginTop: 4 }}>Best Checkout</div>
                         </div>
                     </div>
                 </div>
                 {monthly.length > 1 && (<div>
-                    <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12 }}>Average Trend</h3>
-                    <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: 16 }}>
+                    <h3 style={{ fontSize: 16, fontWeight: 600, color: '#a1a1aa', marginBottom: 12 }}>Average Trend</h3>
+                    <div style={{ background: '#18181b', borderRadius: 12, border: '1px solid #27272a', padding: 16 }}>
                         <ResponsiveContainer width="100%" height={220}>
                             <LineChart data={monthly} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
@@ -279,13 +279,13 @@
                     {matches.map(m => {
                         const gameMode = (m.matches.base_score + ' ' + (m.matches.out_mode || '')).trim();
                         const isWin = m.matches.winner === m.match_players?.player_index;
-                        return (<div key={m.match_id + m.player_id} onClick={() => onSelectMatch(m.match_id)} style={{ display: 'grid', gridTemplateColumns: '70px 80px 1fr 60px 50px 24px', alignItems: 'center', gap: 8, padding: '12px 14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', cursor: 'pointer' }}>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{new Date(m.matches.finished_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{gameMode}</div>
-                            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{m.matches.type}</div>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: isWin ? 'var(--accent)' : 'var(--red)', textAlign: 'right' }}>{isWin ? 'Sieg' : 'Nied.'}</div>
-                            <div style={{ fontSize: 15, fontWeight: 600, fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{parseFloat(m.average).toFixed(2)}</div>
-                            <div style={{ color: 'var(--text-muted)', textAlign: 'right' }}>→</div>
+                        return (<div key={m.match_id + m.player_id} onClick={() => onSelectMatch(m.match_id)} style={{ display: 'grid', gridTemplateColumns: '70px 80px 1fr 60px 50px 24px', alignItems: 'center', gap: 8, padding: '12px 14px', background: '#18181b', borderRadius: 8, border: '1px solid #27272a', cursor: 'pointer' }}>
+                            <div style={{ fontSize: 12, color: '#71717a', fontFamily: "'JetBrains Mono', monospace" }}>{new Date(m.matches.finished_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</div>
+                            <div style={{ fontSize: 11, color: '#a1a1aa' }}>{gameMode}</div>
+                            <div style={{ fontSize: 13, color: '#71717a' }}>{m.matches.type}</div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: isWin ? '#22c55e' : '#ef4444', textAlign: 'right' }}>{isWin ? 'Sieg' : 'Nied.'}</div>
+                            <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace", textAlign: 'right' }}>{parseFloat(m.average).toFixed(2)}</div>
+                            <div style={{ color: '#71717a', textAlign: 'right' }}>→</div>
                         </div>);
                     })}
                 </div>
@@ -347,32 +347,32 @@
                 const oppBetter = higherBetter ? oppVal > myVal : oppVal < myVal;
                 const fmt = (v) => { if (v === null || v === undefined || v === '-') return '-'; if (format === 'pct') return (parseFloat(v) * 100).toFixed(2) + '%'; if (format === 'dec') return parseFloat(v).toFixed(2); return v; };
                 return (<React.Fragment>
-                    <div style={{ textAlign: 'right', fontSize: 15, fontWeight: 600, fontFamily: 'var(--font-mono)', color: myBetter ? 'var(--accent)' : 'var(--text-primary)' }}>{fmt(my)}</div>
-                    <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', padding: '0 8px' }}>{label}</div>
-                    <div style={{ fontSize: 15, fontWeight: 600, fontFamily: 'var(--font-mono)', color: oppBetter ? 'var(--accent)' : 'var(--text-primary)' }}>{fmt(opp)}</div>
+                    <div style={{ textAlign: 'right', fontSize: 15, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace", color: myBetter ? '#22c55e' : '#fafafa' }}>{fmt(my)}</div>
+                    <div style={{ textAlign: 'center', fontSize: 11, color: '#71717a', padding: '0 8px' }}>{label}</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace", color: oppBetter ? '#22c55e' : '#fafafa' }}>{fmt(opp)}</div>
                 </React.Fragment>);
             };
 
             return (<div className="animate-in">
                 <BackButton onClick={onBack} />
-                <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: 20, marginBottom: 20 }}>
+                <div style={{ background: '#18181b', borderRadius: 12, border: '1px solid #27272a', padding: 20, marginBottom: 20 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{new Date(matchInfo.finished_at).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                            <span style={{ fontSize: 12, padding: '2px 8px', background: 'var(--bg-secondary)', borderRadius: 4, color: 'var(--text-secondary)' }}>{gameMode}</span>
-                            {rank && <span style={{ fontSize: 12, padding: '2px 8px', background: 'var(--accent-glow)', borderRadius: 4, color: 'var(--accent)', fontWeight: 600 }}>Rang {rank.position} / {rank.total}</span>}
+                            <span style={{ fontSize: 13, color: '#71717a' }}>{new Date(matchInfo.finished_at).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                            <span style={{ fontSize: 12, padding: '2px 8px', background: '#111113', borderRadius: 4, color: '#a1a1aa' }}>{gameMode}</span>
+                            {rank && <span style={{ fontSize: 12, padding: '2px 8px', background: 'rgba(34, 197, 94, 0.15)', borderRadius: 4, color: '#22c55e', fontWeight: 600 }}>Rang {rank.position} / {rank.total}</span>}
                         </div>
-                        <span style={{ padding: '4px 12px', background: didWin ? 'var(--accent-glow)' : 'rgba(239,68,68,0.15)', color: didWin ? 'var(--accent)' : 'var(--red)', borderRadius: 20, fontSize: 13, fontWeight: 600 }}>{didWin ? 'Sieg' : 'Niederlage'}</span>
+                        <span style={{ padding: '4px 12px', background: didWin ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239,68,68,0.15)', color: didWin ? '#22c55e' : '#ef4444', borderRadius: 20, fontSize: 13, fontWeight: 600 }}>{didWin ? 'Sieg' : 'Niederlage'}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 24, marginBottom: 20 }}>
                         <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 4 }}>{myStats.player_name}</div>
-                            <div style={{ fontSize: 48, fontWeight: 800, fontFamily: 'var(--font-mono)', color: didWin ? 'var(--accent)' : 'var(--text-primary)' }}>{myStats.legs_won}</div>
+                            <div style={{ fontSize: 14, color: '#a1a1aa', marginBottom: 4 }}>{myStats.player_name}</div>
+                            <div style={{ fontSize: 48, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: didWin ? '#22c55e' : '#fafafa' }}>{myStats.legs_won}</div>
                         </div>
-                        <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--text-muted)' }}>:</div>
+                        <div style={{ fontSize: 32, fontWeight: 800, color: '#71717a' }}>:</div>
                         <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 4 }}>{oppStats?.player_name}</div>
-                            <div style={{ fontSize: 48, fontWeight: 800, fontFamily: 'var(--font-mono)', color: !didWin ? 'var(--accent)' : 'var(--text-primary)' }}>{oppStats?.legs_won}</div>
+                            <div style={{ fontSize: 14, color: '#a1a1aa', marginBottom: 4 }}>{oppStats?.player_name}</div>
+                            <div style={{ fontSize: 48, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: !didWin ? '#22c55e' : '#fafafa' }}>{oppStats?.legs_won}</div>
                         </div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 6, fontSize: 14 }}>
@@ -425,16 +425,16 @@
 
             return (<div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
-                    <select value={player1} onChange={(e) => setPlayer1(e.target.value)} style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 16, minWidth: 130 }}>
+                    <select value={player1} onChange={(e) => setPlayer1(e.target.value)} style={{ padding: '12px 16px', background: '#18181b', border: '1px solid #27272a', borderRadius: 8, color: '#fafafa', fontSize: 16, minWidth: 130 }}>
                         {allowedUsers.map(u => <option key={u.autodarts_user_id} value={u.autodarts_user_id}>{u.autodarts_username}</option>)}
                     </select>
-                    <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-muted)' }}>VS</span>
-                    <select value={player2} onChange={(e) => setPlayer2(e.target.value)} style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 16, minWidth: 130 }}>
+                    <span style={{ fontSize: 20, fontWeight: 800, color: '#71717a' }}>VS</span>
+                    <select value={player2} onChange={(e) => setPlayer2(e.target.value)} style={{ padding: '12px 16px', background: '#18181b', border: '1px solid #27272a', borderRadius: 8, color: '#fafafa', fontSize: 16, minWidth: 130 }}>
                         {allowedUsers.map(u => <option key={u.autodarts_user_id} value={u.autodarts_user_id}>{u.autodarts_username}</option>)}
                     </select>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <select value={gameMode} onChange={(e) => setGameMode(e.target.value)} style={{ padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: 14 }}>
+                    <select value={gameMode} onChange={(e) => setGameMode(e.target.value)} style={{ padding: '10px 14px', background: '#18181b', border: '1px solid #27272a', borderRadius: 8, color: '#fafafa', fontSize: 14 }}>
                         <option value="">Alle Modi</option>
                         {gameModes.map(gm => <option key={gm.game_mode} value={gm.game_mode}>{gm.game_mode}</option>)}
                     </select>
@@ -443,26 +443,26 @@
                 {!loading && h2hData && (<>
                     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 24 }}>
                         <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>{name1}</div>
-                            <div style={{ fontSize: 48, fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--accent)' }}>{h2hData.wins1}</div>
+                            <div style={{ fontSize: 14, color: '#a1a1aa' }}>{name1}</div>
+                            <div style={{ fontSize: 48, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: '#22c55e' }}>{h2hData.wins1}</div>
                         </div>
-                        <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--text-muted)' }}>:</div>
+                        <div style={{ fontSize: 36, fontWeight: 800, color: '#71717a' }}>:</div>
                         <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 48, fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--accent)' }}>{h2hData.wins2}</div>
-                            <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>{name2}</div>
+                            <div style={{ fontSize: 48, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: '#22c55e' }}>{h2hData.wins2}</div>
+                            <div style={{ fontSize: 14, color: '#a1a1aa' }}>{name2}</div>
                         </div>
                     </div>
                     <div style={{ maxWidth: 400, margin: '0 auto', width: '100%' }}>
                         {[['Avg', h2hData.avg1.toFixed(2), h2hData.avg2.toFixed(2)], ['Legs', h2hData.legs1, h2hData.legs2], ['Matches', h2hData.matches, h2hData.matches]].map(([label, v1, v2]) => (
-                            <div key={label} style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 16, padding: '12px 0', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
-                                <span style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', textAlign: 'right', color: parseFloat(v1) > parseFloat(v2) ? 'var(--accent)' : 'var(--text-primary)' }}>{v1}</span>
-                                <span style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{label}</span>
-                                <span style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', color: parseFloat(v2) > parseFloat(v1) ? 'var(--accent)' : 'var(--text-primary)' }}>{v2}</span>
+                            <div key={label} style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 16, padding: '12px 0', borderBottom: '1px solid #27272a', alignItems: 'center' }}>
+                                <span style={{ fontSize: 20, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", textAlign: 'right', color: parseFloat(v1) > parseFloat(v2) ? '#22c55e' : '#fafafa' }}>{v1}</span>
+                                <span style={{ fontSize: 12, color: '#71717a', textTransform: 'uppercase' }}>{label}</span>
+                                <span style={{ fontSize: 20, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", color: parseFloat(v2) > parseFloat(v1) ? '#22c55e' : '#fafafa' }}>{v2}</span>
                             </div>
                         ))}
                     </div>
                 </>)}
-                {!loading && !h2hData && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>Keine gemeinsamen Matches</div>}
+                {!loading && !h2hData && <div style={{ textAlign: 'center', padding: 40, color: '#a1a1aa' }}>Keine gemeinsamen Matches</div>}
             </div>);
         }
 
