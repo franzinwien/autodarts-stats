@@ -212,7 +212,7 @@
                         dateFilter = d.toISOString();
                     }
 
-                    let query = supabase.from('player_match_stats').select('*').eq('user_id', userId);
+                    let query = supabase.from('player_stats_cache').select('*').eq('user_id', userId);
                     if (filters.gameMode) query = query.eq('game_mode', filters.gameMode);
                     if (dateFilter) query = query.gte('finished_at', dateFilter);
                     if (filters.matchType) query = query.eq('match_type', filters.matchType);
@@ -335,7 +335,7 @@
 
             const loadMatches = async () => {
                 setLoading(true);
-                let query = supabase.from('player_match_stats').select('*').eq('user_id', userId).order('finished_at', { ascending: false });
+                let query = supabase.from('player_stats_cache').select('*').eq('user_id', userId).order('finished_at', { ascending: false });
                 if (filters.gameMode) query = query.eq('game_mode', filters.gameMode);
                 if (filters.timeRange !== 'all') {
                     const d = new Date(); d.setDate(d.getDate() - parseInt(filters.timeRange));
@@ -387,7 +387,7 @@
             const loadMatchData = async () => {
                 setLoading(true);
                 try {
-                    const { data: matchData } = await supabase.from('match_overview').select('*').eq('match_id', matchId).single();
+                    const { data: matchData } = await supabase.from('match_overview_mv').select('*').eq('match_id', matchId).single();
                     setMatch(matchData);
                     const { data: legsData } = await supabase.from('leg_overview').select('*').eq('match_id', matchId).order('set_number').order('leg_number');
                     setLegs(legsData || []);
