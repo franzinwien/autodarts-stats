@@ -103,9 +103,20 @@
             </nav>);
         }
 
+        // Filter bar now passes the full game mode object
         function FilterBar({ filters, setFilters, gameModes }) {
+            const handleGameModeChange = (e) => {
+                const val = e.target.value;
+                if (!val) {
+                    setFilters({ ...filters, gameMode: null });
+                } else {
+                    const gm = gameModes.find(g => g.game_mode === val);
+                    setFilters({ ...filters, gameMode: gm || null });
+                }
+            };
+
             return (<div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
-                <select value={filters.gameMode} onChange={(e) => setFilters({ ...filters, gameMode: e.target.value })} style={{ padding: '10px 14px', background: '#18181b', border: '1px solid #27272a', borderRadius: 8, color: '#fafafa', fontSize: 14, cursor: 'pointer', minWidth: 130 }}>
+                <select value={filters.gameMode?.game_mode || ''} onChange={handleGameModeChange} style={{ padding: '10px 14px', background: '#18181b', border: '1px solid #27272a', borderRadius: 8, color: '#fafafa', fontSize: 14, cursor: 'pointer', minWidth: 130 }}>
                     <option value="">Alle Modi</option>
                     {gameModes.map(gm => (<option key={gm.game_mode} value={gm.game_mode}>{gm.game_mode} ({gm.match_count})</option>))}
                 </select>
@@ -133,7 +144,6 @@
             const loadStats = async () => {
                 setLoading(true);
                 try {
-                    // Use the view - simple query!
                     let query = supabase.from('match_stats_view').select('*').eq('user_id', userId);
                     
                     if (filters.timeRange !== 'all') {
@@ -148,14 +158,17 @@
 
                     let filteredStats = matchStats || [];
                     
-                    // Game mode filter (client-side)
-                    if (filters.gameMode && filteredStats.length > 0) {
-                        const parts = filters.gameMode.split(' ');
-                        const baseScore = parseInt(parts[0]);
-                        const outMode = parts.slice(1).join(' ') || '';
+                    // Game mode filter using the full game mode object
+                    if (filters.gameMode) {
+                        const gm = filters.gameMode;
                         filteredStats = filteredStats.filter(m => {
-                            const matchesBase = m.base_score === baseScore;
-                            const matchesOut = !outMode || m.out_mode === outMode;
+                            // For Cricket and other non-X01 games
+                            if (gm.base_score === null) {
+                                return m.base_score === null;
+                            }
+                            // For X01 games
+                            const matchesBase = m.base_score === gm.base_score;
+                            const matchesOut = m.out_mode === gm.out_mode;
                             return matchesBase && matchesOut;
                         });
                     }
@@ -268,12 +281,16 @@
                 if (error) { console.error(error); setMatches([]); setLoading(false); return; }
 
                 let filteredData = data || [];
-                if (filters.gameMode && filteredData.length > 0) {
-                    const parts = filters.gameMode.split(' ');
-                    const baseScore = parseInt(parts[0]);
-                    const outMode = parts.slice(1).join(' ') || '';
-                    filteredData = filteredData.filter(m => m.base_score === baseScore && (!outMode || m.out_mode === outMode));
+                
+                // Game mode filter using the full game mode object
+                if (filters.gameMode) {
+                    const gm = filters.gameMode;
+                    filteredData = filteredData.filter(m => {
+                        if (gm.base_score === null) return m.base_score === null;
+                        return m.base_score === gm.base_score && m.out_mode === gm.out_mode;
+                    });
                 }
+                
                 setMatches(filteredData);
                 setLoading(false);
             };
@@ -284,7 +301,7 @@
                 <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 16 }}>{matches.length} Matches</h2>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {matches.map(m => {
-                        const gameMode = (m.base_score + ' ' + (m.out_mode || '')).trim();
+                        const gameMode = m.base_score ? (m.base_score + ' ' + (m.out_mode || '')).trim() : 'Cricket';
                         const isWin = m.match_winner === m.player_index;
                         return (<div key={m.id} onClick={() => onSelectMatch(m.match_id)} style={{ display: 'grid', gridTemplateColumns: '70px 80px 1fr 60px 50px 24px', alignItems: 'center', gap: 8, padding: '12px 14px', background: '#18181b', borderRadius: 8, border: '1px solid #27272a', cursor: 'pointer' }}>
                             <div style={{ fontSize: 12, color: '#71717a', fontFamily: "'JetBrains Mono', monospace" }}>{new Date(m.finished_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</div>
@@ -329,10 +346,11 @@
                                 filtered = filtered.filter(m => new Date(m.finished_at) >= d);
                             }
                             if (filters?.gameMode) { 
-                                const parts = filters.gameMode.split(' '); 
-                                const baseScore = parseInt(parts[0]); 
-                                const outMode = parts.slice(1).join(' ') || ''; 
-                                filtered = filtered.filter(m => m.base_score === baseScore && (!outMode || m.out_mode === outMode)); 
+                                const gm = filters.gameMode;
+                                filtered = filtered.filter(m => {
+                                    if (gm.base_score === null) return m.base_score === null;
+                                    return m.base_score === gm.base_score && m.out_mode === gm.out_mode;
+                                });
                             }
                             filtered.sort((a, b) => (parseFloat(b.average) || 0) - (parseFloat(a.average) || 0));
                             const idx = filtered.findIndex(m => m.match_id === matchId);
@@ -347,7 +365,7 @@
             if (!myStats) return <div><BackButton onClick={onBack} /><p>Match nicht gefunden oder keine Stats verfügbar</p></div>;
 
             const didWin = myStats.match_winner === myStats.player_index;
-            const gameMode = (myStats.base_score + ' ' + (myStats.out_mode || '')).trim();
+            const gameMode = myStats.base_score ? (myStats.base_score + ' ' + (myStats.out_mode || '')).trim() : 'Cricket';
 
             const StatRow = ({ label, my, opp, format = 'number', higherBetter = true }) => {
                 const myVal = parseFloat(my) || 0, oppVal = parseFloat(opp) || 0;
@@ -401,7 +419,7 @@
         function H2HPage({ allowedUsers, gameModes }) {
             const [player1, setPlayer1] = useState(allowedUsers[0]?.autodarts_user_id || '');
             const [player2, setPlayer2] = useState(allowedUsers[1]?.autodarts_user_id || '');
-            const [gameMode, setGameMode] = useState('');
+            const [gameMode, setGameMode] = useState(null);
             const [h2hData, setH2hData] = useState(null);
             const [loading, setLoading] = useState(false);
 
@@ -410,7 +428,7 @@
             const loadH2H = async () => {
                 setLoading(true);
                 let query = supabase.from('h2h_matches').select('*').or('and(player1_id.eq.' + player1 + ',player2_id.eq.' + player2 + '),and(player1_id.eq.' + player2 + ',player2_id.eq.' + player1 + ')').order('finished_at', { ascending: false });
-                if (gameMode) query = query.eq('game_mode', gameMode);
+                if (gameMode) query = query.eq('game_mode', gameMode.game_mode);
                 const { data } = await query;
 
                 if (data && data.length > 0) {
@@ -431,6 +449,12 @@
             const name1 = allowedUsers.find(u => u.autodarts_user_id === player1)?.autodarts_username || 'Player 1';
             const name2 = allowedUsers.find(u => u.autodarts_user_id === player2)?.autodarts_username || 'Player 2';
 
+            const handleGameModeChange = (e) => {
+                const val = e.target.value;
+                if (!val) setGameMode(null);
+                else setGameMode(gameModes.find(g => g.game_mode === val) || null);
+            };
+
             return (<div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
                     <select value={player1} onChange={(e) => setPlayer1(e.target.value)} style={{ padding: '12px 16px', background: '#18181b', border: '1px solid #27272a', borderRadius: 8, color: '#fafafa', fontSize: 16, minWidth: 130 }}>
@@ -442,7 +466,7 @@
                     </select>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <select value={gameMode} onChange={(e) => setGameMode(e.target.value)} style={{ padding: '10px 14px', background: '#18181b', border: '1px solid #27272a', borderRadius: 8, color: '#fafafa', fontSize: 14 }}>
+                    <select value={gameMode?.game_mode || ''} onChange={handleGameModeChange} style={{ padding: '10px 14px', background: '#18181b', border: '1px solid #27272a', borderRadius: 8, color: '#fafafa', fontSize: 14 }}>
                         <option value="">Alle Modi</option>
                         {gameModes.map(gm => <option key={gm.game_mode} value={gm.game_mode}>{gm.game_mode}</option>)}
                     </select>
@@ -480,7 +504,7 @@
             const [gameModes, setGameModes] = useState([]);
             const [loading, setLoading] = useState(true);
             const [page, setPage] = useState('dashboard');
-            const [filters, setFilters] = useState({ gameMode: '', timeRange: 'all', matchType: '' });
+            const [filters, setFilters] = useState({ gameMode: null, timeRange: 'all', matchType: '' });
             const [selectedMatch, setSelectedMatch] = useState(null);
 
             useEffect(() => {
