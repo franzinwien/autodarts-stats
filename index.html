@@ -2,310 +2,1611 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Autodarts Stats</title>
-
+    <meta name="description" content="Personal Darts Statistics Dashboard">
+    <meta name="theme-color" content="#0a0a0b">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+    
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
-    <!-- Supabase JS -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- React & Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/recharts@2.10.3/umd/Recharts.min.js"></script>
+    
+    <style>
+        :root {
+            --bg-primary: #0a0a0b;
+            --bg-secondary: #111113;
+            --bg-card: #18181b;
+            --bg-card-hover: #1f1f23;
+            --border: #27272a;
+            --border-light: #3f3f46;
+            --text-primary: #fafafa;
+            --text-secondary: #a1a1aa;
+            --text-muted: #71717a;
+            --accent: #22c55e;
+            --accent-dim: #16a34a;
+            --accent-glow: rgba(34, 197, 94, 0.15);
+            --red: #ef4444;
+            --red-dim: #dc2626;
+            --gold: #eab308;
+            --blue: #3b82f6;
+            --purple: #a855f7;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+            --font-display: 'Outfit', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
 
-    <link rel="stylesheet" href="styles.css?v=6">
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            font-size: 16px;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: var(--font-display);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            min-height: 100dvh;
+            line-height: 1.5;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--border-light);
+        }
+
+        /* Loading Animation */
+        @keyframes pulse {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes slideUp {
+            from { 
+                opacity: 0; 
+                transform: translateY(10px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0); 
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .animate-in {
+            animation: slideUp 0.4s ease-out forwards;
+        }
+
+        /* Root container */
+        #root {
+            min-height: 100vh;
+            min-height: 100dvh;
+        }
+    </style>
 </head>
 <body>
-    <!-- Login Screen -->
-    <div id="login-screen" class="screen">
-        <div class="login-container">
-            <div class="login-logo">
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <circle cx="12" cy="12" r="10"/>
-                    <circle cx="12" cy="12" r="6"/>
-                    <circle cx="12" cy="12" r="2"/>
+    <div id="root"></div>
+    
+    <script type="text/babel" data-type="module">
+        const { useState, useEffect, useMemo, useCallback, createContext, useContext } = React;
+        const { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } = Recharts;
+
+        // ============================================
+        // CONFIGURATION
+        // ============================================
+        const CONFIG = {
+            SUPABASE_URL: 'https://znjiemoatvezhquukbvd.supabase.co',
+            SUPABASE_KEY: 'sb_publishable_o0cAwiHv7KsuKAYgSDCePw_jpmDOX-S',
+        };
+
+        const supabase = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+
+        // ============================================
+        // CONTEXT
+        // ============================================
+        const AppContext = createContext(null);
+
+        // ============================================
+        // HOOKS
+        // ============================================
+        function useAuth() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [allowedUsers, setAllowedUsers] = useState([]);
+
+            useEffect(() => {
+                const checkSession = async () => {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session) {
+                        const { data: allowed } = await supabase.from('allowed_users').select('*');
+                        setAllowedUsers(allowed || []);
+                        
+                        const userMatch = allowed?.find(u => 
+                            u.email.toLowerCase() === session.user.email.toLowerCase()
+                        );
+                        
+                        if (userMatch) {
+                            setUser({
+                                ...session.user,
+                                autodarts_user_id: userMatch.autodarts_user_id,
+                                autodarts_username: userMatch.autodarts_username
+                            });
+                        }
+                    }
+                    setLoading(false);
+                };
+
+                checkSession();
+
+                const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+                    if (event === 'SIGNED_IN' && session) {
+                        const { data: allowed } = await supabase.from('allowed_users').select('*');
+                        setAllowedUsers(allowed || []);
+                        
+                        const userMatch = allowed?.find(u => 
+                            u.email.toLowerCase() === session.user.email.toLowerCase()
+                        );
+                        
+                        if (userMatch) {
+                            setUser({
+                                ...session.user,
+                                autodarts_user_id: userMatch.autodarts_user_id,
+                                autodarts_username: userMatch.autodarts_username
+                            });
+                        }
+                    } else if (event === 'SIGNED_OUT') {
+                        setUser(null);
+                    }
+                });
+
+                return () => subscription.unsubscribe();
+            }, []);
+
+            const signIn = async (email) => {
+                const { error } = await supabase.auth.signInWithOtp({
+                    email,
+                    options: { emailRedirectTo: window.location.origin + window.location.pathname }
+                });
+                return { error };
+            };
+
+            const signOut = async () => {
+                await supabase.auth.signOut();
+                setUser(null);
+            };
+
+            return { user, loading, allowedUsers, signIn, signOut };
+        }
+
+        function useData(userId, filters) {
+            const [data, setData] = useState({
+                matches: [],
+                matchPlayers: [],
+                legs: [],
+                turns: [],
+                loading: true
+            });
+
+            useEffect(() => {
+                if (!userId) return;
+
+                const loadData = async () => {
+                    setData(prev => ({ ...prev, loading: true }));
+
+                    try {
+                        // Load all relevant data
+                        const [matchesRes, matchPlayersRes, legsRes, turnsRes] = await Promise.all([
+                            supabase.from('matches').select('*').order('finished_at', { ascending: false }),
+                            supabase.from('match_players').select('*'),
+                            supabase.from('legs').select('*'),
+                            supabase.from('turns').select('*')
+                        ]);
+
+                        setData({
+                            matches: matchesRes.data || [],
+                            matchPlayers: matchPlayersRes.data || [],
+                            legs: legsRes.data || [],
+                            turns: turnsRes.data || [],
+                            loading: false
+                        });
+                    } catch (error) {
+                        console.error('Error loading data:', error);
+                        setData(prev => ({ ...prev, loading: false }));
+                    }
+                };
+
+                loadData();
+            }, [userId]);
+
+            // Filter and compute stats
+            const stats = useMemo(() => {
+                if (data.loading || !userId) return null;
+
+                // Get player's match_player entries
+                let playerMatches = data.matchPlayers.filter(mp => mp.user_id === userId);
+                
+                // Join with match data
+                let enriched = playerMatches.map(mp => {
+                    const match = data.matches.find(m => m.id === mp.match_id);
+                    return { ...mp, match };
+                }).filter(d => d.match && d.match.variant === 'X01');
+
+                // Apply time filter
+                if (filters.timeRange !== 'all') {
+                    const days = parseInt(filters.timeRange);
+                    const cutoff = new Date();
+                    cutoff.setDate(cutoff.getDate() - days);
+                    enriched = enriched.filter(d => new Date(d.match.finished_at) >= cutoff);
+                }
+
+                // Apply type filter
+                if (filters.matchType) {
+                    enriched = enriched.filter(d => d.match.type === filters.matchType);
+                }
+
+                // Apply opponent filter
+                if (filters.opponent) {
+                    enriched = enriched.filter(d => {
+                        const opponents = data.matchPlayers.filter(
+                            mp => mp.match_id === d.match_id && mp.user_id !== userId
+                        );
+                        if (filters.opponent.startsWith('bot:')) {
+                            const botName = filters.opponent.replace('bot:', '');
+                            return opponents.some(o => o.is_bot && o.name === botName);
+                        }
+                        return opponents.some(o => o.user_id === filters.opponent);
+                    });
+                }
+
+                // Sort by date
+                enriched.sort((a, b) => new Date(b.match.finished_at) - new Date(a.match.finished_at));
+
+                // Get turns for these matches
+                const matchPlayerIds = new Set(enriched.map(d => d.id));
+                const playerTurns = data.turns.filter(t => matchPlayerIds.has(t.match_player_id));
+
+                // Calculate stats
+                const validTurns = playerTurns.filter(t => t.points != null);
+                const totalPoints = validTurns.reduce((sum, t) => sum + t.points, 0);
+                const average = validTurns.length > 0 ? totalPoints / validTurns.length : 0;
+
+                const first9Turns = validTurns.filter(t => t.round <= 3);
+                const first9Avg = first9Turns.length > 0 
+                    ? first9Turns.reduce((sum, t) => sum + t.points, 0) / first9Turns.length 
+                    : 0;
+
+                const wins = enriched.filter(d => d.match.winner === d.player_index).length;
+                const winRate = enriched.length > 0 ? (wins / enriched.length) * 100 : 0;
+
+                const count180 = validTurns.filter(t => t.points === 180).length;
+                const count140 = validTurns.filter(t => t.points >= 140 && t.points < 180).length;
+                const count100 = validTurns.filter(t => t.points >= 100 && t.points < 140).length;
+
+                // Checkout rate from match_players data
+                const totalCheckoutAttempts = enriched.reduce((sum, d) => {
+                    const rate = d.checkout_rate || 0;
+                    return sum + (rate > 0 ? 1 : 0);
+                }, 0);
+                const avgCheckoutRate = enriched.length > 0
+                    ? enriched.reduce((sum, d) => sum + (d.checkout_rate || 0), 0) / enriched.length
+                    : 0;
+
+                // Best leg average
+                const legTurns = {};
+                validTurns.forEach(t => {
+                    if (!legTurns[t.leg_id]) legTurns[t.leg_id] = [];
+                    legTurns[t.leg_id].push(t.points);
+                });
+
+                let bestLegAvg = 0;
+                let bestMatchAvg = 0;
+
+                Object.values(legTurns).forEach(turns => {
+                    if (turns.length >= 3) {
+                        const avg = turns.reduce((a, b) => a + b, 0) / turns.length;
+                        if (avg > bestLegAvg) bestLegAvg = avg;
+                    }
+                });
+
+                enriched.forEach(d => {
+                    const mTurns = validTurns.filter(t => t.match_player_id === d.id);
+                    if (mTurns.length > 0) {
+                        const avg = mTurns.reduce((sum, t) => sum + t.points, 0) / mTurns.length;
+                        if (avg > bestMatchAvg) bestMatchAvg = avg;
+                    }
+                });
+
+                // Trend data (last 30 matches for chart)
+                const trendData = enriched.slice(0, 30).reverse().map((d, i) => {
+                    const mTurns = validTurns.filter(t => t.match_player_id === d.id);
+                    const avg = mTurns.length > 0 
+                        ? mTurns.reduce((sum, t) => sum + t.points, 0) / mTurns.length 
+                        : 0;
+                    return {
+                        name: `M${i + 1}`,
+                        avg: Math.round(avg * 10) / 10,
+                        date: new Date(d.match.finished_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
+                    };
+                });
+
+                return {
+                    matches: enriched,
+                    totalMatches: enriched.length,
+                    wins,
+                    losses: enriched.length - wins,
+                    winRate,
+                    average,
+                    first9Avg,
+                    checkoutRate: avgCheckoutRate,
+                    count180,
+                    count140,
+                    count100,
+                    bestLegAvg,
+                    bestMatchAvg,
+                    trendData,
+                    turns: validTurns
+                };
+            }, [data, userId, filters]);
+
+            return { ...data, stats };
+        }
+
+        // ============================================
+        // COMPONENTS
+        // ============================================
+        
+        // Loading Spinner
+        function Spinner({ size = 24 }) {
+            return (
+                <svg 
+                    width={size} 
+                    height={size} 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    style={{ animation: 'spin 1s linear infinite' }}
+                >
+                    <circle cx="12" cy="12" r="10" stroke="var(--border)" strokeWidth="3" />
+                    <path 
+                        d="M12 2a10 10 0 0 1 10 10" 
+                        stroke="var(--accent)" 
+                        strokeWidth="3" 
+                        strokeLinecap="round"
+                    />
                 </svg>
-            </div>
-            <h1>Autodarts Stats</h1>
-            <p class="login-subtitle">Deine persoenliche Dart-Statistik</p>
+            );
+        }
 
-            <div class="login-form">
-                <input type="email" id="email-input" placeholder="Email Adresse" autocomplete="email">
-                <button id="send-magic-link" class="btn btn-primary">
-                    Magic Link senden
-                </button>
-                <div id="login-message" class="login-message"></div>
-            </div>
-        </div>
-    </div>
+        // Icon Components
+        function Icon({ name, size = 20 }) {
+            const icons = {
+                target: <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8zm0-14a6 6 0 1 0 6 6 6 6 0 0 0-6-6zm0 10a4 4 0 1 1 4-4 4 4 0 0 1-4 4zm0-6a2 2 0 1 0 2 2 2 2 0 0 0-2-2z"/>,
+                trophy: <path d="M12 8.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM6 4h12v2a6 6 0 0 1-12 0V4zm0-2a2 2 0 0 0-2 2v2a8 8 0 0 0 5.5 7.6V16H8v2h8v-2h-1.5v-2.4A8 8 0 0 0 20 6V4a2 2 0 0 0-2-2H6z"/>,
+                chart: <path d="M3 3v18h18M9 17V9m4 8v-5m4 5V6"/>,
+                users: <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m18 0v-2a4 4 0 0 0-3-3.87M13 3.13a4 4 0 0 1 0 7.75M9 7a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/>,
+                home: <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>,
+                logout: <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5m5 5H9"/>,
+                filter: <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>,
+                calendar: <path d="M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>,
+                chevronDown: <path d="m6 9 6 6 6-6"/>,
+                x: <path d="M18 6 6 18M6 6l12 12"/>,
+                menu: <path d="M3 12h18M3 6h18M3 18h18"/>,
+            };
 
-    <!-- Dashboard Screen -->
-    <div id="dashboard-screen" class="screen hidden">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-left">
-                <svg class="header-logo" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <circle cx="12" cy="12" r="6"/>
-                    <circle cx="12" cy="12" r="2"/>
+            return (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    {icons[name]}
                 </svg>
-                <span class="header-title">Autodarts Stats</span>
-            </div>
-            <div class="header-right">
-                <span id="user-name" class="user-name"></span>
-                <button id="logout-btn" class="btn btn-ghost">Logout</button>
-            </div>
-        </header>
+            );
+        }
 
-        <!-- Filters -->
-        <div class="filters-bar">
-            <div class="filter-group">
-                <label>Spieler</label>
-                <select id="filter-player">
-                    <!-- Dynamisch befuellt -->
-                </select>
-            </div>
-            <div class="filter-group">
-                <label>Zeitraum</label>
-                <select id="filter-time">
-                    <option value="all">Alle Zeit</option>
-                    <option value="7">7 Tage</option>
-                    <option value="30" selected>30 Tage</option>
-                    <option value="90">3 Monate</option>
-                    <option value="365">1 Jahr</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <label>Match-Typ</label>
-                <select id="filter-type">
-                    <option value="">Alle</option>
-                    <option value="Online">Online</option>
-                    <option value="Local">Local</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <label>Gegner</label>
-                <select id="filter-opponent">
-                    <option value="">Alle Gegner</option>
-                    <!-- Dynamisch befuellt -->
-                </select>
-            </div>
-            <button id="apply-filters" class="btn btn-primary">Anwenden</button>
-        </div>
+        // Login Screen
+        function LoginScreen({ onLogin }) {
+            const [email, setEmail] = useState('');
+            const [status, setStatus] = useState({ type: '', message: '' });
+            const [loading, setLoading] = useState(false);
 
-        <!-- Navigation -->
-        <nav class="nav-tabs">
-            <button class="nav-tab active" data-page="overview">Dashboard</button>
-            <button class="nav-tab" data-page="matches">Matches</button>
-            <button class="nav-tab" data-page="h2h">Head-to-Head</button>
-        </nav>
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if (!email.trim()) {
+                    setStatus({ type: 'error', message: 'Bitte Email eingeben' });
+                    return;
+                }
 
-        <!-- Main Content -->
-        <main class="main-content">
+                setLoading(true);
+                const { error } = await onLogin(email);
+                setLoading(false);
 
-            <!-- Overview Page -->
-            <div id="page-overview" class="page active">
-                <!-- Stats Cards -->
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-label">3-Dart Average</div>
-                        <div class="stat-value" id="stat-average">--</div>
-                        <div class="stat-trend" id="stat-average-trend"></div>
-                    </div>
-                    <div class="stat-card highlight">
-                        <div class="stat-label">First 9 Average</div>
-                        <div class="stat-value" id="stat-first9">--</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Checkout Rate</div>
-                        <div class="stat-value" id="stat-checkout">--</div>
-                    </div>
-                    <div class="stat-card gold">
-                        <div class="stat-label">180s</div>
-                        <div class="stat-value" id="stat-180s">--</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Win Rate</div>
-                        <div class="stat-value" id="stat-winrate">--</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Matches</div>
-                        <div class="stat-value" id="stat-matches">--</div>
+                if (error) {
+                    setStatus({ type: 'error', message: error.message });
+                } else {
+                    setStatus({ type: 'success', message: 'Magic Link gesendet! Check deine Emails.' });
+                }
+            };
+
+            return (
+                <div style={styles.loginContainer}>
+                    <div style={styles.loginCard}>
+                        <div style={styles.loginLogo}>🎯</div>
+                        <h1 style={styles.loginTitle}>Autodarts Stats</h1>
+                        <p style={styles.loginSubtitle}>Deine persönliche Dart-Statistik</p>
+                        
+                        <form onSubmit={handleSubmit} style={styles.loginForm}>
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="Email Adresse"
+                                style={styles.input}
+                                autoComplete="email"
+                            />
+                            <button type="submit" style={styles.buttonPrimary} disabled={loading}>
+                                {loading ? <Spinner size={20} /> : 'Magic Link senden'}
+                            </button>
+                        </form>
+
+                        {status.message && (
+                            <div style={{
+                                ...styles.statusMessage,
+                                background: status.type === 'error' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)',
+                                color: status.type === 'error' ? 'var(--red)' : 'var(--accent)'
+                            }}>
+                                {status.message}
+                            </div>
+                        )}
                     </div>
                 </div>
+            );
+        }
 
-                <!-- Highscores -->
-                <div class="highscores-section">
-                    <h3>Highscores</h3>
-                    <div class="highscores-grid">
-                        <div class="highscore-card">
-                            <div class="highscore-label">Bestes Leg</div>
-                            <div class="highscore-value" id="hs-best-leg">--</div>
+        // Stat Card Component
+        function StatCard({ label, value, subValue, highlight, icon }) {
+            return (
+                <div style={{
+                    ...styles.statCard,
+                    ...(highlight ? styles.statCardHighlight : {})
+                }}>
+                    <div style={styles.statLabel}>{label}</div>
+                    <div style={styles.statValue}>{value}</div>
+                    {subValue && <div style={styles.statSub}>{subValue}</div>}
+                </div>
+            );
+        }
+
+        // Filter Bar
+        function FilterBar({ filters, setFilters, opponents }) {
+            const [isOpen, setIsOpen] = useState(false);
+
+            return (
+                <div style={styles.filterBar}>
+                    <button 
+                        style={styles.filterToggle}
+                        onClick={() => setIsOpen(!isOpen)}
+                    >
+                        <Icon name="filter" size={18} />
+                        <span>Filter</span>
+                        <Icon name="chevronDown" size={16} />
+                    </button>
+
+                    {isOpen && (
+                        <div style={styles.filterPanel}>
+                            <div style={styles.filterGroup}>
+                                <label style={styles.filterLabel}>Zeitraum</label>
+                                <select 
+                                    value={filters.timeRange}
+                                    onChange={(e) => setFilters({ ...filters, timeRange: e.target.value })}
+                                    style={styles.select}
+                                >
+                                    <option value="all">Alle Zeit</option>
+                                    <option value="7">7 Tage</option>
+                                    <option value="30">30 Tage</option>
+                                    <option value="90">3 Monate</option>
+                                    <option value="365">1 Jahr</option>
+                                </select>
+                            </div>
+
+                            <div style={styles.filterGroup}>
+                                <label style={styles.filterLabel}>Match-Typ</label>
+                                <select 
+                                    value={filters.matchType}
+                                    onChange={(e) => setFilters({ ...filters, matchType: e.target.value })}
+                                    style={styles.select}
+                                >
+                                    <option value="">Alle</option>
+                                    <option value="Local">Local</option>
+                                    <option value="Online">Online</option>
+                                    <option value="Tournament">Tournament</option>
+                                </select>
+                            </div>
+
+                            <div style={styles.filterGroup}>
+                                <label style={styles.filterLabel}>Gegner</label>
+                                <select 
+                                    value={filters.opponent}
+                                    onChange={(e) => setFilters({ ...filters, opponent: e.target.value })}
+                                    style={styles.select}
+                                >
+                                    <option value="">Alle Gegner</option>
+                                    {opponents.map(o => (
+                                        <option key={o.id} value={o.id}>{o.name}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
-                        <div class="highscore-card">
-                            <div class="highscore-label">Bestes Match</div>
-                            <div class="highscore-value" id="hs-best-match">--</div>
+                    )}
+                </div>
+            );
+        }
+
+        // Navigation
+        function Navigation({ currentPage, setPage, onLogout, username }) {
+            const [menuOpen, setMenuOpen] = useState(false);
+
+            const navItems = [
+                { id: 'dashboard', label: 'Dashboard', icon: 'home' },
+                { id: 'matches', label: 'Matches', icon: 'chart' },
+                { id: 'h2h', label: 'Head-to-Head', icon: 'users' },
+            ];
+
+            return (
+                <nav style={styles.nav}>
+                    <div style={styles.navBrand}>
+                        <span style={styles.navLogo}>🎯</span>
+                        <span style={styles.navTitle}>Autodarts</span>
+                    </div>
+
+                    {/* Desktop Nav */}
+                    <div style={styles.navLinks}>
+                        {navItems.map(item => (
+                            <button
+                                key={item.id}
+                                onClick={() => setPage(item.id)}
+                                style={{
+                                    ...styles.navLink,
+                                    ...(currentPage === item.id ? styles.navLinkActive : {})
+                                }}
+                            >
+                                <Icon name={item.icon} size={18} />
+                                <span>{item.label}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    <div style={styles.navRight}>
+                        <span style={styles.navUser}>{username}</span>
+                        <button onClick={onLogout} style={styles.navLogout}>
+                            <Icon name="logout" size={18} />
+                        </button>
+                    </div>
+
+                    {/* Mobile Menu Button */}
+                    <button 
+                        style={styles.mobileMenuBtn}
+                        onClick={() => setMenuOpen(!menuOpen)}
+                    >
+                        <Icon name={menuOpen ? 'x' : 'menu'} size={24} />
+                    </button>
+
+                    {/* Mobile Menu */}
+                    {menuOpen && (
+                        <div style={styles.mobileMenu}>
+                            {navItems.map(item => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => { setPage(item.id); setMenuOpen(false); }}
+                                    style={{
+                                        ...styles.mobileNavLink,
+                                        ...(currentPage === item.id ? styles.mobileNavLinkActive : {})
+                                    }}
+                                >
+                                    <Icon name={item.icon} size={20} />
+                                    <span>{item.label}</span>
+                                </button>
+                            ))}
+                            <button onClick={onLogout} style={styles.mobileNavLink}>
+                                <Icon name="logout" size={20} />
+                                <span>Logout</span>
+                            </button>
                         </div>
-                        <div class="highscore-card">
-                            <div class="highscore-label">Hoechster Checkout</div>
-                            <div class="highscore-value" id="hs-highest-checkout">--</div>
+                    )}
+                </nav>
+            );
+        }
+
+        // Dashboard Page
+        function DashboardPage({ stats, filters, setFilters, opponents }) {
+            if (!stats) {
+                return (
+                    <div style={styles.loadingContainer}>
+                        <Spinner size={40} />
+                        <p style={{ color: 'var(--text-secondary)', marginTop: 16 }}>Lade Statistiken...</p>
+                    </div>
+                );
+            }
+
+            return (
+                <div style={styles.page} className="animate-in">
+                    <FilterBar filters={filters} setFilters={setFilters} opponents={opponents} />
+
+                    {/* Main Stats */}
+                    <div style={styles.statsGrid}>
+                        <StatCard 
+                            label="3-Dart Average" 
+                            value={stats.average.toFixed(1)}
+                            highlight
+                        />
+                        <StatCard 
+                            label="First 9 Avg" 
+                            value={stats.first9Avg.toFixed(1)}
+                        />
+                        <StatCard 
+                            label="Checkout %" 
+                            value={stats.checkoutRate.toFixed(1) + '%'}
+                        />
+                        <StatCard 
+                            label="Win Rate" 
+                            value={stats.winRate.toFixed(0) + '%'}
+                            subValue={`${stats.wins}W - ${stats.losses}L`}
+                        />
+                    </div>
+
+                    {/* Scoring Stats */}
+                    <div style={styles.section}>
+                        <h3 style={styles.sectionTitle}>Scoring</h3>
+                        <div style={styles.scoringGrid}>
+                            <div style={styles.scoringCard}>
+                                <div style={styles.scoringValue}>{stats.count180}</div>
+                                <div style={styles.scoringLabel}>180s</div>
+                            </div>
+                            <div style={styles.scoringCard}>
+                                <div style={styles.scoringValue}>{stats.count140}</div>
+                                <div style={styles.scoringLabel}>140+</div>
+                            </div>
+                            <div style={styles.scoringCard}>
+                                <div style={styles.scoringValue}>{stats.count100}</div>
+                                <div style={styles.scoringLabel}>100+</div>
+                            </div>
+                            <div style={styles.scoringCard}>
+                                <div style={styles.scoringValue}>{stats.totalMatches}</div>
+                                <div style={styles.scoringLabel}>Matches</div>
+                            </div>
                         </div>
-                        <div class="highscore-card">
-                            <div class="highscore-label">Wenigste Darts</div>
-                            <div class="highscore-value" id="hs-min-darts">--</div>
+                    </div>
+
+                    {/* Highscores */}
+                    <div style={styles.section}>
+                        <h3 style={styles.sectionTitle}>Highscores</h3>
+                        <div style={styles.highscoreGrid}>
+                            <div style={styles.highscoreCard}>
+                                <div style={styles.highscoreLabel}>Bestes Leg</div>
+                                <div style={styles.highscoreValue}>{stats.bestLegAvg.toFixed(1)}</div>
+                            </div>
+                            <div style={styles.highscoreCard}>
+                                <div style={styles.highscoreLabel}>Bestes Match</div>
+                                <div style={styles.highscoreValue}>{stats.bestMatchAvg.toFixed(1)}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Trend Chart */}
+                    {stats.trendData.length > 0 && (
+                        <div style={styles.section}>
+                            <h3 style={styles.sectionTitle}>Average Trend</h3>
+                            <div style={styles.chartCard}>
+                                <ResponsiveContainer width="100%" height={250}>
+                                    <LineChart data={stats.trendData}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                                        <XAxis 
+                                            dataKey="date" 
+                                            stroke="var(--text-muted)" 
+                                            fontSize={12}
+                                            tickLine={false}
+                                        />
+                                        <YAxis 
+                                            stroke="var(--text-muted)" 
+                                            fontSize={12}
+                                            tickLine={false}
+                                            domain={['dataMin - 5', 'dataMax + 5']}
+                                        />
+                                        <Tooltip 
+                                            contentStyle={{
+                                                background: 'var(--bg-card)',
+                                                border: '1px solid var(--border)',
+                                                borderRadius: 8
+                                            }}
+                                        />
+                                        <Line 
+                                            type="monotone" 
+                                            dataKey="avg" 
+                                            stroke="var(--accent)" 
+                                            strokeWidth={2}
+                                            dot={{ fill: 'var(--accent)', strokeWidth: 0, r: 4 }}
+                                            activeDot={{ r: 6 }}
+                                        />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Recent Matches */}
+                    <div style={styles.section}>
+                        <h3 style={styles.sectionTitle}>Letzte Matches</h3>
+                        <div style={styles.matchList}>
+                            {stats.matches.slice(0, 5).map((m, i) => (
+                                <MatchCard key={m.id} match={m} turns={stats.turns} />
+                            ))}
                         </div>
                     </div>
                 </div>
+            );
+        }
 
-                <!-- Charts -->
-                <div class="charts-section">
-                    <div class="chart-card wide">
-                        <h3>Average Trend</h3>
-                        <div class="chart-container">
-                            <canvas id="chart-trend"></canvas>
-                        </div>
+        // Match Card Component
+        function MatchCard({ match, turns }) {
+            const matchTurns = turns.filter(t => t.match_player_id === match.id);
+            const avg = matchTurns.length > 0 
+                ? (matchTurns.reduce((s, t) => s + t.points, 0) / matchTurns.length).toFixed(1)
+                : '--';
+            const isWin = match.match.winner === match.player_index;
+            const date = new Date(match.match.finished_at).toLocaleDateString('de-DE', {
+                day: '2-digit',
+                month: '2-digit'
+            });
+
+            return (
+                <div style={styles.matchCard}>
+                    <div style={styles.matchDate}>{date}</div>
+                    <div style={styles.matchInfo}>
+                        <div style={styles.matchType}>{match.match.type}</div>
                     </div>
-                    <div class="chart-card">
-                        <h3>Match Ergebnisse</h3>
-                        <div class="chart-container">
-                            <canvas id="chart-results"></canvas>
-                        </div>
+                    <div style={{
+                        ...styles.matchResult,
+                        color: isWin ? 'var(--accent)' : 'var(--red)'
+                    }}>
+                        {isWin ? 'Sieg' : 'Niederlage'}
                     </div>
-                    <div class="chart-card">
-                        <h3>Scoring Verteilung</h3>
-                        <div class="chart-container">
-                            <canvas id="chart-scoring"></canvas>
-                        </div>
-                    </div>
+                    <div style={styles.matchAvg}>{avg}</div>
                 </div>
+            );
+        }
 
-                <!-- Recent Matches Preview -->
-                <div class="recent-section">
-                    <div class="section-header">
-                        <h3>Letzte Matches</h3>
-                        <button class="btn btn-ghost btn-sm" onclick="app.showPage('matches')">Alle anzeigen</button>
-                    </div>
-                    <div class="matches-list" id="recent-matches">
-                        <!-- Dynamisch befuellt -->
-                    </div>
-                </div>
-            </div>
+        // Matches Page
+        function MatchesPage({ stats }) {
+            const [sortBy, setSortBy] = useState('date');
 
-            <!-- Matches Page -->
-            <div id="page-matches" class="page">
-                <div class="matches-header">
-                    <h2>Alle Matches</h2>
-                    <div class="matches-sort">
-                        <label>Sortierung:</label>
-                        <select id="matches-sort">
-                            <option value="date-desc">Neueste zuerst</option>
-                            <option value="date-asc">Aelteste zuerst</option>
-                            <option value="avg-desc">Hoechster Avg</option>
-                            <option value="avg-asc">Niedrigster Avg</option>
+            if (!stats) return <div style={styles.loadingContainer}><Spinner size={40} /></div>;
+
+            const sortedMatches = [...stats.matches].sort((a, b) => {
+                if (sortBy === 'date') {
+                    return new Date(b.match.finished_at) - new Date(a.match.finished_at);
+                }
+                // Sort by average
+                const aAvg = stats.turns.filter(t => t.match_player_id === a.id)
+                    .reduce((s, t, _, arr) => s + t.points / arr.length, 0);
+                const bAvg = stats.turns.filter(t => t.match_player_id === b.id)
+                    .reduce((s, t, _, arr) => s + t.points / arr.length, 0);
+                return bAvg - aAvg;
+            });
+
+            return (
+                <div style={styles.page} className="animate-in">
+                    <div style={styles.pageHeader}>
+                        <h2 style={styles.pageTitle}>Alle Matches</h2>
+                        <select 
+                            value={sortBy} 
+                            onChange={(e) => setSortBy(e.target.value)}
+                            style={styles.select}
+                        >
+                            <option value="date">Neueste zuerst</option>
+                            <option value="avg">Höchster Avg</option>
                         </select>
                     </div>
-                </div>
-                <div class="matches-table-container">
-                    <table class="matches-table" id="matches-table">
-                        <thead>
-                            <tr>
-                                <th>Datum</th>
-                                <th>Gegner</th>
-                                <th>Ergebnis</th>
-                                <th>Average</th>
-                                <th>First 9</th>
-                                <th>Checkout</th>
-                                <th>180s</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-                <div class="pagination" id="matches-pagination"></div>
-            </div>
 
-            <!-- Head-to-Head Page -->
-            <div id="page-h2h" class="page">
-                <div class="h2h-selector">
-                    <select id="h2h-player1">
-                        <!-- Dynamisch befuellt -->
-                    </select>
-                    <span class="h2h-vs">VS</span>
-                    <select id="h2h-player2">
-                        <!-- Dynamisch befuellt -->
-                    </select>
-                </div>
-
-                <div class="h2h-score-display">
-                    <div class="h2h-player">
-                        <div class="h2h-player-name" id="h2h-name1">Spieler 1</div>
-                        <div class="h2h-player-wins" id="h2h-wins1">0</div>
-                    </div>
-                    <div class="h2h-divider">:</div>
-                    <div class="h2h-player">
-                        <div class="h2h-player-wins" id="h2h-wins2">0</div>
-                        <div class="h2h-player-name" id="h2h-name2">Spieler 2</div>
+                    <div style={styles.matchList}>
+                        {sortedMatches.map(m => (
+                            <MatchCard key={m.id} match={m} turns={stats.turns} />
+                        ))}
                     </div>
                 </div>
+            );
+        }
 
-                <div class="h2h-stats-comparison">
-                    <div class="h2h-stat-row">
-                        <div class="h2h-stat-value left" id="h2h-avg1">--</div>
-                        <div class="h2h-stat-label">Avg</div>
-                        <div class="h2h-stat-value right" id="h2h-avg2">--</div>
+        // Head-to-Head Page
+        function H2HPage({ allowedUsers, data }) {
+            const [player1, setPlayer1] = useState(allowedUsers[0]?.autodarts_user_id || '');
+            const [player2, setPlayer2] = useState(allowedUsers[1]?.autodarts_user_id || '');
+
+            const h2hStats = useMemo(() => {
+                if (!player1 || !player2 || !data.matches.length) return null;
+
+                // Find matches where both players participated
+                const h2hMatches = [];
+                data.matches.forEach(match => {
+                    const players = data.matchPlayers.filter(mp => mp.match_id === match.id);
+                    const p1 = players.find(p => p.user_id === player1);
+                    const p2 = players.find(p => p.user_id === player2);
+                    if (p1 && p2) {
+                        h2hMatches.push({ match, p1, p2 });
+                    }
+                });
+
+                if (h2hMatches.length === 0) return { matches: [], wins1: 0, wins2: 0 };
+
+                let wins1 = 0, wins2 = 0;
+                let totalAvg1 = 0, totalAvg2 = 0;
+                let legs1 = 0, legs2 = 0;
+
+                h2hMatches.forEach(h => {
+                    if (h.match.winner === h.p1.player_index) wins1++;
+                    else if (h.match.winner === h.p2.player_index) wins2++;
+
+                    legs1 += h.p1.legs_won || 0;
+                    legs2 += h.p2.legs_won || 0;
+
+                    const turns1 = data.turns.filter(t => t.match_player_id === h.p1.id && t.points != null);
+                    const turns2 = data.turns.filter(t => t.match_player_id === h.p2.id && t.points != null);
+
+                    if (turns1.length > 0) {
+                        totalAvg1 += turns1.reduce((s, t) => s + t.points, 0) / turns1.length;
+                    }
+                    if (turns2.length > 0) {
+                        totalAvg2 += turns2.reduce((s, t) => s + t.points, 0) / turns2.length;
+                    }
+                });
+
+                return {
+                    matches: h2hMatches,
+                    wins1,
+                    wins2,
+                    avg1: h2hMatches.length > 0 ? totalAvg1 / h2hMatches.length : 0,
+                    avg2: h2hMatches.length > 0 ? totalAvg2 / h2hMatches.length : 0,
+                    legs1,
+                    legs2
+                };
+            }, [player1, player2, data]);
+
+            const name1 = allowedUsers.find(u => u.autodarts_user_id === player1)?.autodarts_username || 'Player 1';
+            const name2 = allowedUsers.find(u => u.autodarts_user_id === player2)?.autodarts_username || 'Player 2';
+
+            return (
+                <div style={styles.page} className="animate-in">
+                    <div style={styles.h2hSelector}>
+                        <select 
+                            value={player1} 
+                            onChange={(e) => setPlayer1(e.target.value)}
+                            style={styles.h2hSelect}
+                        >
+                            {allowedUsers.map(u => (
+                                <option key={u.autodarts_user_id} value={u.autodarts_user_id}>
+                                    {u.autodarts_username}
+                                </option>
+                            ))}
+                        </select>
+                        <span style={styles.h2hVs}>VS</span>
+                        <select 
+                            value={player2} 
+                            onChange={(e) => setPlayer2(e.target.value)}
+                            style={styles.h2hSelect}
+                        >
+                            {allowedUsers.map(u => (
+                                <option key={u.autodarts_user_id} value={u.autodarts_user_id}>
+                                    {u.autodarts_username}
+                                </option>
+                            ))}
+                        </select>
                     </div>
-                    <div class="h2h-stat-row">
-                        <div class="h2h-stat-value left" id="h2h-first9-1">--</div>
-                        <div class="h2h-stat-label">First 9</div>
-                        <div class="h2h-stat-value right" id="h2h-first9-2">--</div>
-                    </div>
-                    <div class="h2h-stat-row">
-                        <div class="h2h-stat-value left" id="h2h-checkout1">--</div>
-                        <div class="h2h-stat-label">Checkout %</div>
-                        <div class="h2h-stat-value right" id="h2h-checkout2">--</div>
-                    </div>
-                    <div class="h2h-stat-row">
-                        <div class="h2h-stat-value left" id="h2h-180s1">--</div>
-                        <div class="h2h-stat-label">180s</div>
-                        <div class="h2h-stat-value right" id="h2h-180s2">--</div>
-                    </div>
-                    <div class="h2h-stat-row">
-                        <div class="h2h-stat-value left" id="h2h-legs1">--</div>
-                        <div class="h2h-stat-label">Legs</div>
-                        <div class="h2h-stat-value right" id="h2h-legs2">--</div>
-                    </div>
+
+                    {h2hStats && (
+                        <>
+                            <div style={styles.h2hScore}>
+                                <div style={styles.h2hPlayer}>
+                                    <div style={styles.h2hName}>{name1}</div>
+                                    <div style={styles.h2hWins}>{h2hStats.wins1}</div>
+                                </div>
+                                <div style={styles.h2hDivider}>:</div>
+                                <div style={styles.h2hPlayer}>
+                                    <div style={styles.h2hWins}>{h2hStats.wins2}</div>
+                                    <div style={styles.h2hName}>{name2}</div>
+                                </div>
+                            </div>
+
+                            <div style={styles.h2hStats}>
+                                <div style={styles.h2hStatRow}>
+                                    <span style={{
+                                        ...styles.h2hStatValue,
+                                        color: h2hStats.avg1 > h2hStats.avg2 ? 'var(--accent)' : 'var(--text-primary)'
+                                    }}>{h2hStats.avg1.toFixed(1)}</span>
+                                    <span style={styles.h2hStatLabel}>Avg</span>
+                                    <span style={{
+                                        ...styles.h2hStatValue,
+                                        color: h2hStats.avg2 > h2hStats.avg1 ? 'var(--accent)' : 'var(--text-primary)'
+                                    }}>{h2hStats.avg2.toFixed(1)}</span>
+                                </div>
+                                <div style={styles.h2hStatRow}>
+                                    <span style={{
+                                        ...styles.h2hStatValue,
+                                        color: h2hStats.legs1 > h2hStats.legs2 ? 'var(--accent)' : 'var(--text-primary)'
+                                    }}>{h2hStats.legs1}</span>
+                                    <span style={styles.h2hStatLabel}>Legs</span>
+                                    <span style={{
+                                        ...styles.h2hStatValue,
+                                        color: h2hStats.legs2 > h2hStats.legs1 ? 'var(--accent)' : 'var(--text-primary)'
+                                    }}>{h2hStats.legs2}</span>
+                                </div>
+                            </div>
+
+                            <div style={styles.section}>
+                                <h3 style={styles.sectionTitle}>Match Historie ({h2hStats.matches.length} Spiele)</h3>
+                                <div style={styles.matchList}>
+                                    {h2hStats.matches.slice(0, 10).map((h, i) => {
+                                        const isP1Win = h.match.winner === h.p1.player_index;
+                                        const date = new Date(h.match.finished_at).toLocaleDateString('de-DE');
+                                        return (
+                                            <div key={h.match.id} style={styles.matchCard}>
+                                                <div style={styles.matchDate}>{date}</div>
+                                                <div style={styles.matchInfo}>
+                                                    <span style={{ color: isP1Win ? 'var(--accent)' : 'var(--text-secondary)' }}>{name1}</span>
+                                                    <span style={{ color: 'var(--text-muted)', margin: '0 8px' }}>vs</span>
+                                                    <span style={{ color: !isP1Win ? 'var(--accent)' : 'var(--text-secondary)' }}>{name2}</span>
+                                                </div>
+                                                <div style={{ ...styles.matchResult, color: isP1Win ? 'var(--accent)' : 'var(--red)' }}>
+                                                    {isP1Win ? name1 : name2}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
+            );
+        }
 
-                <div class="h2h-chart-section">
-                    <div class="chart-card wide">
-                        <h3>Average Vergleich pro Match</h3>
-                        <div class="chart-container">
-                            <canvas id="chart-h2h"></canvas>
-                        </div>
+        // Main App
+        function App() {
+            const { user, loading: authLoading, allowedUsers, signIn, signOut } = useAuth();
+            const [currentPage, setCurrentPage] = useState('dashboard');
+            const [filters, setFilters] = useState({
+                timeRange: '30',
+                matchType: '',
+                opponent: ''
+            });
+
+            const { stats, loading: dataLoading, matchPlayers, matches, turns, legs } = useData(
+                user?.autodarts_user_id,
+                filters
+            );
+
+            // Get unique opponents for filter
+            const opponents = useMemo(() => {
+                if (!user || !matchPlayers.length) return [];
+                
+                const opponentMap = new Map();
+                matchPlayers.forEach(mp => {
+                    if (mp.user_id && mp.user_id !== user.autodarts_user_id) {
+                        if (!opponentMap.has(mp.user_id)) {
+                            opponentMap.set(mp.user_id, mp.name);
+                        }
+                    }
+                    if (mp.is_bot && mp.name) {
+                        const key = 'bot:' + mp.name;
+                        if (!opponentMap.has(key)) {
+                            opponentMap.set(key, mp.name + ' (Bot)');
+                        }
+                    }
+                });
+
+                return Array.from(opponentMap.entries()).map(([id, name]) => ({ id, name }));
+            }, [user, matchPlayers]);
+
+            if (authLoading) {
+                return (
+                    <div style={styles.loadingContainer}>
+                        <Spinner size={48} />
                     </div>
+                );
+            }
+
+            if (!user) {
+                return <LoginScreen onLogin={signIn} />;
+            }
+
+            return (
+                <div style={styles.appContainer}>
+                    <Navigation 
+                        currentPage={currentPage}
+                        setPage={setCurrentPage}
+                        onLogout={signOut}
+                        username={user.autodarts_username}
+                    />
+
+                    <main style={styles.main}>
+                        {currentPage === 'dashboard' && (
+                            <DashboardPage 
+                                stats={stats}
+                                filters={filters}
+                                setFilters={setFilters}
+                                opponents={opponents}
+                            />
+                        )}
+                        {currentPage === 'matches' && (
+                            <MatchesPage stats={stats} />
+                        )}
+                        {currentPage === 'h2h' && (
+                            <H2HPage 
+                                allowedUsers={allowedUsers}
+                                data={{ matches, matchPlayers, turns, legs }}
+                            />
+                        )}
+                    </main>
                 </div>
+            );
+        }
 
-                <div class="h2h-matches-section">
-                    <h3>Match Historie</h3>
-                    <div class="matches-list" id="h2h-matches">
-                        <!-- Dynamisch befuellt -->
-                    </div>
-                </div>
-            </div>
+        // ============================================
+        // STYLES
+        // ============================================
+        const styles = {
+            // Layout
+            appContainer: {
+                minHeight: '100vh',
+                display: 'flex',
+                flexDirection: 'column',
+            },
+            main: {
+                flex: 1,
+                padding: '16px',
+                maxWidth: '1200px',
+                margin: '0 auto',
+                width: '100%',
+            },
+            page: {
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '24px',
+            },
+            loadingContainer: {
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '60vh',
+            },
 
-        </main>
-    </div>
+            // Navigation
+            nav: {
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 16px',
+                background: 'var(--bg-secondary)',
+                borderBottom: '1px solid var(--border)',
+                position: 'sticky',
+                top: 0,
+                zIndex: 100,
+            },
+            navBrand: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+            },
+            navLogo: {
+                fontSize: '24px',
+            },
+            navTitle: {
+                fontSize: '18px',
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+            },
+            navLinks: {
+                display: 'flex',
+                gap: '4px',
+                '@media (max-width: 768px)': {
+                    display: 'none',
+                },
+            },
+            navLink: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                background: 'transparent',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--text-secondary)',
+                fontSize: '14px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+            },
+            navLinkActive: {
+                background: 'var(--accent-glow)',
+                color: 'var(--accent)',
+            },
+            navRight: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+            },
+            navUser: {
+                fontSize: '14px',
+                color: 'var(--text-secondary)',
+                display: 'none',
+            },
+            navLogout: {
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '36px',
+                height: '36px',
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+            },
+            mobileMenuBtn: {
+                display: 'none',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '40px',
+                height: '40px',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+            },
+            mobileMenu: {
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                background: 'var(--bg-secondary)',
+                borderBottom: '1px solid var(--border)',
+                padding: '8px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+            },
+            mobileNavLink: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px 16px',
+                background: 'transparent',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--text-secondary)',
+                fontSize: '16px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                textAlign: 'left',
+            },
+            mobileNavLinkActive: {
+                background: 'var(--accent-glow)',
+                color: 'var(--accent)',
+            },
 
-    <!-- Loading Overlay -->
-    <div id="loading-overlay" class="loading-overlay hidden">
-        <div class="spinner"></div>
-        <p>Lade Daten...</p>
-    </div>
+            // Login
+            loginContainer: {
+                minHeight: '100vh',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '20px',
+                background: 'linear-gradient(135deg, var(--bg-primary) 0%, #111118 100%)',
+            },
+            loginCard: {
+                width: '100%',
+                maxWidth: '380px',
+                padding: '40px 32px',
+                background: 'var(--bg-card)',
+                borderRadius: 'var(--radius)',
+                border: '1px solid var(--border)',
+                textAlign: 'center',
+            },
+            loginLogo: {
+                fontSize: '56px',
+                marginBottom: '16px',
+            },
+            loginTitle: {
+                fontSize: '28px',
+                fontWeight: 700,
+                marginBottom: '8px',
+            },
+            loginSubtitle: {
+                color: 'var(--text-secondary)',
+                marginBottom: '32px',
+            },
+            loginForm: {
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+            },
+            input: {
+                width: '100%',
+                padding: '14px 16px',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--text-primary)',
+                fontSize: '16px',
+                outline: 'none',
+                fontFamily: 'var(--font-display)',
+            },
+            buttonPrimary: {
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '14px 24px',
+                background: 'var(--accent)',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                color: '#000',
+                fontSize: '15px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'var(--font-display)',
+            },
+            statusMessage: {
+                marginTop: '16px',
+                padding: '12px',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '14px',
+            },
 
-    <script src="config.js?v=6"></script>
-    <script src="app.js?v=6"></script>
+            // Filter Bar
+            filterBar: {
+                marginBottom: '8px',
+            },
+            filterToggle: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 16px',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--text-secondary)',
+                fontSize: '14px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                fontFamily: 'var(--font-display)',
+            },
+            filterPanel: {
+                marginTop: '12px',
+                padding: '16px',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px',
+            },
+            filterGroup: {
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+            },
+            filterLabel: {
+                fontSize: '12px',
+                fontWeight: 500,
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+            },
+            select: {
+                padding: '10px 14px',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--text-primary)',
+                fontSize: '14px',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-display)',
+                outline: 'none',
+            },
+
+            // Stats
+            statsGrid: {
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '12px',
+            },
+            statCard: {
+                padding: '20px 16px',
+                background: 'var(--bg-card)',
+                borderRadius: 'var(--radius)',
+                border: '1px solid var(--border)',
+            },
+            statCardHighlight: {
+                background: 'linear-gradient(135deg, var(--accent-glow) 0%, var(--bg-card) 100%)',
+                borderColor: 'var(--accent-dim)',
+            },
+            statLabel: {
+                fontSize: '12px',
+                fontWeight: 500,
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '8px',
+            },
+            statValue: {
+                fontSize: '28px',
+                fontWeight: 700,
+                fontFamily: 'var(--font-mono)',
+                color: 'var(--text-primary)',
+            },
+            statSub: {
+                fontSize: '13px',
+                color: 'var(--text-secondary)',
+                marginTop: '4px',
+            },
+
+            // Sections
+            section: {
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+            },
+            sectionTitle: {
+                fontSize: '16px',
+                fontWeight: 600,
+                color: 'var(--text-secondary)',
+            },
+
+            // Scoring Grid
+            scoringGrid: {
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '8px',
+            },
+            scoringCard: {
+                padding: '16px 8px',
+                background: 'var(--bg-card)',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border)',
+                textAlign: 'center',
+            },
+            scoringValue: {
+                fontSize: '24px',
+                fontWeight: 700,
+                fontFamily: 'var(--font-mono)',
+                color: 'var(--gold)',
+            },
+            scoringLabel: {
+                fontSize: '11px',
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                marginTop: '4px',
+            },
+
+            // Highscores
+            highscoreGrid: {
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '12px',
+            },
+            highscoreCard: {
+                padding: '16px',
+                background: 'var(--bg-card)',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border)',
+                textAlign: 'center',
+            },
+            highscoreLabel: {
+                fontSize: '12px',
+                color: 'var(--text-muted)',
+                marginBottom: '8px',
+            },
+            highscoreValue: {
+                fontSize: '28px',
+                fontWeight: 700,
+                fontFamily: 'var(--font-mono)',
+                color: 'var(--purple)',
+            },
+
+            // Chart
+            chartCard: {
+                padding: '16px',
+                background: 'var(--bg-card)',
+                borderRadius: 'var(--radius)',
+                border: '1px solid var(--border)',
+            },
+
+            // Matches
+            pageHeader: {
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '16px',
+                flexWrap: 'wrap',
+            },
+            pageTitle: {
+                fontSize: '24px',
+                fontWeight: 700,
+            },
+            matchList: {
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+            },
+            matchCard: {
+                display: 'grid',
+                gridTemplateColumns: '60px 1fr 80px 50px',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '14px 16px',
+                background: 'var(--bg-card)',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border)',
+            },
+            matchDate: {
+                fontSize: '13px',
+                color: 'var(--text-muted)',
+                fontFamily: 'var(--font-mono)',
+            },
+            matchInfo: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                overflow: 'hidden',
+            },
+            matchType: {
+                fontSize: '14px',
+                fontWeight: 500,
+            },
+            matchResult: {
+                fontSize: '13px',
+                fontWeight: 600,
+                textAlign: 'right',
+            },
+            matchAvg: {
+                fontSize: '16px',
+                fontWeight: 600,
+                fontFamily: 'var(--font-mono)',
+                textAlign: 'right',
+            },
+
+            // H2H
+            h2hSelector: {
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '16px',
+                flexWrap: 'wrap',
+            },
+            h2hSelect: {
+                padding: '12px 16px',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--text-primary)',
+                fontSize: '16px',
+                fontWeight: 500,
+                fontFamily: 'var(--font-display)',
+                cursor: 'pointer',
+                minWidth: '140px',
+            },
+            h2hVs: {
+                fontSize: '20px',
+                fontWeight: 800,
+                color: 'var(--text-muted)',
+            },
+            h2hScore: {
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '24px',
+                padding: '24px 0',
+            },
+            h2hPlayer: {
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '4px',
+            },
+            h2hName: {
+                fontSize: '14px',
+                color: 'var(--text-secondary)',
+            },
+            h2hWins: {
+                fontSize: '48px',
+                fontWeight: 800,
+                fontFamily: 'var(--font-mono)',
+                color: 'var(--accent)',
+            },
+            h2hDivider: {
+                fontSize: '36px',
+                fontWeight: 800,
+                color: 'var(--text-muted)',
+            },
+            h2hStats: {
+                maxWidth: '400px',
+                margin: '0 auto',
+                padding: '0 16px',
+            },
+            h2hStatRow: {
+                display: 'grid',
+                gridTemplateColumns: '1fr auto 1fr',
+                gap: '16px',
+                padding: '12px 0',
+                borderBottom: '1px solid var(--border)',
+                alignItems: 'center',
+            },
+            h2hStatValue: {
+                fontSize: '20px',
+                fontWeight: 700,
+                fontFamily: 'var(--font-mono)',
+            },
+            h2hStatLabel: {
+                fontSize: '12px',
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                textAlign: 'center',
+            },
+        };
+
+        // Add responsive styles via CSS
+        const responsiveStyles = document.createElement('style');
+        responsiveStyles.textContent = `
+            @media (min-width: 768px) {
+                .nav-links { display: flex !important; }
+                .mobile-menu-btn { display: none !important; }
+                .nav-user { display: block !important; }
+                .stats-grid { grid-template-columns: repeat(4, 1fr) !important; }
+                .main { padding: 24px !important; }
+            }
+            @media (max-width: 767px) {
+                nav > div:nth-child(2) { display: none; }
+                nav button:last-child { display: flex !important; }
+            }
+        `;
+        document.head.appendChild(responsiveStyles);
+
+        // Render
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
 </body>
 </html>
