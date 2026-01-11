@@ -234,19 +234,39 @@
                     setData(prev => ({ ...prev, loading: true }));
 
                     try {
-                        // Load all relevant data
-                        const [matchesRes, matchPlayersRes, legsRes, turnsRes] = await Promise.all([
-                            supabase.from('matches').select('*').order('finished_at', { ascending: false }),
-                            supabase.from('match_players').select('*'),
-                            supabase.from('legs').select('*'),
-                            supabase.from('turns').select('*')
+                        // Step 1: Load matches and match_players
+                        const [matchesRes, matchPlayersRes] = await Promise.all([
+                            supabase.from('matches').select('*').eq('variant', 'X01').order('finished_at', { ascending: false }),
+                            supabase.from('match_players').select('*')
                         ]);
 
+                        const matches = matchesRes.data || [];
+                        const matchPlayers = matchPlayersRes.data || [];
+
+                        // Step 2: Get match_player IDs for the current user
+                        const userMatchPlayerIds = matchPlayers
+                            .filter(mp => mp.user_id === userId)
+                            .map(mp => mp.id);
+
+                        // Step 3: Load turns only for this user's match_players
+                        let allTurns = [];
+                        // Load in batches of 100 IDs to avoid query limits
+                        for (let i = 0; i < userMatchPlayerIds.length; i += 100) {
+                            const batch = userMatchPlayerIds.slice(i, i + 100);
+                            const turnsRes = await supabase
+                                .from('turns')
+                                .select('*')
+                                .in('match_player_id', batch);
+                            if (turnsRes.data) {
+                                allTurns = allTurns.concat(turnsRes.data);
+                            }
+                        }
+
                         setData({
-                            matches: matchesRes.data || [],
-                            matchPlayers: matchPlayersRes.data || [],
-                            legs: legsRes.data || [],
-                            turns: turnsRes.data || [],
+                            matches,
+                            matchPlayers,
+                            legs: [],
+                            turns: allTurns,
                             loading: false
                         });
                     } catch (error) {
